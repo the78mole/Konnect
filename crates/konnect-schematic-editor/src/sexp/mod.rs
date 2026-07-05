@@ -34,7 +34,11 @@ impl SexpNode {
     /// Children after the tag.
     pub fn args(&self) -> &[SexpNode] {
         let c = self.children();
-        if c.is_empty() { &[] } else { &c[1..] }
+        if c.is_empty() {
+            &[]
+        } else {
+            &c[1..]
+        }
     }
 
     pub fn find(&self, tag: &str) -> Option<&SexpNode> {
@@ -50,7 +54,10 @@ impl SexpNode {
     }
 
     pub fn find_all(&self, tag: &str) -> Vec<&SexpNode> {
-        self.args().iter().filter(|c| c.tag() == Some(tag)).collect()
+        self.args()
+            .iter()
+            .filter(|c| c.tag() == Some(tag))
+            .collect()
     }
 
     // ---- value accessors ----------------------------------------------------

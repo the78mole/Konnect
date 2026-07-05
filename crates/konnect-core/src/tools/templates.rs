@@ -185,9 +185,13 @@ async fn load_all_templates() -> Vec<serde_json::Value> {
                                 debug!(path = %path.display(), "Loaded user template");
                                 templates.push(tmpl);
                             }
-                            Err(e) => warn!(path = %path.display(), error = %e, "Failed to parse user template"),
+                            Err(e) => {
+                                warn!(path = %path.display(), error = %e, "Failed to parse user template")
+                            }
                         },
-                        Err(e) => warn!(path = %path.display(), error = %e, "Failed to read user template"),
+                        Err(e) => {
+                            warn!(path = %path.display(), error = %e, "Failed to read user template")
+                        }
                     }
                 }
             }
@@ -292,7 +296,8 @@ async fn handle_search_templates(
         let name = tmpl["name"].as_str().unwrap_or("");
         let desc = tmpl["description"].as_str().unwrap_or("");
         let category = tmpl["category"].as_str().unwrap_or("");
-        let tags: Vec<&str> = tmpl["tags"].as_array()
+        let tags: Vec<&str> = tmpl["tags"]
+            .as_array()
             .map(|a| a.iter().filter_map(|v| v.as_str()).collect())
             .unwrap_or_default();
 
@@ -304,16 +309,14 @@ async fn handle_search_templates(
         }
 
         // Search across name, description, tags, category
-        let haystack = format!(
-            "{} {} {} {} {}",
-            id, name, desc, category,
-            tags.join(" ")
-        ).to_lowercase();
+        let haystack =
+            format!("{} {} {} {} {}", id, name, desc, category, tags.join(" ")).to_lowercase();
 
         let matches = query.split_whitespace().all(|word| haystack.contains(word));
 
         if matches {
-            let component_count: usize = tmpl["components"].as_array().map(|a| a.len()).unwrap_or(0);
+            let component_count: usize =
+                tmpl["components"].as_array().map(|a| a.len()).unwrap_or(0);
             results.push(json!({
                 "id": id,
                 "name": name,
@@ -349,7 +352,9 @@ async fn handle_get_template(
     info!(template_id = %template_id, "Loading template");
 
     let templates = load_all_templates().await;
-    let tmpl = templates.iter().find(|t| t["id"].as_str() == Some(&template_id));
+    let tmpl = templates
+        .iter()
+        .find(|t| t["id"].as_str() == Some(&template_id));
 
     match tmpl {
         Some(t) => Ok(CallToolResult::text(
@@ -394,28 +399,36 @@ async fn handle_apply_template(
     );
 
     let templates = load_all_templates().await;
-    let tmpl = match templates.iter().find(|t| t["id"].as_str() == Some(&template_id)) {
+    let tmpl = match templates
+        .iter()
+        .find(|t| t["id"].as_str() == Some(&template_id))
+    {
         Some(t) => t.clone(),
         None => {
             warn!(template_id = %template_id, "Template not found for apply");
-            return Ok(CallToolResult::error(format!("Template '{}' not found", template_id)));
+            return Ok(CallToolResult::error(format!(
+                "Template '{}' not found",
+                template_id
+            )));
         }
     };
 
     let mut content = std::fs::read_to_string(&sch_path)?;
 
     // Determine starting reference numbers by scanning existing components
-    let ref_start = args["ref_start"].as_u64().map(|n| n as usize).unwrap_or_else(|| {
-        find_next_ref_number(&content)
-    });
+    let ref_start = args["ref_start"]
+        .as_u64()
+        .map(|n| n as usize)
+        .unwrap_or_else(|| find_next_ref_number(&content));
 
     let components = tmpl["components"].as_array().cloned().unwrap_or_default();
     let mut placed = Vec::new();
-    let mut ref_counters: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut ref_counters: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
 
     // Place components in a column layout
     let spacing_y = 15.0; // mm between components
-    for (_i, comp) in components.iter().enumerate() {
+    for comp in components.iter() {
         let ref_prefix = comp["ref_prefix"].as_str().unwrap_or("U");
         let lib_id = comp["lib_id"].as_str().unwrap_or("Device:R");
         let value = comp["value"].as_str().unwrap_or("");
@@ -423,7 +436,9 @@ async fn handle_apply_template(
         let notes = comp["notes"].as_str().unwrap_or("");
 
         for _q in 0..quantity {
-            let counter = ref_counters.entry(ref_prefix.to_string()).or_insert(ref_start);
+            let counter = ref_counters
+                .entry(ref_prefix.to_string())
+                .or_insert(ref_start);
             let reference = format!("{}{}", ref_prefix, counter);
             *counter += 1;
 
@@ -451,12 +466,15 @@ async fn handle_apply_template(
     )
   )"#,
                 lib_id = lib_id,
-                x = x, y = y,
+                x = x,
+                y = y,
                 uuid = uuid,
                 reference = reference,
                 value = value,
-                rx = x + 2.0, ry = y,
-                vx = x, vy = y + 2.54,
+                rx = x + 2.0,
+                ry = y,
+                vx = x,
+                vy = y + 2.54,
             );
 
             // Insert before closing paren
@@ -486,17 +504,20 @@ async fn handle_apply_template(
 
     // Build the net mapping guide for the user/Claude to wire up
     let connections = tmpl["connections"].as_array().cloned().unwrap_or_default();
-    let mapped_connections: Vec<serde_json::Value> = connections.iter().map(|conn| {
-        let mut c = conn.clone();
-        let original_net = c["to_net"].as_str().map(String::from);
-        if let Some(net) = original_net {
-            if let Some(mapped) = net_mappings.get(&net) {
-                c["to_net"] = json!(mapped);
-                c["mapped_from"] = json!(net);
+    let mapped_connections: Vec<serde_json::Value> = connections
+        .iter()
+        .map(|conn| {
+            let mut c = conn.clone();
+            let original_net = c["to_net"].as_str().map(String::from);
+            if let Some(net) = original_net {
+                if let Some(mapped) = net_mappings.get(&net) {
+                    c["to_net"] = json!(mapped);
+                    c["mapped_from"] = json!(net);
+                }
             }
-        }
-        c
-    }).collect();
+            c
+        })
+        .collect();
 
     Ok(CallToolResult::text(
         serde_json::to_string_pretty(&json!({
@@ -518,7 +539,10 @@ async fn handle_list_categories(
     let mut categories: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
 
     for tmpl in &templates {
-        let cat = tmpl["category"].as_str().unwrap_or("uncategorized").to_string();
+        let cat = tmpl["category"]
+            .as_str()
+            .unwrap_or("uncategorized")
+            .to_string();
         *categories.entry(cat).or_insert(0) += 1;
     }
 
@@ -545,9 +569,18 @@ fn find_next_ref_number(content: &str) -> usize {
         if let Some(end) = content[abs..].find('"') {
             let reference = &content[abs..abs + end];
             // Extract the numeric suffix
-            let num_str: String = reference.chars().rev().take_while(|c| c.is_ascii_digit()).collect::<String>().chars().rev().collect();
+            let num_str: String = reference
+                .chars()
+                .rev()
+                .take_while(|c| c.is_ascii_digit())
+                .collect::<String>()
+                .chars()
+                .rev()
+                .collect();
             if let Ok(num) = num_str.parse::<usize>() {
-                if num > max_ref { max_ref = num; }
+                if num > max_ref {
+                    max_ref = num;
+                }
             }
         }
         pos = abs + 1;

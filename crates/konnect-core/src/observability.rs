@@ -178,11 +178,7 @@ impl CallObserver {
         }
     }
 
-    async fn append_jsonl(
-        &self,
-        path: &std::path::Path,
-        rec: &CallRecord,
-    ) -> std::io::Result<()> {
+    async fn append_jsonl(&self, path: &std::path::Path, rec: &CallRecord) -> std::io::Result<()> {
         let line = serde_json::to_string(rec)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         let mut guard = self.inner.log_handle.lock().await;
@@ -200,7 +196,11 @@ impl CallObserver {
     /// the ring's current capacity (up to `MAX_RECENT_CALLS`).
     pub async fn recent(&self, limit: usize) -> Vec<CallRecord> {
         let ring = self.inner.recent.lock().await;
-        let n = if limit == 0 { ring.len() } else { limit.min(ring.len()) };
+        let n = if limit == 0 {
+            ring.len()
+        } else {
+            limit.min(ring.len())
+        };
         ring.iter().rev().take(n).cloned().collect()
     }
 
@@ -213,7 +213,11 @@ impl CallObserver {
             uptime_ms,
             total_calls: self.inner.total_calls.load(Ordering::Relaxed),
             error_calls: self.inner.error_calls.load(Ordering::Relaxed),
-            log_path: self.inner.log_path.as_ref().map(|p| p.display().to_string()),
+            log_path: self
+                .inner
+                .log_path
+                .as_ref()
+                .map(|p| p.display().to_string()),
             per_tool,
         }
     }
@@ -321,8 +325,10 @@ mod tests {
         let obs = CallObserver::new(None);
         obs.record(sample_record("add_wire", CallStatus::Ok)).await;
         obs.record(sample_record("add_wire", CallStatus::Ok)).await;
-        obs.record(sample_record("add_wire", CallStatus::Error)).await;
-        obs.record(sample_record("route_trace", CallStatus::Error)).await;
+        obs.record(sample_record("add_wire", CallStatus::Error))
+            .await;
+        obs.record(sample_record("route_trace", CallStatus::Error))
+            .await;
 
         let snap = obs.snapshot().await;
         assert_eq!(snap.total_calls, 4);
@@ -347,7 +353,8 @@ mod tests {
         let obs = CallObserver::new(Some(path.clone()));
 
         obs.record(sample_record("add_wire", CallStatus::Ok)).await;
-        obs.record(sample_record("add_wire", CallStatus::Error)).await;
+        obs.record(sample_record("add_wire", CallStatus::Error))
+            .await;
 
         let contents = std::fs::read_to_string(&path).expect("log read");
         let lines: Vec<&str> = contents.lines().collect();

@@ -79,9 +79,7 @@ pub unsafe extern "C" fn kicad_plugin_init(config_path: *const c_char) -> c_int 
 #[no_mangle]
 pub unsafe extern "C" fn kicad_plugin_version() -> *const c_char {
     VERSION_CSTR
-        .get_or_init(|| {
-            CString::new(env!("CARGO_PKG_VERSION")).expect("version string is valid")
-        })
+        .get_or_init(|| CString::new(env!("CARGO_PKG_VERSION")).expect("version string is valid"))
         .as_ptr()
 }
 

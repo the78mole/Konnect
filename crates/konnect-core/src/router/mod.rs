@@ -166,8 +166,14 @@ mod tests {
         let router = ToolRouter::new();
         router.load_starter_kit().await;
         // pcb_board is NOT in starter kit, but this lookup must still find it
-        assert_eq!(router.find_toolset_for_tool("place_component"), Some("pcb_components"));
-        assert_eq!(router.find_toolset_for_tool("route_trace"), Some("pcb_routing"));
+        assert_eq!(
+            router.find_toolset_for_tool("place_component"),
+            Some("pcb_components")
+        );
+        assert_eq!(
+            router.find_toolset_for_tool("route_trace"),
+            Some("pcb_routing")
+        );
         assert_eq!(router.find_toolset_for_tool("nonexistent_tool"), None);
     }
 
@@ -234,8 +240,10 @@ mod tests {
             for d in &defs {
                 if let Some(prev) = owner.insert(d.name, meta.name) {
                     if prev != meta.name {
-                        collisions.push(format!("'{}' declared in both '{}' and '{}'",
-                            d.name, prev, meta.name));
+                        collisions.push(format!(
+                            "'{}' declared in both '{}' and '{}'",
+                            d.name, prev, meta.name
+                        ));
                     }
                 }
             }
@@ -271,5 +279,4 @@ mod tests {
             );
         }
     }
-
 }

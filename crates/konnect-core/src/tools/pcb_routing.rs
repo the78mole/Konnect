@@ -18,9 +18,9 @@ where
     F: FnOnce(&KiCadIpcClient) -> anyhow::Result<T> + Send + 'static,
 {
     match tokio::task::spawn_blocking(move || f(&KiCadIpcClient::new(&addr))).await {
-        Ok(Ok(r))  => Ok(Ok(r)),
+        Ok(Ok(r)) => Ok(Ok(r)),
         Ok(Err(e)) => Ok(Err(e.to_string())),
-        Err(e)     => Err(anyhow::anyhow!("Thread error: {}", e)),
+        Err(e) => Err(anyhow::anyhow!("Thread error: {}", e)),
     }
 }
 
@@ -28,19 +28,32 @@ macro_rules! ipc {
     ($ctx:expr, |$c:ident| $body:expr) => {{
         let addr = $ctx.config.ipc_address.clone();
         match with_ipc(addr, move |$c| $body).await? {
-            Ok(v)    => v,
-            Err(msg) => return Ok(CallToolResult::error(format!(
-                "KiCAD must be running with the board loaded (IPC error: {})", msg
-            ))),
+            Ok(v) => v,
+            Err(msg) => {
+                return Ok(CallToolResult::error(format!(
+                    "KiCAD must be running with the board loaded (IPC error: {})",
+                    msg
+                )))
+            }
         }
     }};
 }
 
 // ─── S-expression helpers ─────────────────────────────────────────────────────
 
-fn format_zone(net_id: i32, net_name: &str, layer: &str, clearance: f64, min_w: f64, pts: &[(f64, f64)]) -> String {
+fn format_zone(
+    net_id: i32,
+    net_name: &str,
+    layer: &str,
+    clearance: f64,
+    min_w: f64,
+    pts: &[(f64, f64)],
+) -> String {
     let uuid = new_uuid();
-    let pt_str: String = pts.iter().map(|(x, y)| format!("\n      (xy {x} {y})")).collect();
+    let pt_str: String = pts
+        .iter()
+        .map(|(x, y)| format!("\n      (xy {x} {y})"))
+        .collect();
     format!(
         "\n  (zone (net {net_id}) (net_name \"{net_name}\") (layer \"{layer}\") (uuid \"{uuid}\")\n    \
          (hatch edge 0.508)\n    (connect_pads (clearance {clearance}))\n    \
@@ -52,7 +65,7 @@ fn format_zone(net_id: i32, net_name: &str, layer: &str, clearance: f64, min_w: 
 fn find_net_id(content: &str, net_name: &str) -> i32 {
     let search = format!(r#" "{net_name}")"#);
     if let Some(pos) = content.find(&search) {
-        let before  = &content[..pos];
+        let before = &content[..pos];
         let net_pos = before.rfind("(net ").unwrap_or(0);
         let num_str = &before[net_pos + 5..];
         let num_end = num_str.find(' ').unwrap_or(0);
@@ -264,9 +277,15 @@ pub fn tools() -> Vec<ToolDef> {
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
-async fn handle_add_net(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_add_net(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let board_path = get_path(args, "board")?;
-    let net_name = match require_str(args, "net_name") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+    let net_name = match require_str(args, "net_name") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
 
     let content = std::fs::read_to_string(&board_path)?;
     // Count existing nets to determine next net ID
@@ -277,36 +296,78 @@ async fn handle_add_net(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow:
     let new_content = apply_edits(content, vec![SexpEdit::insert(close_pos, net_sexp)]);
     write_atomic(&board_path, &new_content)?;
 
-    Ok(CallToolResult::json(&json!({ "net_id": net_id, "net_name": net_name })))
+    Ok(CallToolResult::json(
+        &json!({ "net_id": net_id, "net_name": net_name }),
+    ))
 }
 
-async fn handle_route_trace(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let net_name = match require_str(args, "net_name") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let layer    = match require_str(args, "layer") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let x1       = match require_f64(args, "x1") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y1       = match require_f64(args, "y1") { Ok(v) => v, Err(e) => return Ok(e) };
-    let x2       = match require_f64(args, "x2") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y2       = match require_f64(args, "y2") { Ok(v) => v, Err(e) => return Ok(e) };
-    let width    = args["width"].as_f64().unwrap_or(0.25);
+async fn handle_route_trace(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let net_name = match require_str(args, "net_name") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let layer = match require_str(args, "layer") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let x1 = match require_f64(args, "x1") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y1 = match require_f64(args, "y1") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let x2 = match require_f64(args, "x2") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y2 = match require_f64(args, "y2") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let width = args["width"].as_f64().unwrap_or(0.25);
 
     let net_ipc = net_name.clone();
     let layer_ipc = layer.clone();
-    ipc!(ctx, |c| c.add_track(&net_ipc, &layer_ipc, width, x1, y1, x2, y2));
+    ipc!(ctx, |c| c
+        .add_track(&net_ipc, &layer_ipc, width, x1, y1, x2, y2));
     Ok(CallToolResult::json(&json!({
         "net": net_name, "layer": layer, "width": width,
         "from": { "x": x1, "y": y1 }, "to": { "x": x2, "y": y2 }
     })))
 }
 
-async fn handle_route_pad_to_pad(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_route_pad_to_pad(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let board_path = get_path(args, "board")?;
-    let net_name = match require_str(args, "net_name") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let ref1     = match require_str(args, "ref1") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let pad1     = match require_str(args, "pad1") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let ref2     = match require_str(args, "ref2") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let pad2     = match require_str(args, "pad2") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let layer    = args["layer"].as_str().unwrap_or("F.Cu").to_string();
-    let width    = args["width"].as_f64().unwrap_or(0.25);
+    let net_name = match require_str(args, "net_name") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let ref1 = match require_str(args, "ref1") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let pad1 = match require_str(args, "pad1") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let ref2 = match require_str(args, "ref2") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let pad2 = match require_str(args, "pad2") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let layer = args["layer"].as_str().unwrap_or("F.Cu").to_string();
+    let width = args["width"].as_f64().unwrap_or(0.25);
 
     // Look up pad positions from the PCB S-expression file
     let content = std::fs::read_to_string(&board_path)?;
@@ -323,7 +384,8 @@ async fn handle_route_pad_to_pad(args: &serde_json::Value, ctx: &ToolContext) ->
 
     if (x1 - x2).abs() < 0.01 || (y1 - y2).abs() < 0.01 {
         // Already axis-aligned: single segment
-        ipc!(ctx, |c| c.add_track(&net_ipc, &layer_ipc, width, x1, y1, x2, y2));
+        ipc!(ctx, |c| c
+            .add_track(&net_ipc, &layer_ipc, width, x1, y1, x2, y2));
     } else {
         // L-bend: horizontal then vertical
         let mid_x = x2;
@@ -375,7 +437,9 @@ fn find_pad_board_position(
         .find(|p| p.get(1).and_then(|n| n.as_str()) == Some(pad_number))
         .ok_or_else(|| anyhow::anyhow!("Pad '{}' not found on '{}'", pad_number, reference))?;
 
-    let pad_at = pad.find("at").ok_or_else(|| anyhow::anyhow!("Pad has no (at) node"))?;
+    let pad_at = pad
+        .find("at")
+        .ok_or_else(|| anyhow::anyhow!("Pad has no (at) node"))?;
     let local_x = pad_at.get_f64(1).unwrap_or(0.0);
     let local_y = pad_at.get_f64(2).unwrap_or(0.0);
 
@@ -387,87 +451,157 @@ fn find_pad_board_position(
     Ok((board_x, board_y))
 }
 
-async fn handle_add_via(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let net_name = match require_str(args, "net_name") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let x        = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y        = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
-    let drill    = args["drill"].as_f64().unwrap_or(0.4);
+async fn handle_add_via(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let net_name = match require_str(args, "net_name") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let x = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let drill = args["drill"].as_f64().unwrap_or(0.4);
     let pad_size = args["pad_size"].as_f64().unwrap_or(0.8);
 
     let net_ipc = net_name.clone();
     ipc!(ctx, |c| c.add_via(&net_ipc, x, y, drill, pad_size));
-    Ok(CallToolResult::json(&json!({ "net": net_name, "x": x, "y": y, "drill": drill, "pad_size": pad_size })))
+    Ok(CallToolResult::json(
+        &json!({ "net": net_name, "x": x, "y": y, "drill": drill, "pad_size": pad_size }),
+    ))
 }
 
-async fn handle_add_copper_pour(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_add_copper_pour(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let board_path = get_path(args, "board")?;
-    let net_name   = match require_str(args, "net_name") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let layer      = match require_str(args, "layer") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let clearance  = args["clearance"].as_f64().unwrap_or(0.2);
-    let min_w      = args["min_width"].as_f64().unwrap_or(0.25);
-    let pts_arr    = match args["points"].as_array() {
+    let net_name = match require_str(args, "net_name") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let layer = match require_str(args, "layer") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let clearance = args["clearance"].as_f64().unwrap_or(0.2);
+    let min_w = args["min_width"].as_f64().unwrap_or(0.25);
+    let pts_arr = match args["points"].as_array() {
         Some(a) => a.clone(),
         None => return Ok(CallToolResult::error("Missing 'points' array")),
     };
 
-    let pts: Vec<(f64, f64)> = pts_arr.iter()
+    let pts: Vec<(f64, f64)> = pts_arr
+        .iter()
         .filter_map(|p| Some((p["x"].as_f64()?, p["y"].as_f64()?)))
         .collect();
     if pts.len() < 3 {
         return Ok(CallToolResult::error("Zone requires at least 3 points"));
     }
 
-    let content  = std::fs::read_to_string(&board_path)?;
-    let net_id   = find_net_id(&content, &net_name);
-    let zone_s   = format_zone(net_id, &net_name, &layer, clearance, min_w, &pts);
-    let close    = content.rfind(')').unwrap_or(content.len());
+    let content = std::fs::read_to_string(&board_path)?;
+    let net_id = find_net_id(&content, &net_name);
+    let zone_s = format_zone(net_id, &net_name, &layer, clearance, min_w, &pts);
+    let close = content.rfind(')').unwrap_or(content.len());
     let new_content = apply_edits(content, vec![SexpEdit::insert(close, zone_s)]);
     write_atomic(&board_path, &new_content)?;
 
-    Ok(CallToolResult::json(&json!({ "net": net_name, "layer": layer, "points": pts.len() })))
+    Ok(CallToolResult::json(
+        &json!({ "net": net_name, "layer": layer, "points": pts.len() }),
+    ))
 }
 
-async fn handle_delete_trace(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let uuid = match require_str(args, "uuid") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+async fn handle_delete_trace(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let uuid = match require_str(args, "uuid") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
 
     let uuid_ipc = uuid.clone();
     ipc!(ctx, |c| c.delete_track(&uuid_ipc));
     Ok(CallToolResult::json(&json!({ "deleted_uuid": uuid })))
 }
 
-async fn handle_query_traces(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let net   = args["net_name"].as_str().map(String::from);
+async fn handle_query_traces(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let net = args["net_name"].as_str().map(String::from);
     let layer = args["layer"].as_str().map(String::from);
 
-    let tracks = ipc!(ctx, |c| {
-        c.get_tracks(net.as_deref(), layer.as_deref())
-    });
+    let tracks = ipc!(ctx, |c| { c.get_tracks(net.as_deref(), layer.as_deref()) });
 
-    let items: Vec<serde_json::Value> = tracks.iter().map(|t| json!({
-        "net": t.net_name, "layer": t.layer, "width": t.width,
-        "x1": t.start.x, "y1": t.start.y,
-        "x2": t.end.x,   "y2": t.end.y
-    })).collect();
+    let items: Vec<serde_json::Value> = tracks
+        .iter()
+        .map(|t| {
+            json!({
+                "net": t.net_name, "layer": t.layer, "width": t.width,
+                "x1": t.start.x, "y1": t.start.y,
+                "x2": t.end.x,   "y2": t.end.y
+            })
+        })
+        .collect();
 
-    Ok(CallToolResult::json(&json!({ "count": items.len(), "traces": items })))
+    Ok(CallToolResult::json(
+        &json!({ "count": items.len(), "traces": items }),
+    ))
 }
 
-async fn handle_get_nets_list(_args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_get_nets_list(
+    _args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let nets = ipc!(ctx, |c| c.get_nets());
-    let items: Vec<serde_json::Value> = nets.iter()
+    let items: Vec<serde_json::Value> = nets
+        .iter()
         .map(|n| json!({ "name": n.name, "netcode": n.netcode }))
         .collect();
-    Ok(CallToolResult::json(&json!({ "count": items.len(), "nets": items })))
+    Ok(CallToolResult::json(
+        &json!({ "count": items.len(), "nets": items }),
+    ))
 }
 
-async fn handle_modify_trace(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let uuid     = match require_str(args, "uuid")     { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let net_name = match require_str(args, "net_name") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let layer    = match require_str(args, "layer")    { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let x1 = match require_f64(args, "x1") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y1 = match require_f64(args, "y1") { Ok(v) => v, Err(e) => return Ok(e) };
-    let x2 = match require_f64(args, "x2") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y2 = match require_f64(args, "y2") { Ok(v) => v, Err(e) => return Ok(e) };
+async fn handle_modify_trace(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let uuid = match require_str(args, "uuid") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let net_name = match require_str(args, "net_name") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let layer = match require_str(args, "layer") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let x1 = match require_f64(args, "x1") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y1 = match require_f64(args, "y1") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let x2 = match require_f64(args, "x2") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y2 = match require_f64(args, "y2") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
     let width = args["width"].as_f64().unwrap_or(0.25);
 
     let uuid_ipc = uuid.clone();
@@ -484,13 +618,19 @@ async fn handle_modify_trace(args: &serde_json::Value, ctx: &ToolContext) -> any
     })))
 }
 
-async fn handle_create_netclass(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let board_path  = get_path(args, "board")?;
-    let name        = match require_str(args, "name") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let clearance   = args["clearance"].as_f64().unwrap_or(0.2);
+async fn handle_create_netclass(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let board_path = get_path(args, "board")?;
+    let name = match require_str(args, "name") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let clearance = args["clearance"].as_f64().unwrap_or(0.2);
     let trace_width = args["trace_width"].as_f64().unwrap_or(0.25);
-    let via_drill   = args["via_drill"].as_f64().unwrap_or(0.4);
-    let via_dia     = args["via_diameter"].as_f64().unwrap_or(0.8);
+    let via_drill = args["via_drill"].as_f64().unwrap_or(0.4);
+    let via_dia = args["via_diameter"].as_f64().unwrap_or(0.8);
 
     let netclass_sexp = format!(
         "\n      (netclass \"{name}\"\n        (clearance {clearance})\n        \
@@ -503,7 +643,10 @@ async fn handle_create_netclass(args: &serde_json::Value, _ctx: &ToolContext) ->
     let insert_pos = if let Some(nc_pos) = content.find("(net_classes") {
         // Find closing paren of (net_classes ...)
         let block = &content[nc_pos..];
-        nc_pos + block.find("\n    )").unwrap_or(block.find(')').unwrap_or(block.len() - 1))
+        nc_pos
+            + block
+                .find("\n    )")
+                .unwrap_or(block.find(')').unwrap_or(block.len() - 1))
     } else {
         // No net_classes block; insert before last )
         content.rfind(')').unwrap_or(content.len())
@@ -519,10 +662,19 @@ async fn handle_create_netclass(args: &serde_json::Value, _ctx: &ToolContext) ->
     })))
 }
 
-async fn handle_assign_net_to_class(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_assign_net_to_class(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let board_path = get_path(args, "board")?;
-    let net_name = match require_str(args, "net_name") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let netclass = match require_str(args, "netclass") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+    let net_name = match require_str(args, "net_name") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let netclass = match require_str(args, "netclass") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
 
     let content = std::fs::read_to_string(&board_path)?;
 
@@ -530,7 +682,12 @@ async fn handle_assign_net_to_class(args: &serde_json::Value, _ctx: &ToolContext
     let nc_pat = format!("(netclass \"{}\"", netclass);
     let nc_pos = match content.find(&nc_pat) {
         Some(p) => p,
-        None => return Ok(CallToolResult::error(format!("Netclass '{}' not found in board file", netclass))),
+        None => {
+            return Ok(CallToolResult::error(format!(
+                "Netclass '{}' not found in board file",
+                netclass
+            )))
+        }
     };
 
     // Find the closing paren of the netclass block
@@ -541,7 +698,10 @@ async fn handle_assign_net_to_class(args: &serde_json::Value, _ctx: &ToolContext
             '(' => depth += 1,
             ')' => {
                 depth -= 1;
-                if depth == 0 { nc_end = nc_pos + i; break; }
+                if depth == 0 {
+                    nc_end = nc_pos + i;
+                    break;
+                }
             }
             _ => {}
         }
@@ -570,31 +730,68 @@ async fn handle_assign_net_to_class(args: &serde_json::Value, _ctx: &ToolContext
     })))
 }
 
-async fn handle_route_diff_pair(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let net_pos = match require_str(args, "net_pos") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let net_neg = match require_str(args, "net_neg") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let layer   = args["layer"].as_str().unwrap_or("F.Cu").to_string();
-    let x1      = match require_f64(args, "x1") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y1      = match require_f64(args, "y1") { Ok(v) => v, Err(e) => return Ok(e) };
-    let x2      = match require_f64(args, "x2") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y2      = match require_f64(args, "y2") { Ok(v) => v, Err(e) => return Ok(e) };
-    let width   = args["width"].as_f64().unwrap_or(0.1);
-    let gap     = args["gap"].as_f64().unwrap_or(0.1);
-    let offset  = (gap + width) / 2.0;
+async fn handle_route_diff_pair(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let net_pos = match require_str(args, "net_pos") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let net_neg = match require_str(args, "net_neg") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let layer = args["layer"].as_str().unwrap_or("F.Cu").to_string();
+    let x1 = match require_f64(args, "x1") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y1 = match require_f64(args, "y1") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let x2 = match require_f64(args, "x2") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y2 = match require_f64(args, "y2") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let width = args["width"].as_f64().unwrap_or(0.1);
+    let gap = args["gap"].as_f64().unwrap_or(0.1);
+    let offset = (gap + width) / 2.0;
 
     // Route two parallel traces offset perpendicular to the direction
     let dx = x2 - x1;
     let dy = y2 - y1;
     let len = (dx * dx + dy * dy).sqrt().max(1e-9);
     let perp_x = -dy / len * offset;
-    let perp_y =  dx / len * offset;
+    let perp_y = dx / len * offset;
 
     let np_ipc = net_pos.clone();
     let nn_ipc = net_neg.clone();
     let layer_ipc = layer.clone();
     ipc!(ctx, |c| {
-        c.add_track(&np_ipc, &layer_ipc, width, x1 + perp_x, y1 + perp_y, x2 + perp_x, y2 + perp_y)?;
-        c.add_track(&nn_ipc, &layer_ipc, width, x1 - perp_x, y1 - perp_y, x2 - perp_x, y2 - perp_y)
+        c.add_track(
+            &np_ipc,
+            &layer_ipc,
+            width,
+            x1 + perp_x,
+            y1 + perp_y,
+            x2 + perp_x,
+            y2 + perp_y,
+        )?;
+        c.add_track(
+            &nn_ipc,
+            &layer_ipc,
+            width,
+            x1 - perp_x,
+            y1 - perp_y,
+            x2 - perp_x,
+            y2 - perp_y,
+        )
     });
 
     Ok(CallToolResult::json(&json!({

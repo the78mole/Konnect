@@ -42,6 +42,12 @@ pub struct SchematicBuilder {
     pub symbols: Vec<String>,
 }
 
+impl Default for SchematicBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SchematicBuilder {
     /// Create an empty schematic with KiCAD 10 header.
     pub fn new() -> Self {
@@ -85,7 +91,8 @@ impl SchematicBuilder {
         };
 
         // Extract header (everything up to and including the line before lib_symbols or first element)
-        let header_end = content.find("\n\t(lib_symbols")
+        let header_end = content
+            .find("\n\t(lib_symbols")
             .or_else(|| content.find("\n  (lib_symbols"))
             .or_else(|| content.find("\n  (wire"))
             .or_else(|| content.find("\n  (symbol"))
@@ -101,7 +108,10 @@ impl SchematicBuilder {
                     '(' => depth += 1,
                     ')' => {
                         depth -= 1;
-                        if depth == 0 { ls_end = ls_start + i + 1; break; }
+                        if depth == 0 {
+                            ls_end = ls_start + i + 1;
+                            break;
+                        }
                     }
                     _ => {}
                 }
@@ -115,7 +125,10 @@ impl SchematicBuilder {
 
             // Split into individual (symbol ...) blocks
             let mut pos = 0;
-            while let Some(sym_start) = inner[pos..].find("\t\t(symbol ").or_else(|| inner[pos..].find("(symbol ")) {
+            while let Some(sym_start) = inner[pos..]
+                .find("\t\t(symbol ")
+                .or_else(|| inner[pos..].find("(symbol "))
+            {
                 let abs = pos + sym_start;
                 // Find the matching close paren
                 let block_start = if inner[abs..].starts_with('\t') {
@@ -130,12 +143,17 @@ impl SchematicBuilder {
                         '(' => d += 1,
                         ')' => {
                             d -= 1;
-                            if d == 0 { block_end = block_start + i + 1; break; }
+                            if d == 0 {
+                                block_end = block_start + i + 1;
+                                break;
+                            }
                         }
                         _ => {}
                     }
                 }
-                builder.lib_symbols.push(inner[block_start..block_end].trim().to_string());
+                builder
+                    .lib_symbols
+                    .push(inner[block_start..block_end].trim().to_string());
                 pos = block_end;
             }
         }
@@ -151,7 +169,13 @@ impl SchematicBuilder {
             for (i, ch) in content[ls..].char_indices() {
                 match ch {
                     '(' => depth += 1,
-                    ')' => { depth -= 1; if depth == 0 { end = ls + i + 1; break; } }
+                    ')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end = ls + i + 1;
+                            break;
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -169,7 +193,8 @@ impl SchematicBuilder {
                 // Extract element type from "(type_name ..." or "(type_name\n..."
                 let paren_pos = content[elem_start..].find('(').unwrap_or(0) + elem_start;
                 let after_paren = paren_pos + 1;
-                let type_end = content[after_paren..].find(|c: char| c.is_whitespace() || c == '(' || c == ')')
+                let type_end = content[after_paren..]
+                    .find(|c: char| c.is_whitespace() || c == '(' || c == ')')
                     .map(|i| after_paren + i)
                     .unwrap_or(after_paren);
                 let elem_type = &content[after_paren..type_end];
@@ -180,7 +205,13 @@ impl SchematicBuilder {
                 for (i, ch) in content[paren_pos..].char_indices() {
                     match ch {
                         '(' => depth += 1,
-                        ')' => { depth -= 1; if depth == 0 { elem_end = paren_pos + i + 1; break; } }
+                        ')' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                elem_end = paren_pos + i + 1;
+                                break;
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -194,10 +225,16 @@ impl SchematicBuilder {
                     "bus" => builder.buses.push(block),
                     "bus_entry" => builder.bus_entries.push(block),
                     "text" => builder.texts.push(block),
-                    "net_label" | "global_label" | "hierarchical_label" | "label" => builder.labels.push(block),
+                    "net_label" | "global_label" | "hierarchical_label" | "label" => {
+                        builder.labels.push(block)
+                    }
                     "symbol" => builder.symbols.push(block),
                     _ => {
-                        debug!("[SchematicBuilder] Unknown element type: '{}', block len: {}", elem_type, block.len());
+                        debug!(
+                            "[SchematicBuilder] Unknown element type: '{}', block len: {}",
+                            elem_type,
+                            block.len()
+                        );
                         builder.texts.push(block);
                     }
                 }
@@ -218,7 +255,11 @@ impl SchematicBuilder {
             let after = &definition[name_start + 9..];
             if let Some(name_end) = after.find('"') {
                 let name = &after[..name_end];
-                if self.lib_symbols.iter().any(|s| s.contains(&format!("(symbol \"{}\"", name))) {
+                if self
+                    .lib_symbols
+                    .iter()
+                    .any(|s| s.contains(&format!("(symbol \"{}\"", name)))
+                {
                     return; // Already present
                 }
             }
@@ -257,6 +298,9 @@ impl SchematicBuilder {
     }
 
     /// Serialize to a valid .kicad_sch string with correct element ordering.
+    /// (Deliberately an inherent method — this is a file serialization, not a
+    /// human-readable Display.)
+    #[allow(clippy::inherent_to_string)]
     pub fn to_string(&self) -> String {
         let mut out = String::new();
 
@@ -362,7 +406,8 @@ mod tests {
         let mut builder = SchematicBuilder::new();
         // Add in wrong order — builder should serialize in correct order
         builder.add_symbol("(symbol (lib_id \"Device:R\") (at 100 100 0) (uuid \"sym1\"))");
-        builder.add_wire("(wire (pts (xy 100 90) (xy 100 100)) (stroke (width 0)) (uuid \"wire1\"))");
+        builder
+            .add_wire("(wire (pts (xy 100 90) (xy 100 100)) (stroke (width 0)) (uuid \"wire1\"))");
         builder.add_label("(net_label \"VCC\" (at 100 85 0) (uuid \"label1\"))");
         builder.add_junction("(junction (at 100 90) (uuid \"junc1\"))");
 

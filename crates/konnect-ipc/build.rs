@@ -29,8 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         includes.push(protoc_include);
     }
 
-    prost_build::Config::new()
-        .compile_protos(protos, &includes)?;
+    prost_build::Config::new().compile_protos(protos, &includes)?;
 
     Ok(())
 }

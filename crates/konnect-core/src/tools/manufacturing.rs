@@ -220,10 +220,18 @@ async fn handle_export_manufacturing_package(
         "Generated for {}. {} files total. {}",
         fab_house.to_uppercase(),
         all_files.len(),
-        if warnings.is_empty() { "No warnings.".to_string() } else { format!("{} warnings.", warnings.len()) }
+        if warnings.is_empty() {
+            "No warnings.".to_string()
+        } else {
+            format!("{} warnings.", warnings.len())
+        }
     );
 
-    info!(files = all_files.len(), warnings = warnings.len(), "[BETA] Manufacturing package complete");
+    info!(
+        files = all_files.len(),
+        warnings = warnings.len(),
+        "[BETA] Manufacturing package complete"
+    );
 
     Ok(CallToolResult::text(
         serde_json::to_string_pretty(&json!({
@@ -282,9 +290,15 @@ async fn handle_validate_for_manufacturing(
     }
 
     // Check layer count
-    let _layers = tree.find("layers").map(|l| l.find_all("*")).unwrap_or_default();
+    let _layers = tree
+        .find("layers")
+        .map(|l| l.find_all("*"))
+        .unwrap_or_default();
     let copper_layers = content.matches("signal)").count() + content.matches("signal \"").count();
-    debug!(copper_layers = copper_layers, "[BETA] Detected copper layers");
+    debug!(
+        copper_layers = copper_layers,
+        "[BETA] Detected copper layers"
+    );
 
     // Fab-specific checks
     let (min_trace, _min_drill, _max_layers) = match fab_house {
@@ -475,18 +489,40 @@ fn estimate_board_dimensions(content: &str) -> (f64, f64) {
 
         if block.contains("Edge.Cuts") {
             // Extract start and end coordinates
-            if let (Some(sx), Some(sy)) = (extract_coord(block, "start", 0), extract_coord(block, "start", 1)) {
-                if sx < min_x { min_x = sx; }
-                if sx > max_x { max_x = sx; }
-                if sy < min_y { min_y = sy; }
-                if sy > max_y { max_y = sy; }
+            if let (Some(sx), Some(sy)) = (
+                extract_coord(block, "start", 0),
+                extract_coord(block, "start", 1),
+            ) {
+                if sx < min_x {
+                    min_x = sx;
+                }
+                if sx > max_x {
+                    max_x = sx;
+                }
+                if sy < min_y {
+                    min_y = sy;
+                }
+                if sy > max_y {
+                    max_y = sy;
+                }
                 found = true;
             }
-            if let (Some(ex), Some(ey)) = (extract_coord(block, "end", 0), extract_coord(block, "end", 1)) {
-                if ex < min_x { min_x = ex; }
-                if ex > max_x { max_x = ex; }
-                if ey < min_y { min_y = ey; }
-                if ey > max_y { max_y = ey; }
+            if let (Some(ex), Some(ey)) = (
+                extract_coord(block, "end", 0),
+                extract_coord(block, "end", 1),
+            ) {
+                if ex < min_x {
+                    min_x = ex;
+                }
+                if ex > max_x {
+                    max_x = ex;
+                }
+                if ey < min_y {
+                    min_y = ey;
+                }
+                if ey > max_y {
+                    max_y = ey;
+                }
             }
         }
         pos = abs + 1;
@@ -503,6 +539,6 @@ fn extract_coord(block: &str, keyword: &str, index: usize) -> Option<f64> {
     let pat = format!("({} ", keyword);
     let pos = block.find(&pat)? + pat.len();
     let rest = &block[pos..];
-    let parts: Vec<&str> = rest.split(|c: char| c == ' ' || c == ')').collect();
+    let parts: Vec<&str> = rest.split([' ', ')']).collect();
     parts.get(index)?.parse().ok()
 }

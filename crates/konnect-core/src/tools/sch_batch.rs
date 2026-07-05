@@ -296,16 +296,25 @@ async fn handle_batch_connect_to_net(
     for pin_spec in &pins {
         let reference = match pin_spec["reference"].as_str() {
             Some(r) => r,
-            None => { errors.push("Missing 'reference' in pin spec".into()); continue; }
+            None => {
+                errors.push("Missing 'reference' in pin spec".into());
+                continue;
+            }
         };
         let pin_number = match pin_spec["pin_number"].as_str() {
             Some(p) => p,
-            None => { errors.push("Missing 'pin_number' in pin spec".into()); continue; }
+            None => {
+                errors.push("Missing 'pin_number' in pin spec".into());
+                continue;
+            }
         };
 
         let inst = match instances.iter().find(|i| i.reference == reference) {
             Some(i) => i,
-            None => { errors.push(format!("Component '{}' not found", reference)); continue; }
+            None => {
+                errors.push(format!("Component '{}' not found", reference));
+                continue;
+            }
         };
 
         let lib_sym = lib_syms
@@ -329,10 +338,7 @@ async fn handle_batch_connect_to_net(
                     "y": py
                 }));
             }
-            None => errors.push(format!(
-                "Pin '{}' not found on '{}'",
-                pin_number, reference
-            )),
+            None => errors.push(format!("Pin '{}' not found on '{}'", pin_number, reference)),
         }
     }
 
@@ -381,7 +387,9 @@ async fn handle_batch_delete(
                                     edits.push(SexpEdit::delete(del_start, del_end));
                                     deleted.push(uuid.to_string());
                                 }
-                                None => errors.push(format!("Cannot parse block for UUID '{}'", uuid)),
+                                None => {
+                                    errors.push(format!("Cannot parse block for UUID '{}'", uuid))
+                                }
                             }
                         }
                         None => errors.push(format!("Cannot locate block for UUID '{}'", uuid)),
@@ -424,12 +432,15 @@ async fn handle_bulk_move(
     _ctx: &crate::tools::ToolContext,
 ) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let refs = args["references"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
-    let dx = match require_f64(args, "dx") { Ok(v) => v, Err(e) => return Ok(e) };
-    let dy = match require_f64(args, "dy") { Ok(v) => v, Err(e) => return Ok(e) };
+    let refs = args["references"].as_array().cloned().unwrap_or_default();
+    let dx = match require_f64(args, "dx") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let dy = match require_f64(args, "dy") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
 
     let content = std::fs::read_to_string(&sch_path)?;
     let mut edits: Vec<SexpEdit> = Vec::new();
@@ -446,16 +457,25 @@ async fn handle_bulk_move(
         let ref_search = format!(r#"(property "Reference" "{reference}""#);
         let ref_pos = match content.find(&ref_search) {
             Some(p) => p,
-            None => { errors.push(format!("'{}' not found", reference)); continue; }
+            None => {
+                errors.push(format!("'{}' not found", reference));
+                continue;
+            }
         };
         let before = &content[..ref_pos];
         let sym_start = match before.rfind("\n  (symbol").map(|p| p + 1) {
             Some(p) => p,
-            None => { errors.push(format!("Symbol block for '{}' not found", reference)); continue; }
+            None => {
+                errors.push(format!("Symbol block for '{}' not found", reference));
+                continue;
+            }
         };
         let (_, sym_end) = match find_block_with_leading_whitespace(&content, sym_start) {
             Some(r) => r,
-            None => { errors.push(format!("Cannot parse symbol block for '{}'", reference)); continue; }
+            None => {
+                errors.push(format!("Cannot parse symbol block for '{}'", reference));
+                continue;
+            }
         };
 
         // Find first (at X Y [ROT]) inside this symbol block
@@ -463,7 +483,10 @@ async fn handle_bulk_move(
         let at_pat = "(at ";
         let at_rel = match sym_block.find(at_pat) {
             Some(r) => r,
-            None => { errors.push(format!("No (at) in symbol '{}'", reference)); continue; }
+            None => {
+                errors.push(format!("No (at) in symbol '{}'", reference));
+                continue;
+            }
         };
         let at_abs = sym_start + at_rel + at_pat.len();
         let close_rel = sym_block[at_rel..].find(')').unwrap_or(0);
@@ -471,12 +494,25 @@ async fn handle_bulk_move(
 
         let at_str = &content[at_abs..at_end];
         let parts: Vec<&str> = at_str.split_whitespace().collect();
-        let x = parts.first().and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
-        let y = parts.get(1).and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
-        let rot = parts.get(2).and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
+        let x = parts
+            .first()
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(0.0);
+        let y = parts
+            .get(1)
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(0.0);
+        let rot = parts
+            .get(2)
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(0.0);
 
         let (new_x, new_y) = snap_point(x + dx, y + dy, 1.27);
-        edits.push(SexpEdit::replace(at_abs, at_end, format!("{new_x} {new_y} {rot}")));
+        edits.push(SexpEdit::replace(
+            at_abs,
+            at_end,
+            format!("{new_x} {new_y} {rot}"),
+        ));
         moved.push(json!({
             "reference": reference,
             "old_x": x, "old_y": y,
@@ -513,7 +549,10 @@ async fn handle_batch_edit(
     for edit_spec in &edits_arr {
         let reference = match edit_spec["reference"].as_str() {
             Some(r) => r,
-            None => { errors.push("Missing 'reference' in edit spec".into()); continue; }
+            None => {
+                errors.push("Missing 'reference' in edit spec".into());
+                continue;
+            }
         };
 
         let mut component_changes: Vec<String> = Vec::new();
@@ -526,10 +565,7 @@ async fn handle_batch_edit(
                         file_edits.push(SexpEdit::replace(start, end, new_val.to_string()));
                         component_changes.push(format!("{} → {}", field, new_val));
                     }
-                    None => errors.push(format!(
-                        "Field '{}' not found on '{}'",
-                        field, reference
-                    )),
+                    None => errors.push(format!("Field '{}' not found on '{}'", field, reference)),
                 }
             }
         }
@@ -618,25 +654,34 @@ async fn handle_connect_passthrough(
         Ok(v) => v.to_string(),
         Err(e) => return Ok(e),
     };
-    let x = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
+    let x = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
     let direction = opt_str(args, "direction").unwrap_or("right");
 
     // Stub is 2.54mm (2×1.27 grid units)
     let stub = 2.54_f64;
     let (wire_end_x, wire_end_y, label_rot) = match direction {
-        "left"  => (x - stub, y,        180.0),
-        "up"    => (x,        y - stub,  90.0),
-        "down"  => (x,        y + stub, 270.0),
-        _       => (x + stub, y,          0.0), // "right" default
+        "left" => (x - stub, y, 180.0),
+        "up" => (x, y - stub, 90.0),
+        "down" => (x, y + stub, 270.0),
+        _ => (x + stub, y, 0.0), // "right" default
     };
 
-    let wire_sexp  = format_wire(x, y, wire_end_x, wire_end_y);
+    let wire_sexp = format_wire(x, y, wire_end_x, wire_end_y);
     let label_sexp = format_net_label(&net_name, wire_end_x, wire_end_y, label_rot);
 
     let content = std::fs::read_to_string(&sch_path)?;
     let close_pos = content.rfind(')').unwrap_or(content.len());
-    let edits = vec![SexpEdit::insert(close_pos, format!("{wire_sexp}{label_sexp}"))];
+    let edits = vec![SexpEdit::insert(
+        close_pos,
+        format!("{wire_sexp}{label_sexp}"),
+    )];
     let new_content = apply_edits(content, edits);
     write_atomic(&sch_path, &new_content)?;
 
@@ -658,9 +703,15 @@ async fn handle_add_schematic_text(
         Ok(v) => v.to_string(),
         Err(e) => return Ok(e),
     };
-    let x = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
-    let size     = args["size"].as_f64().unwrap_or(1.27);
+    let x = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let size = args["size"].as_f64().unwrap_or(1.27);
     let rotation = args["rotation"].as_f64().unwrap_or(0.0);
     let uuid = new_uuid();
 
@@ -692,7 +743,7 @@ async fn handle_get_layout(
     _ctx: &crate::tools::ToolContext,
 ) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let include_wires  = args["include_wires"].as_bool().unwrap_or(true);
+    let include_wires = args["include_wires"].as_bool().unwrap_or(true);
     let include_labels = args["include_labels"].as_bool().unwrap_or(true);
 
     let (_, tree) = read_schematic(&sch_path)?;
@@ -700,23 +751,27 @@ async fn handle_get_layout(
 
     let components: Vec<serde_json::Value> = instances
         .iter()
-        .map(|i| json!({
-            "reference": i.reference,
-            "value": i.value,
-            "lib_id": i.lib_id,
-            "x": i.x, "y": i.y,
-            "rotation": i.rotation,
-            "mirror_x": i.mirror_x,
-            "mirror_y": i.mirror_y
-        }))
+        .map(|i| {
+            json!({
+                "reference": i.reference,
+                "value": i.value,
+                "lib_id": i.lib_id,
+                "x": i.x, "y": i.y,
+                "rotation": i.rotation,
+                "mirror_x": i.mirror_x,
+                "mirror_y": i.mirror_y
+            })
+        })
         .collect();
 
     // Bounding box over component origins
     let (mut min_x, mut min_y) = (f64::MAX, f64::MAX);
     let (mut max_x, mut max_y) = (f64::MIN, f64::MIN);
     for i in &instances {
-        min_x = min_x.min(i.x); min_y = min_y.min(i.y);
-        max_x = max_x.max(i.x); max_y = max_y.max(i.y);
+        min_x = min_x.min(i.x);
+        min_y = min_y.min(i.y);
+        max_x = max_x.max(i.x);
+        max_y = max_y.max(i.y);
     }
     let bbox = if instances.is_empty() {
         json!({ "x_min": 0, "y_min": 0, "x_max": 0, "y_max": 0 })
@@ -761,7 +816,7 @@ async fn handle_validate_wire_connections(
     let tol = args["tolerance"].as_f64().unwrap_or(0.01);
 
     let (_, tree) = read_schematic(&sch_path)?;
-    let wires  = extract_wires(&tree);
+    let wires = extract_wires(&tree);
     let labels = extract_labels(&tree);
     let instances = extract_symbol_instances(&tree);
     let lib_syms = tree
@@ -796,22 +851,32 @@ async fn handle_validate_wire_connections(
             .iter()
             .filter(|(wx, wy)| points_coincident(px, py, *wx, *wy, tol))
             .count();
-        if same_ep_count >= 2 { return true; }
+        if same_ep_count >= 2 {
+            return true;
+        }
 
         // T-junction: lies on the INTERIOR of another wire
         if wires.iter().any(|w| {
             point_on_segment(px, py, w.x1, w.y1, w.x2, w.y2, tol)
                 && !points_coincident(px, py, w.x1, w.y1, tol)
                 && !points_coincident(px, py, w.x2, w.y2, tol)
-        }) { return true; }
+        }) {
+            return true;
+        }
 
         // Label at this point
-        if label_points.iter().any(|(lx, ly)| points_coincident(px, py, *lx, *ly, tol)) {
+        if label_points
+            .iter()
+            .any(|(lx, ly)| points_coincident(px, py, *lx, *ly, tol))
+        {
             return true;
         }
 
         // Pin endpoint at this point
-        if pin_points.iter().any(|(ppx, ppy)| points_coincident(px, py, *ppx, *ppy, tol)) {
+        if pin_points
+            .iter()
+            .any(|(ppx, ppy)| points_coincident(px, py, *ppx, *ppy, tol))
+        {
             return true;
         }
 
@@ -841,13 +906,17 @@ async fn handle_validate_component_connections(
     let sch_path = get_path(args, "schematic")?;
     let filter_refs: Vec<String> = args["references"]
         .as_array()
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
     let tol = 0.01_f64;
 
     let (_, tree) = read_schematic(&sch_path)?;
     let instances = extract_symbol_instances(&tree);
-    let wires  = extract_wires(&tree);
+    let wires = extract_wires(&tree);
     let labels = extract_labels(&tree);
     let lib_syms = tree
         .find("lib_symbols")
@@ -875,7 +944,10 @@ async fn handle_validate_component_connections(
     // `g.net_at` requires &mut self, so we need a `mut` closure.
     let mut has_connection = |px: f64, py: f64| -> bool {
         // Connected to a wire endpoint
-        if all_wire_eps.iter().any(|(wx, wy)| points_coincident(px, py, *wx, *wy, tol)) {
+        if all_wire_eps
+            .iter()
+            .any(|(wx, wy)| points_coincident(px, py, *wx, *wy, tol))
+        {
             return true;
         }
         // Or has a named net (label at or reachable from pin via wires)

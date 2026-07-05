@@ -144,7 +144,10 @@ fn delete_sexp_block() {
     let (block_start, block_end) =
         konnect_sexp::writer::find_block_with_leading_whitespace(&content, wire_start).unwrap();
 
-    let edits = vec![konnect_sexp::writer::SexpEdit::delete(block_start, block_end)];
+    let edits = vec![konnect_sexp::writer::SexpEdit::delete(
+        block_start,
+        block_end,
+    )];
     let new_content = konnect_sexp::writer::apply_edits(content, edits);
     konnect_sexp::writer::write_atomic(tmp.path(), &new_content).unwrap();
 
@@ -206,9 +209,7 @@ fn structured_error_round_trips_through_extract() {
 
 #[tokio::test]
 async fn observability_meta_tools_surface_recorded_calls() {
-    use konnect_core::observability::{
-        new_call_id, unix_ms, CallObserver, CallRecord, CallStatus,
-    };
+    use konnect_core::observability::{new_call_id, unix_ms, CallObserver, CallRecord, CallStatus};
     use konnect_core::router::{meta_tools, ToolRouter};
     use konnect_core::tools::{ServerConfig, ToolContext};
     use std::sync::Arc;

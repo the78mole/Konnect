@@ -10,15 +10,15 @@ use crate::tools::{get_path, ToolContext, ToolDef};
 use konnect_sexp::{
     geometry::{point_on_segment, points_coincident},
     schematic::{
-        extract_labels, extract_lib_pins, extract_symbol_instances, extract_wires,
-        pin_endpoint, read_schematic,
+        extract_labels, extract_lib_pins, extract_symbol_instances, extract_wires, pin_endpoint,
+        read_schematic,
     },
     writer::{apply_edits, find_block_with_leading_whitespace, write_atomic, SexpEdit},
 };
 use serde_json::json;
 
-use super::sch_analysis::build_net_graph;
 use super::cli;
+use super::sch_analysis::build_net_graph;
 
 // ─── Tool definitions ─────────────────────────────────────────────────────────
 
@@ -144,7 +144,7 @@ async fn handle_export_svg(
     args: &serde_json::Value,
     ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
-    let sch_path    = get_path(args, "schematic")?;
+    let sch_path = get_path(args, "schematic")?;
     let output_path = get_path(args, "output")?;
 
     // kicad-cli writes to an output directory and names the file <stem>.svg
@@ -154,12 +154,7 @@ async fn handle_export_svg(
         .to_path_buf();
     std::fs::create_dir_all(&output_dir)?;
 
-    let svg_path = cli::export_schematic_svg(
-        &ctx.config.kicad_cli,
-        &sch_path,
-        &output_dir,
-    )
-    .await?;
+    let svg_path = cli::export_schematic_svg(&ctx.config.kicad_cli, &sch_path, &output_dir).await?;
 
     Ok(CallToolResult::json(&json!({
         "exported": svg_path.display().to_string()
@@ -170,19 +165,14 @@ async fn handle_export_pdf(
     args: &serde_json::Value,
     ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
-    let sch_path    = get_path(args, "schematic")?;
+    let sch_path = get_path(args, "schematic")?;
     let output_path = get_path(args, "output")?;
 
     if let Some(parent) = output_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
 
-    cli::export_schematic_pdf(
-        &ctx.config.kicad_cli,
-        &sch_path,
-        &output_path,
-    )
-    .await?;
+    cli::export_schematic_pdf(&ctx.config.kicad_cli, &sch_path, &output_path).await?;
 
     Ok(CallToolResult::json(&json!({
         "exported": output_path.display().to_string()
@@ -193,21 +183,15 @@ async fn handle_generate_netlist(
     args: &serde_json::Value,
     ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
-    let sch_path    = get_path(args, "schematic")?;
+    let sch_path = get_path(args, "schematic")?;
     let output_path = get_path(args, "output")?;
-    let format      = args["format"].as_str().unwrap_or("kicad");
+    let format = args["format"].as_str().unwrap_or("kicad");
 
     if let Some(parent) = output_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
 
-    cli::export_netlist(
-        &ctx.config.kicad_cli,
-        &sch_path,
-        &output_path,
-        format,
-    )
-    .await?;
+    cli::export_netlist(&ctx.config.kicad_cli, &sch_path, &output_path, format).await?;
 
     Ok(CallToolResult::json(&json!({
         "exported": output_path.display().to_string(),
@@ -223,9 +207,9 @@ async fn handle_export_netlist_summary(
     let (_, tree) = read_schematic(&sch_path)?;
 
     let instances = extract_symbol_instances(&tree);
-    let wires     = extract_wires(&tree);
-    let labels    = extract_labels(&tree);
-    let lib_syms  = tree
+    let wires = extract_wires(&tree);
+    let labels = extract_labels(&tree);
+    let lib_syms = tree
         .find("lib_symbols")
         .map(|n| n.find_all("symbol"))
         .unwrap_or_default();
@@ -287,7 +271,7 @@ async fn handle_run_erc(
     args: &serde_json::Value,
     ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
-    let sch_path     = get_path(args, "schematic")?;
+    let sch_path = get_path(args, "schematic")?;
     let min_severity = args["severity"].as_str().unwrap_or("warning");
 
     let violations = cli::run_erc(&ctx.config.kicad_cli, &sch_path).await?;
@@ -324,8 +308,11 @@ async fn handle_run_erc(
         std::fs::write(out_path, report)?;
     }
 
-    let error_count   = filtered.iter().filter(|v| v["severity"] == "error").count();
-    let warning_count = filtered.iter().filter(|v| v["severity"] == "warning").count();
+    let error_count = filtered.iter().filter(|v| v["severity"] == "error").count();
+    let warning_count = filtered
+        .iter()
+        .filter(|v| v["severity"] == "warning")
+        .count();
 
     Ok(CallToolResult::json(&json!({
         "total": filtered.len(),
@@ -339,16 +326,16 @@ async fn handle_fix_connectivity(
     args: &serde_json::Value,
     _ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
-    let sch_path  = get_path(args, "schematic")?;
-    let snap_tol  = args["snap_tolerance"].as_f64().unwrap_or(0.05);
-    let dry_run   = args["dry_run"].as_bool().unwrap_or(false);
+    let sch_path = get_path(args, "schematic")?;
+    let snap_tol = args["snap_tolerance"].as_f64().unwrap_or(0.05);
+    let dry_run = args["dry_run"].as_bool().unwrap_or(false);
     let exact_tol = 0.01_f64;
 
     let (content, tree) = read_schematic(&sch_path)?;
-    let wires    = extract_wires(&tree);
-    let labels   = extract_labels(&tree);
+    let wires = extract_wires(&tree);
+    let labels = extract_labels(&tree);
     let instances = extract_symbol_instances(&tree);
-    let lib_syms  = tree
+    let lib_syms = tree
         .find("lib_symbols")
         .map(|n| n.find_all("symbol"))
         .unwrap_or_default();
@@ -367,15 +354,21 @@ async fn handle_fix_connectivity(
             }
         }
     }
-    for l in &labels  { snap_targets.push((l.x, l.y)); }
-    for w in &wires   { snap_targets.push((w.x1, w.y1)); snap_targets.push((w.x2, w.y2)); }
+    for l in &labels {
+        snap_targets.push((l.x, l.y));
+    }
+    for w in &wires {
+        snap_targets.push((w.x1, w.y1));
+        snap_targets.push((w.x2, w.y2));
+    }
 
     let mut fixes: Vec<serde_json::Value> = Vec::new();
     let mut file_edits: Vec<SexpEdit> = Vec::new();
 
     for w in &wires {
         for (is_start, (px, py)) in &[(true, (w.x1, w.y1)), (false, (w.x2, w.y2))] {
-            let px = *px; let py = *py;
+            let px = *px;
+            let py = *py;
             // Count how many targets are exactly at this point
             // (count >= 2 → there is at least one other connected thing)
             let exact_count = snap_targets
@@ -423,7 +416,8 @@ async fn handle_fix_connectivity(
                                     let coord_prefix = if *is_start { "(start " } else { "(end " };
                                     if let Some(coord_rel) = wire_block.find(coord_prefix) {
                                         let vals_abs = wbs + coord_rel + coord_prefix.len();
-                                        let close_rel = wire_block[coord_rel..].find(')').unwrap_or(0);
+                                        let close_rel =
+                                            wire_block[coord_rel..].find(')').unwrap_or(0);
                                         let vals_end = wbs + coord_rel + close_rel;
                                         file_edits.push(SexpEdit::replace(
                                             vals_abs,
@@ -457,9 +451,9 @@ async fn handle_sync_to_board(
     args: &serde_json::Value,
     ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
-    let sch_path   = get_path(args, "schematic")?;
+    let sch_path = get_path(args, "schematic")?;
     let board_path = get_path(args, "board")?;
-    let dry_run    = args["dry_run"].as_bool().unwrap_or(false);
+    let dry_run = args["dry_run"].as_bool().unwrap_or(false);
 
     if dry_run {
         // Validate both files exist and parse the schematic to report what would change

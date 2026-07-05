@@ -42,43 +42,23 @@ use serde::Serialize;
 pub enum ToolErrorKind {
     /// The tool exists in the registry but its toolset isn't loaded.
     /// Client recovers in one hop: `load_toolset(toolset)` then retry.
-    ToolsetNotLoaded {
-        toolset: String,
-        tool: String,
-    },
+    ToolsetNotLoaded { toolset: String, tool: String },
     /// No tool with this name exists in any registered toolset.
-    UnknownTool {
-        tool: String,
-    },
+    UnknownTool { tool: String },
     /// A required argument is missing or malformed.
-    InvalidArgument {
-        field: String,
-        reason: String,
-    },
+    InvalidArgument { field: String, reason: String },
     /// KiCAD IPC is not reachable (PCB editor not open / socket missing).
-    IpcUnavailable {
-        reason: String,
-    },
+    IpcUnavailable { reason: String },
     /// A referenced file doesn't exist or can't be read.
-    FileNotFound {
-        path: String,
-    },
+    FileNotFound { path: String },
     /// `kicad-cli` subprocess returned non-zero or failed to spawn.
-    KicadCliError {
-        command: String,
-        stderr: String,
-    },
+    KicadCliError { command: String, stderr: String },
     /// Handler hit an explicitly "not implemented" path (e.g. a kicad-cli
     /// command that was removed in KiCAD v10).
-    NotImplemented {
-        tool: String,
-        note: String,
-    },
+    NotImplemented { tool: String, note: String },
     /// Catch-all for handler `anyhow::Error` that hasn't been migrated yet.
     /// Eventually each variant above subsumes a subset of these.
-    HandlerError {
-        reason: String,
-    },
+    HandlerError { reason: String },
 }
 
 impl ToolErrorKind {
@@ -157,7 +137,10 @@ mod tests {
             "Toolset not loaded.",
         );
         assert!(r.is_error);
-        assert_eq!(extract_error_kind(&r).as_deref(), Some("toolset_not_loaded"));
+        assert_eq!(
+            extract_error_kind(&r).as_deref(),
+            Some("toolset_not_loaded")
+        );
     }
 
     #[test]

@@ -63,10 +63,7 @@ impl McpHandler {
     /// Returns `None` for notifications (no response required).
     pub async fn handle_message(&self, msg: Value) -> Option<JsonRpcResponse> {
         // Distinguish request (has "method") from response (has "result"/"error")
-        if msg.get("method").is_none() {
-            // It's a response or something unexpected — ignore
-            return None;
-        }
+        msg.get("method")?;
 
         let req: JsonRpcRequest = match serde_json::from_value(msg) {
             Ok(r) => r,
@@ -121,27 +118,25 @@ impl McpHandler {
                 for def in self.ctx.router.active_tools().await {
                     tools.push(def.to_mcp_description());
                 }
-                let result = ListToolsResult { tools, next_cursor: None };
+                let result = ListToolsResult {
+                    tools,
+                    next_cursor: None,
+                };
                 Ok(Some(serde_json::to_value(result)?))
             }
 
             // ── Tool execution ─────────────────────────────────────────────
             "tools/call" => {
-                let params: CallToolParams = serde_json::from_value(
-                    req.params.clone().unwrap_or(Value::Null),
-                )?;
+                let params: CallToolParams =
+                    serde_json::from_value(req.params.clone().unwrap_or(Value::Null))?;
 
                 let call_result = self.execute_tool(&params).await;
                 Ok(Some(serde_json::to_value(call_result)?))
             }
 
             // ── Unimplemented MCP methods ──────────────────────────────────
-            "resources/list" | "resources/read" => {
-                Ok(Some(json!({ "resources": [] })))
-            }
-            "prompts/list" => {
-                Ok(Some(json!({ "prompts": [] })))
-            }
+            "resources/list" | "resources/read" => Ok(Some(json!({ "resources": [] }))),
+            "prompts/list" => Ok(Some(json!({ "prompts": [] }))),
 
             method => {
                 warn!("Unknown method: {}", method);
@@ -163,9 +158,7 @@ impl McpHandler {
             .find_toolset_for_tool(&params.name)
             .map(str::to_string);
 
-        let args_bytes = serde_json::to_string(&args)
-            .map(|s| s.len())
-            .unwrap_or(0);
+        let args_bytes = serde_json::to_string(&args).map(|s| s.len()).unwrap_or(0);
 
         info!(
             call_id = %call_id,
@@ -216,7 +209,11 @@ impl McpHandler {
             if name == "load_toolset" || name == "unload_toolset" {
                 self.notify_tools_list_changed().await;
             }
-            let status = if result.is_error { CallStatus::Error } else { CallStatus::Ok };
+            let status = if result.is_error {
+                CallStatus::Error
+            } else {
+                CallStatus::Ok
+            };
             return (result, status, None);
         }
 
@@ -224,7 +221,11 @@ impl McpHandler {
         if let Some(tool_def) = self.ctx.router.get_tool(name).await {
             return match (tool_def.handler)(args, self.ctx.clone()).await {
                 Ok(result) => {
-                    let status = if result.is_error { CallStatus::Error } else { CallStatus::Ok };
+                    let status = if result.is_error {
+                        CallStatus::Error
+                    } else {
+                        CallStatus::Ok
+                    };
                     // Structured errors carry their own kind in the body; plain-text
                     // errors fall back to "handler_error" via extract_error_kind.
                     let error_kind = extract_error_kind(&result);

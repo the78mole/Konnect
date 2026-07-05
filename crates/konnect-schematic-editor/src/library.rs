@@ -18,7 +18,9 @@ use std::path::PathBuf;
 /// with the name prefixed as `"Device:R"`.
 pub fn resolve_lib_symbol(lib_id: &str) -> Option<String> {
     let parts: Vec<&str> = lib_id.splitn(2, ':').collect();
-    if parts.len() != 2 { return None; }
+    if parts.len() != 2 {
+        return None;
+    }
     let (library_name, symbol_name) = (parts[0], parts[1]);
 
     for base_dir in find_symbol_dirs() {
@@ -108,7 +110,9 @@ pub fn ensure_lib_symbol(schematic: &mut Schematic, lib_id: &str) {
             false
         }
     });
-    if already_present { return; }
+    if already_present {
+        return;
+    }
 
     // Resolve the symbol's raw text to check for (extends "ParentName")
     let sym_raw = match resolve_lib_symbol(lib_id) {
@@ -136,7 +140,10 @@ pub fn ensure_lib_symbol(schematic: &mut Schematic, lib_id: &str) {
     };
 
     // Find or create the lib_symbols node
-    let lib_syms_idx = schematic.raw_other.iter().position(|n| n.tag() == Some("lib_symbols"));
+    let lib_syms_idx = schematic
+        .raw_other
+        .iter()
+        .position(|n| n.tag() == Some("lib_symbols"));
 
     match lib_syms_idx {
         Some(idx) => {
@@ -147,10 +154,8 @@ pub fn ensure_lib_symbol(schematic: &mut Schematic, lib_id: &str) {
         }
         None => {
             // Create a new lib_symbols node with this symbol
-            let lib_syms = SexpNode::List(vec![
-                SexpNode::Atom("lib_symbols".to_string()),
-                sym_node,
-            ]);
+            let lib_syms =
+                SexpNode::List(vec![SexpNode::Atom("lib_symbols".to_string()), sym_node]);
             // Insert at the beginning of raw_other (lib_symbols should come early)
             schematic.raw_other.insert(0, lib_syms);
         }
@@ -168,12 +173,19 @@ fn extract_symbol_block(content: &str, symbol_name: &str) -> Option<String> {
             '(' => depth += 1,
             ')' => {
                 depth -= 1;
-                if depth == 0 { end = start + i + 1; break; }
+                if depth == 0 {
+                    end = start + i + 1;
+                    break;
+                }
             }
             _ => {}
         }
     }
-    if end > start { Some(content[start..end].to_string()) } else { None }
+    if end > start {
+        Some(content[start..end].to_string())
+    } else {
+        None
+    }
 }
 
 /// Find directories where KiCAD symbol libraries are stored.
@@ -182,7 +194,9 @@ pub fn find_symbol_dirs() -> Vec<PathBuf> {
 
     if let Ok(dir) = std::env::var("KICAD10_SYMBOL_DIR") {
         let p = PathBuf::from(&dir);
-        if p.is_dir() { dirs.push(p); }
+        if p.is_dir() {
+            dirs.push(p);
+        }
     }
 
     #[cfg(target_os = "windows")]
@@ -195,19 +209,20 @@ pub fn find_symbol_dirs() -> Vec<PathBuf> {
         ];
         for c in &candidates {
             let p = PathBuf::from(c);
-            if p.is_dir() && !dirs.contains(&p) { dirs.push(p); }
+            if p.is_dir() && !dirs.contains(&p) {
+                dirs.push(p);
+            }
         }
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        let candidates = [
-            "/usr/share/kicad/symbols",
-            "/usr/local/share/kicad/symbols",
-        ];
+        let candidates = ["/usr/share/kicad/symbols", "/usr/local/share/kicad/symbols"];
         for c in &candidates {
             let p = PathBuf::from(c);
-            if p.is_dir() && !dirs.contains(&p) { dirs.push(p); }
+            if p.is_dir() && !dirs.contains(&p) {
+                dirs.push(p);
+            }
         }
     }
 

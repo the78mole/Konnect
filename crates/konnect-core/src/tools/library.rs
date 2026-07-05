@@ -339,17 +339,16 @@ async fn handle_edit_footprint_pad(
     _ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
     let path = get_path(args, "footprint_path")?;
-    let pad_number = require_str(args, "pad_number")
-        .map_err(|e| anyhow::anyhow!("{:?}", e))?;
+    let pad_number = require_str(args, "pad_number").map_err(|e| anyhow::anyhow!("{:?}", e))?;
 
     let content = tokio::fs::read_to_string(&path).await?;
 
     // Find the pad block:  (pad "N" ... (at X Y) (size W H) ...)
     // We search for the at/size/drill atoms and replace them individually.
     let pad_pat = format!(r#"(pad "{}""#, pad_number);
-    let pad_start = content.find(&pad_pat).ok_or_else(|| {
-        anyhow::anyhow!("Pad '{}' not found in footprint", pad_number)
-    })?;
+    let pad_start = content
+        .find(&pad_pat)
+        .ok_or_else(|| anyhow::anyhow!("Pad '{}' not found in footprint", pad_number))?;
 
     // Find the closing paren of this pad block (simple depth count)
     let pad_end = {
@@ -378,11 +377,21 @@ async fn handle_edit_footprint_pad(
     if let Some(x) = args["x"].as_f64() {
         // Replace (at OLD_X OLD_Y [ROT]) → update X
         if let Some(at_pos) = new_pad.find("(at ") {
-            let at_end = new_pad[at_pos..].find(')').map(|i| at_pos + i + 1).unwrap_or(new_pad.len());
+            let at_end = new_pad[at_pos..]
+                .find(')')
+                .map(|i| at_pos + i + 1)
+                .unwrap_or(new_pad.len());
             let at_block = &new_pad[at_pos..at_end];
             // Parse existing values
-            let parts: Vec<&str> = at_block.trim_start_matches("(at ").trim_end_matches(')').split_whitespace().collect();
-            let old_y = parts.get(1).and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
+            let parts: Vec<&str> = at_block
+                .trim_start_matches("(at ")
+                .trim_end_matches(')')
+                .split_whitespace()
+                .collect();
+            let old_y = parts
+                .get(1)
+                .and_then(|s| s.parse::<f64>().ok())
+                .unwrap_or(0.0);
             let rot = parts.get(2).map(|s| format!(" {}", s)).unwrap_or_default();
             let new_at = format!("(at {} {}{})", x, old_y, rot);
             new_pad.replace_range(at_pos..at_end, &new_at);
@@ -390,10 +399,20 @@ async fn handle_edit_footprint_pad(
     }
     if let Some(y) = args["y"].as_f64() {
         if let Some(at_pos) = new_pad.find("(at ") {
-            let at_end = new_pad[at_pos..].find(')').map(|i| at_pos + i + 1).unwrap_or(new_pad.len());
+            let at_end = new_pad[at_pos..]
+                .find(')')
+                .map(|i| at_pos + i + 1)
+                .unwrap_or(new_pad.len());
             let at_block = &new_pad[at_pos..at_end];
-            let parts: Vec<&str> = at_block.trim_start_matches("(at ").trim_end_matches(')').split_whitespace().collect();
-            let old_x = parts.first().and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
+            let parts: Vec<&str> = at_block
+                .trim_start_matches("(at ")
+                .trim_end_matches(')')
+                .split_whitespace()
+                .collect();
+            let old_x = parts
+                .first()
+                .and_then(|s| s.parse::<f64>().ok())
+                .unwrap_or(0.0);
             let rot = parts.get(2).map(|s| format!(" {}", s)).unwrap_or_default();
             let new_at = format!("(at {} {}{})", old_x, y, rot);
             new_pad.replace_range(at_pos..at_end, &new_at);
@@ -401,14 +420,20 @@ async fn handle_edit_footprint_pad(
     }
     if let (Some(w), Some(h)) = (args["width"].as_f64(), args["height"].as_f64()) {
         if let Some(sz_pos) = new_pad.find("(size ") {
-            let sz_end = new_pad[sz_pos..].find(')').map(|i| sz_pos + i + 1).unwrap_or(new_pad.len());
+            let sz_end = new_pad[sz_pos..]
+                .find(')')
+                .map(|i| sz_pos + i + 1)
+                .unwrap_or(new_pad.len());
             let new_size = format!("(size {} {})", w, h);
             new_pad.replace_range(sz_pos..sz_end, &new_size);
         }
     }
     if let Some(drill) = args["drill"].as_f64() {
         if let Some(dr_pos) = new_pad.find("(drill ") {
-            let dr_end = new_pad[dr_pos..].find(')').map(|i| dr_pos + i + 1).unwrap_or(new_pad.len());
+            let dr_end = new_pad[dr_pos..]
+                .find(')')
+                .map(|i| dr_pos + i + 1)
+                .unwrap_or(new_pad.len());
             let new_drill = format!("(drill {})", drill);
             new_pad.replace_range(dr_pos..dr_end, &new_drill);
         } else {
@@ -502,21 +527,29 @@ async fn handle_register_footprint_library(
     _ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
     let lib_path = get_path(args, "library_path")?;
-    let nickname = require_str(args, "nickname")
-        .map_err(|e| anyhow::anyhow!("{:?}", e))?;
+    let nickname = require_str(args, "nickname").map_err(|e| anyhow::anyhow!("{:?}", e))?;
     let scope = args["scope"].as_str().unwrap_or("project");
 
     let table_path = if scope == "global" {
         global_fp_lib_table()
     } else if let Some(proj) = args["project"].as_str() {
-        PathBuf::from(proj).parent().unwrap_or(Path::new(".")).join("fp-lib-table")
+        PathBuf::from(proj)
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join("fp-lib-table")
     } else {
         return Ok(CallToolResult::error(
             "For project scope, provide 'project' path to .kicad_pro file",
         ));
     };
 
-    register_in_lib_table(&table_path, nickname, lib_path.to_str().unwrap_or(""), "KiCad").await?;
+    register_in_lib_table(
+        &table_path,
+        nickname,
+        lib_path.to_str().unwrap_or(""),
+        "KiCad",
+    )
+    .await?;
 
     Ok(CallToolResult::text(
         serde_json::to_string_pretty(&json!({
@@ -575,21 +608,29 @@ async fn handle_register_symbol_library(
     _ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
     let lib_path = get_path(args, "library_path")?;
-    let nickname = require_str(args, "nickname")
-        .map_err(|e| anyhow::anyhow!("{:?}", e))?;
+    let nickname = require_str(args, "nickname").map_err(|e| anyhow::anyhow!("{:?}", e))?;
     let scope = args["scope"].as_str().unwrap_or("project");
 
     let table_path = if scope == "global" {
         global_sym_lib_table()
     } else if let Some(proj) = args["project"].as_str() {
-        PathBuf::from(proj).parent().unwrap_or(Path::new(".")).join("sym-lib-table")
+        PathBuf::from(proj)
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join("sym-lib-table")
     } else {
         return Ok(CallToolResult::error(
             "For project scope, provide 'project' path to .kicad_pro file",
         ));
     };
 
-    register_in_lib_table(&table_path, nickname, lib_path.to_str().unwrap_or(""), "KiCad").await?;
+    register_in_lib_table(
+        &table_path,
+        nickname,
+        lib_path.to_str().unwrap_or(""),
+        "KiCad",
+    )
+    .await?;
 
     Ok(CallToolResult::text(
         serde_json::to_string_pretty(&json!({
@@ -623,7 +664,10 @@ async fn handle_list_symbol_libraries(
 
     if (scope == "project" || scope == "all") && args["project"].is_string() {
         let proj = PathBuf::from(args["project"].as_str().unwrap());
-        let table = proj.parent().unwrap_or(Path::new(".")).join("sym-lib-table");
+        let table = proj
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join("sym-lib-table");
         if table.exists() {
             let content = tokio::fs::read_to_string(&table).await?;
             let mut libs = parse_lib_table(&content);
@@ -761,16 +805,15 @@ async fn handle_delete_symbol(
     _ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
     let lib_path = get_path(args, "library_path")?;
-    let symbol_name = require_str(args, "symbol_name")
-        .map_err(|e| anyhow::anyhow!("{:?}", e))?;
+    let symbol_name = require_str(args, "symbol_name").map_err(|e| anyhow::anyhow!("{:?}", e))?;
 
     let content = tokio::fs::read_to_string(&lib_path).await?;
 
     // Find `  (symbol "NAME"` block
     let pat = format!(r#"  (symbol "{}""#, symbol_name);
-    let start = content.find(&pat).ok_or_else(|| {
-        anyhow::anyhow!("Symbol '{}' not found in library", symbol_name)
-    })?;
+    let start = content
+        .find(&pat)
+        .ok_or_else(|| anyhow::anyhow!("Symbol '{}' not found in library", symbol_name))?;
 
     // Walk back to find preceding newline
     let block_start = content[..start].rfind('\n').map(|i| i + 1).unwrap_or(start);
@@ -792,7 +835,11 @@ async fn handle_delete_symbol(
         }
     }
     // Skip trailing newline
-    let end = if content[end..].starts_with('\n') { end + 1 } else { end };
+    let end = if content[end..].starts_with('\n') {
+        end + 1
+    } else {
+        end
+    };
 
     let new_content = format!("{}{}", &content[..block_start], &content[end..]);
     write_atomic(&lib_path, &new_content)?;
@@ -914,8 +961,8 @@ async fn handle_list_library_footprints(
     args: &serde_json::Value,
     _ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
-    let library_path_str = require_str(args, "library_path")
-        .map_err(|e| anyhow::anyhow!("{:?}", e))?;
+    let library_path_str =
+        require_str(args, "library_path").map_err(|e| anyhow::anyhow!("{:?}", e))?;
     let lib_dir = PathBuf::from(library_path_str);
 
     if !lib_dir.is_dir() {
@@ -950,36 +997,43 @@ async fn handle_get_footprint_info(
     args: &serde_json::Value,
     _ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
-    let fp_path_str = require_str(args, "footprint_path")
-        .map_err(|e| anyhow::anyhow!("{:?}", e))?;
+    let fp_path_str =
+        require_str(args, "footprint_path").map_err(|e| anyhow::anyhow!("{:?}", e))?;
 
     // Resolve "Library:Footprint" form via global fp-lib-table
-    let path = if fp_path_str.contains(':') && !fp_path_str.contains('/') && !fp_path_str.contains('\\') {
-        let parts: Vec<&str> = fp_path_str.splitn(2, ':').collect();
-        let (nick, fp_name) = (parts[0], parts[1]);
-        let table = global_fp_lib_table();
-        if table.exists() {
-            let tc = tokio::fs::read_to_string(&table).await?;
-            let libs = parse_lib_table(&tc);
-            if let Some(lib) = libs.iter().find(|l| l["nickname"].as_str() == Some(nick)) {
-                let uri = lib["uri"].as_str().unwrap_or("");
-                PathBuf::from(uri).join(format!("{}.kicad_mod", fp_name))
+    let path =
+        if fp_path_str.contains(':') && !fp_path_str.contains('/') && !fp_path_str.contains('\\') {
+            let parts: Vec<&str> = fp_path_str.splitn(2, ':').collect();
+            let (nick, fp_name) = (parts[0], parts[1]);
+            let table = global_fp_lib_table();
+            if table.exists() {
+                let tc = tokio::fs::read_to_string(&table).await?;
+                let libs = parse_lib_table(&tc);
+                if let Some(lib) = libs.iter().find(|l| l["nickname"].as_str() == Some(nick)) {
+                    let uri = lib["uri"].as_str().unwrap_or("");
+                    PathBuf::from(uri).join(format!("{}.kicad_mod", fp_name))
+                } else {
+                    return Ok(CallToolResult::error(format!(
+                        "Library '{}' not found in fp-lib-table",
+                        nick
+                    )));
+                }
             } else {
-                return Ok(CallToolResult::error(format!("Library '{}' not found in fp-lib-table", nick)));
+                return Ok(CallToolResult::error("Global fp-lib-table not found"));
             }
         } else {
-            return Ok(CallToolResult::error("Global fp-lib-table not found"));
-        }
-    } else {
-        PathBuf::from(fp_path_str)
-    };
+            PathBuf::from(fp_path_str)
+        };
 
     let content = tokio::fs::read_to_string(&path).await?;
 
     // Parse basic info: description, pads
     let description = extract_sexp_string(&content, "descr").unwrap_or_default();
     let fp_name = extract_sexp_string(&content, "footprint").unwrap_or_else(|| {
-        path.file_stem().unwrap_or_default().to_string_lossy().to_string()
+        path.file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string()
     });
 
     // Count pads
@@ -1137,9 +1191,9 @@ async fn handle_get_symbol_info(
 
     // Find symbol block
     let sym_pat = format!(r#"  (symbol "{}""#, sym_name);
-    let sym_start = content
-        .find(&sym_pat)
-        .ok_or_else(|| anyhow::anyhow!("Symbol '{}' not found in library '{}'", sym_name, lib_nick))?;
+    let sym_start = content.find(&sym_pat).ok_or_else(|| {
+        anyhow::anyhow!("Symbol '{}' not found in library '{}'", sym_name, lib_nick)
+    })?;
 
     let sym_end = {
         let mut depth = 0i32;

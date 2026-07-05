@@ -61,13 +61,16 @@ pub fn layer_from_name(name: &str) -> kiapi::board::types::BoardLayer {
 }
 
 /// Build a Track protobuf message.
+#[allow(clippy::too_many_arguments)]
 pub fn build_track(
     net_name: &str,
     net_code: i32,
     layer: &str,
     width_mm: f64,
-    x1: f64, y1: f64,
-    x2: f64, y2: f64,
+    x1: f64,
+    y1: f64,
+    x2: f64,
+    y2: f64,
 ) -> kiapi::board::types::Track {
     kiapi::board::types::Track {
         id: None, // KiCAD assigns the ID
@@ -82,7 +85,14 @@ pub fn build_track(
 
 /// Build S-expression for a via (used with ParseAndCreateItemsFromString).
 /// Complex protobuf PadStack construction is avoided this way.
-pub fn via_sexp(net_name: &str, net_code: i32, x: f64, y: f64, drill_mm: f64, size_mm: f64) -> String {
+pub fn via_sexp(
+    net_name: &str,
+    net_code: i32,
+    x: f64,
+    y: f64,
+    drill_mm: f64,
+    size_mm: f64,
+) -> String {
     format!(
         r#"(via (at {} {}) (size {}) (drill {}) (layers "F.Cu" "B.Cu") (net {} "{}"))"#,
         x, y, size_mm, drill_mm, net_code, net_name

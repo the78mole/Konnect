@@ -39,17 +39,29 @@ pub struct SexpEdit {
 impl SexpEdit {
     /// Insert `text` at the given byte offset (no deletion).
     pub fn insert(offset: usize, text: impl Into<String>) -> Self {
-        SexpEdit { start: offset, end: offset, replacement: text.into() }
+        SexpEdit {
+            start: offset,
+            end: offset,
+            replacement: text.into(),
+        }
     }
 
     /// Replace a span of bytes with new text.
     pub fn replace(start: usize, end: usize, text: impl Into<String>) -> Self {
-        SexpEdit { start, end, replacement: text.into() }
+        SexpEdit {
+            start,
+            end,
+            replacement: text.into(),
+        }
     }
 
     /// Delete a span of bytes.
     pub fn delete(start: usize, end: usize) -> Self {
-        SexpEdit { start, end, replacement: String::new() }
+        SexpEdit {
+            start,
+            end,
+            replacement: String::new(),
+        }
     }
 }
 
@@ -62,7 +74,7 @@ impl SexpEdit {
 /// does not invalidate the offsets of subsequent edits.
 pub fn apply_edits(mut content: String, mut edits: Vec<SexpEdit>) -> String {
     // Sort by start offset descending
-    edits.sort_by(|a, b| b.start.cmp(&a.start));
+    edits.sort_by_key(|e| std::cmp::Reverse(e.start));
 
     for edit in edits {
         assert!(edit.start <= edit.end, "Edit start > end");

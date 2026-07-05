@@ -39,33 +39,60 @@ pub const SKILLS: &[SkillManifest] = &[
         name: "kicad-schematic",
         content: include_str!("../assets/skills/kicad-schematic/SKILL.md"),
         references: &[
-            ("common-lib-ids.md", include_str!("../assets/skills/kicad-schematic/references/common-lib-ids.md")),
-            ("wiring-patterns.md", include_str!("../assets/skills/kicad-schematic/references/wiring-patterns.md")),
+            (
+                "common-lib-ids.md",
+                include_str!("../assets/skills/kicad-schematic/references/common-lib-ids.md"),
+            ),
+            (
+                "wiring-patterns.md",
+                include_str!("../assets/skills/kicad-schematic/references/wiring-patterns.md"),
+            ),
         ],
     },
     SkillManifest {
         name: "kicad-pcb",
         content: include_str!("../assets/skills/kicad-pcb/SKILL.md"),
         references: &[
-            ("layer-reference.md", include_str!("../assets/skills/kicad-pcb/references/layer-reference.md")),
-            ("trace-width-table.md", include_str!("../assets/skills/kicad-pcb/references/trace-width-table.md")),
-            ("design-rules.md", include_str!("../assets/skills/kicad-pcb/references/design-rules.md")),
+            (
+                "layer-reference.md",
+                include_str!("../assets/skills/kicad-pcb/references/layer-reference.md"),
+            ),
+            (
+                "trace-width-table.md",
+                include_str!("../assets/skills/kicad-pcb/references/trace-width-table.md"),
+            ),
+            (
+                "design-rules.md",
+                include_str!("../assets/skills/kicad-pcb/references/design-rules.md"),
+            ),
         ],
     },
     SkillManifest {
         name: "kicad-manufacture",
         content: include_str!("../assets/skills/kicad-manufacture/SKILL.md"),
         references: &[
-            ("jlcpcb-rules.md", include_str!("../assets/skills/kicad-manufacture/references/jlcpcb-rules.md")),
-            ("gerber-layers.md", include_str!("../assets/skills/kicad-manufacture/references/gerber-layers.md")),
+            (
+                "jlcpcb-rules.md",
+                include_str!("../assets/skills/kicad-manufacture/references/jlcpcb-rules.md"),
+            ),
+            (
+                "gerber-layers.md",
+                include_str!("../assets/skills/kicad-manufacture/references/gerber-layers.md"),
+            ),
         ],
     },
     SkillManifest {
         name: "kicad-review",
         content: include_str!("../assets/skills/kicad-review/SKILL.md"),
         references: &[
-            ("error-taxonomy.md", include_str!("../assets/skills/kicad-review/references/error-taxonomy.md")),
-            ("design-checklist.md", include_str!("../assets/skills/kicad-review/references/design-checklist.md")),
+            (
+                "error-taxonomy.md",
+                include_str!("../assets/skills/kicad-review/references/error-taxonomy.md"),
+            ),
+            (
+                "design-checklist.md",
+                include_str!("../assets/skills/kicad-review/references/design-checklist.md"),
+            ),
         ],
     },
     SkillManifest {

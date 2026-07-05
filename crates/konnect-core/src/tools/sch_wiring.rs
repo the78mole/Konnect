@@ -11,8 +11,7 @@ use konnect_sexp::{
     geometry::snap_point,
     schematic::{
         extract_lib_pins, extract_symbol_instances, extract_wires, find_t_junctions,
-        format_junction, format_wire,
-        pin_endpoint, read_schematic,
+        format_junction, format_wire, pin_endpoint, read_schematic,
     },
     writer::{apply_edits, find_block_with_leading_whitespace, write_atomic, SexpEdit},
 };
@@ -387,13 +386,16 @@ fn find_first_symbol_instance(content: &str) -> Option<usize> {
 // ─── Bridge: convert konnect-schematic-editor wires to konnect_sexp wires ──────
 
 fn cse_wires_to_sexp(sch: &cse::Schematic) -> Vec<konnect_sexp::schematic::Wire> {
-    sch.wires.iter().map(|w| konnect_sexp::schematic::Wire {
-        x1: w.start.0,
-        y1: w.start.1,
-        x2: w.end.0,
-        y2: w.end.1,
-        uuid: Some(w.uuid.clone()),
-    }).collect()
+    sch.wires
+        .iter()
+        .map(|w| konnect_sexp::schematic::Wire {
+            x1: w.start.0,
+            y1: w.start.1,
+            x2: w.end.0,
+            y2: w.end.1,
+            uuid: Some(w.uuid.clone()),
+        })
+        .collect()
 }
 
 // ─── Wire insertion with T-junction detection ─────────────────────────────────
@@ -401,10 +403,16 @@ fn cse_wires_to_sexp(sch: &cse::Schematic) -> Vec<konnect_sexp::schematic::Wire>
 fn insert_wire_with_junctions(content: String, x1: f64, y1: f64, x2: f64, y2: f64) -> String {
     // Parse existing wires to detect new T-junctions
     let tree = konnect_sexp::parse_sexp(&content).ok();
-    let mut existing_wires = tree.as_ref().map(|t| extract_wires(t)).unwrap_or_default();
+    let mut existing_wires = tree.as_ref().map(extract_wires).unwrap_or_default();
 
     // Add the new wire to the set before checking junctions (it may form T's too)
-    let new_wire = konnect_sexp::schematic::Wire { x1, y1, x2, y2, uuid: None };
+    let new_wire = konnect_sexp::schematic::Wire {
+        x1,
+        y1,
+        x2,
+        y2,
+        uuid: None,
+    };
     existing_wires.push(new_wire);
 
     let junctions = find_t_junctions(&existing_wires, 0.01);
@@ -419,12 +427,27 @@ fn insert_wire_with_junctions(content: String, x1: f64, y1: f64, x2: f64, y2: f6
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
-async fn handle_add_wire(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_add_wire(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let x1 = match require_f64(args, "x1") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y1 = match require_f64(args, "y1") { Ok(v) => v, Err(e) => return Ok(e) };
-    let x2 = match require_f64(args, "x2") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y2 = match require_f64(args, "y2") { Ok(v) => v, Err(e) => return Ok(e) };
+    let x1 = match require_f64(args, "x1") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y1 = match require_f64(args, "y1") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let x2 = match require_f64(args, "x2") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y2 = match require_f64(args, "y2") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
 
     let (x1, y1) = snap_point(x1, y1, 1.27);
     let (x2, y2) = snap_point(x2, y2, 1.27);
@@ -433,7 +456,13 @@ async fn handle_add_wire(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow
 
     // T-junction detection: bridge cse wires to konnect_sexp wires
     let mut existing_wires = cse_wires_to_sexp(&sch);
-    existing_wires.push(konnect_sexp::schematic::Wire { x1, y1, x2, y2, uuid: None });
+    existing_wires.push(konnect_sexp::schematic::Wire {
+        x1,
+        y1,
+        x2,
+        y2,
+        uuid: None,
+    });
     let junctions = find_t_junctions(&existing_wires, 0.01);
 
     sch.add_wire(x1, y1, x2, y2);
@@ -442,10 +471,15 @@ async fn handle_add_wire(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow
     }
     sch.overwrite()?;
 
-    Ok(CallToolResult::json(&json!({ "added_wire": { "x1": x1, "y1": y1, "x2": x2, "y2": y2 } })))
+    Ok(CallToolResult::json(
+        &json!({ "added_wire": { "x1": x1, "y1": y1, "x2": x2, "y2": y2 } }),
+    ))
 }
 
-async fn handle_batch_add_wire(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_batch_add_wire(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
     let wires = args["wires"].as_array().cloned().unwrap_or_default();
 
@@ -462,7 +496,13 @@ async fn handle_batch_add_wire(args: &serde_json::Value, _ctx: &ToolContext) -> 
 
         // T-junction detection for each wire added incrementally
         let mut existing_wires = cse_wires_to_sexp(&sch);
-        existing_wires.push(konnect_sexp::schematic::Wire { x1, y1, x2, y2, uuid: None });
+        existing_wires.push(konnect_sexp::schematic::Wire {
+            x1,
+            y1,
+            x2,
+            y2,
+            uuid: None,
+        });
         let junctions = find_t_junctions(&existing_wires, 0.01);
 
         sch.add_wire(x1, y1, x2, y2);
@@ -476,7 +516,10 @@ async fn handle_batch_add_wire(args: &serde_json::Value, _ctx: &ToolContext) -> 
     Ok(CallToolResult::json(&json!({ "added_wires": added })))
 }
 
-async fn handle_delete_wire(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_delete_wire(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
     let content = std::fs::read_to_string(&sch_path)?;
 
@@ -507,7 +550,10 @@ async fn handle_delete_wire(args: &serde_json::Value, _ctx: &ToolContext) -> any
     Ok(CallToolResult::text("Wire deleted."))
 }
 
-async fn handle_batch_delete_wire(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_batch_delete_wire(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
     let uuids: Vec<String> = args["uuids"]
         .as_array()
@@ -534,16 +580,28 @@ async fn handle_batch_delete_wire(args: &serde_json::Value, _ctx: &ToolContext) 
         }
     }
 
-    let edits: Vec<SexpEdit> = ranges.into_iter().map(|(s, e)| SexpEdit::delete(s, e)).collect();
+    let edits: Vec<SexpEdit> = ranges
+        .into_iter()
+        .map(|(s, e)| SexpEdit::delete(s, e))
+        .collect();
     content = apply_edits(content, edits);
     write_atomic(&sch_path, &content)?;
     Ok(CallToolResult::json(&json!({ "deleted": deleted })))
 }
 
-async fn handle_split_wire_at_point(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_split_wire_at_point(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let px = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let py = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
+    let px = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let py = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
 
     let (_, tree) = read_schematic(&sch_path)?;
     let wires = extract_wires(&tree);
@@ -557,7 +615,11 @@ async fn handle_split_wire_at_point(args: &serde_json::Value, ctx: &ToolContext)
 
     let w = match target {
         Some(w) => w.clone(),
-        None => return Ok(CallToolResult::error("No wire found passing through that point")),
+        None => {
+            return Ok(CallToolResult::error(
+                "No wire found passing through that point",
+            ))
+        }
     };
 
     // Delete the original wire and insert two halves + junction
@@ -573,7 +635,7 @@ async fn handle_split_wire_at_point(args: &serde_json::Value, ctx: &ToolContext)
     let w2 = format_wire(px, py, w.x2, w.y2);
     let junc = format_junction(px, py);
     let close = content.rfind(')').unwrap_or(content.len());
-    let edits = vec![SexpEdit::insert(close, &format!("{}{}{}", w1, w2, junc))];
+    let edits = vec![SexpEdit::insert(close, format!("{}{}{}", w1, w2, junc))];
     let new_content = apply_edits(content, edits);
     write_atomic(&sch_path, &new_content)?;
 
@@ -584,11 +646,23 @@ async fn handle_split_wire_at_point(args: &serde_json::Value, ctx: &ToolContext)
     })))
 }
 
-async fn handle_add_net_label(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_add_net_label(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let net = match require_str(args, "net") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let x = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
+    let net = match require_str(args, "net") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let x = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
     let rotation = opt_f64(args, "rotation").unwrap_or(0.0);
     let label_type = opt_str(args, "label_type").unwrap_or("net_label");
     let shape = opt_str(args, "shape").unwrap_or("input");
@@ -620,14 +694,28 @@ async fn handle_add_net_label(args: &serde_json::Value, _ctx: &ToolContext) -> a
 
     sch.overwrite()?;
 
-    Ok(CallToolResult::json(&json!({ "added_label": net, "type": label_type, "x": x, "y": y })))
+    Ok(CallToolResult::json(
+        &json!({ "added_label": net, "type": label_type, "x": x, "y": y }),
+    ))
 }
 
-async fn handle_delete_net_label(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_delete_net_label(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let net = match require_str(args, "net") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let target_x = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let target_y = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
+    let net = match require_str(args, "net") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let target_x = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let target_y = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
 
     let content = std::fs::read_to_string(&sch_path)?;
 
@@ -640,7 +728,10 @@ async fn handle_delete_net_label(args: &serde_json::Value, _ctx: &ToolContext) -
     let mut best_dist = f64::MAX;
 
     let mut search_from = 0usize;
-    while let Some(name_offset) = content[search_from..].find(&search).map(|i| i + search_from) {
+    while let Some(name_offset) = content[search_from..]
+        .find(&search)
+        .map(|i| i + search_from)
+    {
         // Walk back to find the enclosing label block
         let before = &content[..name_offset];
         if let Some(label_start) = label_starts_patterns
@@ -652,7 +743,7 @@ async fn handle_delete_net_label(args: &serde_json::Value, _ctx: &ToolContext) -
             let block_rest = &content[label_start..];
             if let Some(at_pos) = block_rest.find("(at ") {
                 let at_str = &block_rest[at_pos + 4..];
-                let parts: Vec<&str> = at_str.split(|c: char| c == ' ' || c == ')').collect();
+                let parts: Vec<&str> = at_str.split([' ', ')']).collect();
                 if parts.len() >= 2 {
                     let lx: f64 = parts[0].parse().unwrap_or(f64::MAX);
                     let ly: f64 = parts[1].parse().unwrap_or(f64::MAX);
@@ -675,19 +766,38 @@ async fn handle_delete_net_label(args: &serde_json::Value, _ctx: &ToolContext) -
     let edits = vec![SexpEdit::delete(del_start, del_end)];
     let new_content = apply_edits(content, edits);
     write_atomic(&sch_path, &new_content)?;
-    Ok(CallToolResult::json(&json!({ "deleted_label": net, "at": { "x": target_x, "y": target_y } })))
+    Ok(CallToolResult::json(
+        &json!({ "deleted_label": net, "at": { "x": target_x, "y": target_y } }),
+    ))
 }
 
-async fn handle_rotate_label(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_rotate_label(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let net = match require_str(args, "net") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let x = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
-    let rotation = match require_f64(args, "rotation") { Ok(v) => v, Err(e) => return Ok(e) };
+    let net = match require_str(args, "net") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let x = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let rotation = match require_f64(args, "rotation") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
 
     let content = std::fs::read_to_string(&sch_path)?;
     let search = format!(r#""{net}""#);
-    let found = content.find(&search).ok_or_else(|| anyhow::anyhow!("Label '{}' not found", net))?;
+    let found = content
+        .find(&search)
+        .ok_or_else(|| anyhow::anyhow!("Label '{}' not found", net))?;
     let before = &content[..found];
     let label_start = ["(net_label", "(global_label", "(hierarchical_label"]
         .iter()
@@ -697,23 +807,41 @@ async fn handle_rotate_label(args: &serde_json::Value, _ctx: &ToolContext) -> an
 
     // Find the (at X Y ROT) in the label block
     let at_search = "(at ";
-    let at_pos = content[label_start..].find(at_search).map(|o| label_start + o + at_search.len())
+    let at_pos = content[label_start..]
+        .find(at_search)
+        .map(|o| label_start + o + at_search.len())
         .ok_or_else(|| anyhow::anyhow!("No (at) in label block"))?;
-    let close_pos = content[at_pos..].find(')').map(|o| at_pos + o)
+    let close_pos = content[at_pos..]
+        .find(')')
+        .map(|o| at_pos + o)
         .ok_or_else(|| anyhow::anyhow!("Malformed (at)"))?;
 
     let new_at = format!("{x} {y} {rotation}");
     let edits = vec![SexpEdit::replace(at_pos, close_pos, new_at)];
     let new_content = apply_edits(content, edits);
     write_atomic(&sch_path, &new_content)?;
-    Ok(CallToolResult::json(&json!({ "rotated_label": net, "rotation": rotation })))
+    Ok(CallToolResult::json(
+        &json!({ "rotated_label": net, "rotation": rotation }),
+    ))
 }
 
-async fn handle_move_labels_by_offset(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_move_labels_by_offset(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let net = match require_str(args, "net") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let dx = match require_f64(args, "dx") { Ok(v) => v, Err(e) => return Ok(e) };
-    let dy = match require_f64(args, "dy") { Ok(v) => v, Err(e) => return Ok(e) };
+    let net = match require_str(args, "net") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let dx = match require_f64(args, "dx") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let dy = match require_f64(args, "dy") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
 
     let (_, tree) = read_schematic(&sch_path)?;
     let labels = konnect_sexp::schematic::extract_labels(&tree);
@@ -733,10 +861,15 @@ async fn handle_move_labels_by_offset(args: &serde_json::Value, ctx: &ToolContex
         moved += 1;
     }
 
-    Ok(CallToolResult::json(&json!({ "moved_labels": moved, "net": net })))
+    Ok(CallToolResult::json(
+        &json!({ "moved_labels": moved, "net": net }),
+    ))
 }
 
-async fn handle_batch_rotate_labels(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_batch_rotate_labels(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
     let labels = args["labels"].as_array().cloned().unwrap_or_default();
     let mut rotated = 0usize;
@@ -754,19 +887,37 @@ async fn handle_batch_rotate_labels(args: &serde_json::Value, ctx: &ToolContext)
     Ok(CallToolResult::json(&json!({ "rotated": rotated })))
 }
 
-async fn handle_add_power_symbol(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_add_power_symbol(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let power_net = match require_str(args, "power_net") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let x = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
+    let power_net = match require_str(args, "power_net") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let x = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
     let rotation = opt_f64(args, "rotation").unwrap_or(0.0);
 
     let mut sch = cse::Schematic::load(&sch_path)?;
 
     // Auto-number the #PWR reference by counting existing power symbols
-    let pwr_count = sch.symbols.iter().filter(|s| {
-        s.reference().map(|r| r.starts_with("#PWR")).unwrap_or(false)
-    }).count();
+    let pwr_count = sch
+        .symbols
+        .iter()
+        .filter(|s| {
+            s.reference()
+                .map(|r| r.starts_with("#PWR"))
+                .unwrap_or(false)
+        })
+        .count();
     let pwr_ref = format!("#PWR{:03}", pwr_count + 1);
 
     // Embed the power symbol definition in lib_symbols
@@ -780,7 +931,8 @@ async fn handle_add_power_symbol(args: &serde_json::Value, _ctx: &ToolContext) -
     sym.in_bom = true;
     sym.on_board = true;
     sym.uuid = uuid::Uuid::new_v4().to_string();
-    sym.properties.push(cse::Property::new("Reference", &pwr_ref));
+    sym.properties
+        .push(cse::Property::new("Reference", &pwr_ref));
     sym.properties.push(cse::Property::new("Value", &power_net));
     sym.properties.push(cse::Property::new("Footprint", ""));
     sym.properties.push(cse::Property::new("Datasheet", ""));
@@ -812,27 +964,51 @@ async fn handle_add_power_symbol(args: &serde_json::Value, _ctx: &ToolContext) -
     })))
 }
 
-async fn handle_add_no_connect(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_add_no_connect(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let x = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
+    let x = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
 
     let mut sch = cse::Schematic::load(&sch_path)?;
     sch.add_no_connect(x, y);
     sch.overwrite()?;
-    Ok(CallToolResult::json(&json!({ "added_no_connect": { "x": x, "y": y } })))
+    Ok(CallToolResult::json(
+        &json!({ "added_no_connect": { "x": x, "y": y } }),
+    ))
 }
 
-async fn handle_delete_no_connect(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_delete_no_connect(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let x = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
+    let x = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
 
     let content = std::fs::read_to_string(&sch_path)?;
     let search = format!("(no_connect (at {x} {y})");
     let pos = match content.find(&search) {
         Some(p) => p,
-        None => return Ok(CallToolResult::error("No-connect not found at that position")),
+        None => {
+            return Ok(CallToolResult::error(
+                "No-connect not found at that position",
+            ))
+        }
     };
     let (del_start, del_end) = find_block_with_leading_whitespace(&content, pos)
         .ok_or_else(|| anyhow::anyhow!("Cannot parse no_connect block"))?;
@@ -842,7 +1018,10 @@ async fn handle_delete_no_connect(args: &serde_json::Value, _ctx: &ToolContext) 
     Ok(CallToolResult::text("No-connect deleted."))
 }
 
-async fn handle_batch_delete_no_connect(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_batch_delete_no_connect(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
     let positions = args["positions"].as_array().cloned().unwrap_or_default();
     let mut deleted = 0usize;
@@ -858,18 +1037,32 @@ async fn handle_batch_delete_no_connect(args: &serde_json::Value, ctx: &ToolCont
     Ok(CallToolResult::json(&json!({ "deleted": deleted })))
 }
 
-async fn handle_add_junction(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_add_junction(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let x = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
+    let x = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
 
     let mut sch = cse::Schematic::load(&sch_path)?;
     sch.add_junction(x, y);
     sch.overwrite()?;
-    Ok(CallToolResult::json(&json!({ "added_junction": { "x": x, "y": y } })))
+    Ok(CallToolResult::json(
+        &json!({ "added_junction": { "x": x, "y": y } }),
+    ))
 }
 
-async fn handle_batch_add_junction(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_batch_add_junction(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
     let positions = args["positions"].as_array().cloned().unwrap_or_default();
     let mut sch = cse::Schematic::load(&sch_path)?;
@@ -882,11 +1075,23 @@ async fn handle_batch_add_junction(args: &serde_json::Value, _ctx: &ToolContext)
     Ok(CallToolResult::json(&json!({ "added": positions.len() })))
 }
 
-async fn handle_connect_to_net(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_connect_to_net(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let pin_x = match require_f64(args, "pin_x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let pin_y = match require_f64(args, "pin_y") { Ok(v) => v, Err(e) => return Ok(e) };
-    let net = match require_str(args, "net") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+    let pin_x = match require_f64(args, "pin_x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let pin_y = match require_f64(args, "pin_y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let net = match require_str(args, "net") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
     let direction = opt_str(args, "direction").unwrap_or("right");
     let stub_length = opt_f64(args, "stub_length").unwrap_or(2.54);
     let label_type = opt_str(args, "label_type").unwrap_or("net_label");
@@ -895,10 +1100,10 @@ async fn handle_connect_to_net(args: &serde_json::Value, _ctx: &ToolContext) -> 
     // Label rotation follows KiCAD convention: 0° = text reads left-to-right,
     // label anchor is at the wire connection end.
     let (label_x, label_y, label_rot) = match direction {
-        "left"  => (pin_x - stub_length, pin_y, 180.0),
-        "up"    => (pin_x, pin_y - stub_length, 90.0),
-        "down"  => (pin_x, pin_y + stub_length, 270.0),
-        _       => (pin_x + stub_length, pin_y, 0.0), // "right" default
+        "left" => (pin_x - stub_length, pin_y, 180.0),
+        "up" => (pin_x, pin_y - stub_length, 90.0),
+        "down" => (pin_x, pin_y + stub_length, 270.0),
+        _ => (pin_x + stub_length, pin_y, 0.0), // "right" default
     };
 
     let mut sch = cse::Schematic::load(&sch_path)?;
@@ -906,7 +1111,11 @@ async fn handle_connect_to_net(args: &serde_json::Value, _ctx: &ToolContext) -> 
     // T-junction detection for the wire stub
     let mut existing_wires = cse_wires_to_sexp(&sch);
     existing_wires.push(konnect_sexp::schematic::Wire {
-        x1: pin_x, y1: pin_y, x2: label_x, y2: label_y, uuid: None,
+        x1: pin_x,
+        y1: pin_y,
+        x2: label_x,
+        y2: label_y,
+        uuid: None,
     });
     let junctions = find_t_junctions(&existing_wires, 0.01);
 
@@ -941,17 +1150,35 @@ async fn handle_connect_to_net(args: &serde_json::Value, _ctx: &ToolContext) -> 
     })))
 }
 
-async fn handle_connect_pins(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_connect_pins(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let ref1 = match require_str(args, "ref1") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let pin1 = match require_str(args, "pin1") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let ref2 = match require_str(args, "ref2") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let pin2 = match require_str(args, "pin2") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+    let ref1 = match require_str(args, "ref1") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let pin1 = match require_str(args, "pin1") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let ref2 = match require_str(args, "ref2") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let pin2 = match require_str(args, "pin2") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
 
     // Parse the schematic tree
     let (content, tree) = read_schematic(&sch_path)?;
     let instances = extract_symbol_instances(&tree);
-    let lib_syms = tree.find("lib_symbols").map(|n| n.find_all("symbol")).unwrap_or_default();
+    let lib_syms = tree
+        .find("lib_symbols")
+        .map(|n| n.find_all("symbol"))
+        .unwrap_or_default();
 
     // Resolve pin1 board-space endpoint
     let (x1, y1) = resolve_pin_endpoint(&instances, &lib_syms, &ref1, &pin1)?;
@@ -989,25 +1216,45 @@ fn resolve_pin_endpoint(
     reference: &str,
     pin_number: &str,
 ) -> anyhow::Result<(f64, f64)> {
-    let inst = instances.iter().find(|i| i.reference == reference)
+    let inst = instances
+        .iter()
+        .find(|i| i.reference == reference)
         .ok_or_else(|| anyhow::anyhow!("Component '{}' not found", reference))?;
-    let lib_sym = lib_syms.iter().find(|n| {
-        n.get(1).and_then(|c| c.as_str()) == Some(&inst.lib_id)
-    }).ok_or_else(|| anyhow::anyhow!("Library symbol '{}' not found", inst.lib_id))?;
+    let lib_sym = lib_syms
+        .iter()
+        .find(|n| n.get(1).and_then(|c| c.as_str()) == Some(&inst.lib_id))
+        .ok_or_else(|| anyhow::anyhow!("Library symbol '{}' not found", inst.lib_id))?;
 
     let pins = extract_lib_pins(lib_sym);
-    let lib_pin = pins.iter().find(|p| p.number == pin_number)
+    let lib_pin = pins
+        .iter()
+        .find(|p| p.number == pin_number)
         .ok_or_else(|| anyhow::anyhow!("Pin '{}' not found on '{}'", pin_number, reference))?;
 
     Ok(pin_endpoint(lib_pin, inst.pin_transform()))
 }
 
-async fn handle_add_schematic_connection(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_add_schematic_connection(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let x1 = match require_f64(args, "x1") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y1 = match require_f64(args, "y1") { Ok(v) => v, Err(e) => return Ok(e) };
-    let x2 = match require_f64(args, "x2") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y2 = match require_f64(args, "y2") { Ok(v) => v, Err(e) => return Ok(e) };
+    let x1 = match require_f64(args, "x1") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y1 = match require_f64(args, "y1") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let x2 = match require_f64(args, "x2") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y2 = match require_f64(args, "y2") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
 
     let mut content = std::fs::read_to_string(&sch_path)?;
 

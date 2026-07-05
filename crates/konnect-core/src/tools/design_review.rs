@@ -8,7 +8,6 @@
 use crate::mcp::protocol::CallToolResult;
 use crate::tool;
 use crate::tools::{get_path, ToolContext, ToolDef};
-use tracing::info;
 use konnect_schematic_editor as cse;
 use konnect_sexp::{
     parser::parse_sexp,
@@ -16,6 +15,7 @@ use konnect_sexp::{
 };
 use serde_json::json;
 use std::collections::HashSet;
+use tracing::info;
 
 // ─── Tool definitions ─────────────────────────────────────────────────────────
 
@@ -141,7 +141,10 @@ async fn handle_audit_decoupling(
     let (content, tree) = read_schematic(&sch_path)?;
 
     let instances = extract_symbol_instances(&tree);
-    let lib_syms = tree.find("lib_symbols").map(|n| n.find_all("symbol")).unwrap_or_default();
+    let lib_syms = tree
+        .find("lib_symbols")
+        .map(|n| n.find_all("symbol"))
+        .unwrap_or_default();
 
     let mut findings = Vec::new();
     let mut pass_count = 0;
@@ -152,18 +155,21 @@ async fn handle_audit_decoupling(
 
     // For each IC (non-passive, non-connector component), check power pins
     for inst in &instances {
-        let lib_sym = lib_syms.iter().find(|n| {
-            n.get(1).and_then(|c| c.as_str()) == Some(&inst.lib_id)
-        });
+        let lib_sym = lib_syms
+            .iter()
+            .find(|n| n.get(1).and_then(|c| c.as_str()) == Some(&inst.lib_id));
         let lib_sym = match lib_sym {
             Some(s) => s,
             None => continue,
         };
 
         let pins = extract_lib_pins(lib_sym);
-        let is_passive = inst.lib_id.contains("R_") || inst.lib_id.contains("C_")
-            || inst.lib_id.contains("L_") || inst.lib_id.contains("D_");
-        let is_connector = inst.lib_id.contains("Conn_") || inst.lib_id.contains("Jack")
+        let is_passive = inst.lib_id.contains("R_")
+            || inst.lib_id.contains("C_")
+            || inst.lib_id.contains("L_")
+            || inst.lib_id.contains("D_");
+        let is_connector = inst.lib_id.contains("Conn_")
+            || inst.lib_id.contains("Jack")
             || inst.lib_id.contains("Header");
 
         if is_passive || is_connector {
@@ -201,7 +207,10 @@ async fn handle_audit_decoupling(
                         "Power pin '{}' on {} has no decoupling capacitor{}",
                         pin.name,
                         inst.reference,
-                        pin_net.as_ref().map(|n| format!(" (net: {})", n)).unwrap_or_default()
+                        pin_net
+                            .as_ref()
+                            .map(|n| format!(" (net: {})", n))
+                            .unwrap_or_default()
                     ),
                     recommendation: format!(
                         "Add a 100nF ceramic capacitor close to {} pin '{}'",
@@ -238,14 +247,18 @@ async fn handle_audit_connections(
     let (content, tree) = read_schematic(&sch_path)?;
 
     let instances = extract_symbol_instances(&tree);
-    let lib_syms = tree.find("lib_symbols").map(|n| n.find_all("symbol")).unwrap_or_default();
+    let lib_syms = tree
+        .find("lib_symbols")
+        .map(|n| n.find_all("symbol"))
+        .unwrap_or_default();
 
     let mut findings = Vec::new();
 
     for inst in &instances {
-        let lib_sym = match lib_syms.iter().find(|n| {
-            n.get(1).and_then(|c| c.as_str()) == Some(&inst.lib_id)
-        }) {
+        let lib_sym = match lib_syms
+            .iter()
+            .find(|n| n.get(1).and_then(|c| c.as_str()) == Some(&inst.lib_id))
+        {
             Some(s) => s,
             None => continue,
         };
@@ -332,7 +345,10 @@ async fn handle_audit_power_rails(
     let (content, tree) = read_schematic(&sch_path)?;
 
     let instances = extract_symbol_instances(&tree);
-    let lib_syms = tree.find("lib_symbols").map(|n| n.find_all("symbol")).unwrap_or_default();
+    let lib_syms = tree
+        .find("lib_symbols")
+        .map(|n| n.find_all("symbol"))
+        .unwrap_or_default();
 
     let mut findings = Vec::new();
 
@@ -415,7 +431,7 @@ async fn handle_audit_manufacturing(
 
     // Get fab constraints for the target fab house
     let (min_trace, _min_space, _min_drill, _min_annular) = match fab_house {
-        "jlcpcb" => (0.127, 0.127, 0.3, 0.13),   // JLCPCB standard capability
+        "jlcpcb" => (0.127, 0.127, 0.3, 0.13), // JLCPCB standard capability
         "pcbway" => (0.1, 0.1, 0.2, 0.1),
         "oshpark" => (0.152, 0.152, 0.254, 0.127), // 6mil/6mil
         _ => (0.15, 0.15, 0.3, 0.13),
@@ -429,7 +445,8 @@ async fn handle_audit_manufacturing(
             category: "dfm",
             component: None,
             issue: "No board outline found (Edge.Cuts layer is empty)".to_string(),
-            recommendation: "Add a board outline on the Edge.Cuts layer using add_board_outline".to_string(),
+            recommendation: "Add a board outline on the Edge.Cuts layer using add_board_outline"
+                .to_string(),
         });
     }
 
@@ -438,9 +455,17 @@ async fn handle_audit_manufacturing(
     let mut front_count = 0;
     let mut back_count = 0;
     for fp in &fps {
-        if let Some(layer) = fp.find("layer").and_then(|l| l.get(1)).and_then(|l| l.as_str()) {
-            if layer == "F.Cu" { front_count += 1; }
-            if layer == "B.Cu" { back_count += 1; }
+        if let Some(layer) = fp
+            .find("layer")
+            .and_then(|l| l.get(1))
+            .and_then(|l| l.as_str())
+        {
+            if layer == "F.Cu" {
+                front_count += 1;
+            }
+            if layer == "B.Cu" {
+                back_count += 1;
+            }
         }
     }
     if back_count > 0 && front_count > 0 {
@@ -474,7 +499,10 @@ async fn handle_audit_manufacturing(
                         "Minimum trace width ({:.3}mm) is below {} capability ({:.3}mm)",
                         trace_min, fab_house, min_trace
                     ),
-                    recommendation: format!("Increase minimum trace width to at least {:.3}mm", min_trace),
+                    recommendation: format!(
+                        "Increase minimum trace width to at least {:.3}mm",
+                        min_trace
+                    ),
                 });
             }
         }
@@ -539,9 +567,18 @@ async fn handle_run_design_review(
         for finding in findings {
             let sev = finding["severity"].as_str().unwrap_or("info");
             let rank = match sev {
-                "error" => { error_count += 1; 2 },
-                "warning" => { warning_count += 1; 1 },
-                _ => { info_count += 1; 0 },
+                "error" => {
+                    error_count += 1;
+                    2
+                }
+                "warning" => {
+                    warning_count += 1;
+                    1
+                }
+                _ => {
+                    info_count += 1;
+                    0
+                }
             };
             if rank >= min_rank {
                 let mut f = finding.clone();
@@ -554,10 +591,14 @@ async fn handle_run_design_review(
     // Sort by severity (errors first)
     all_findings.sort_by(|a, b| {
         let rank_a = match a["severity"].as_str().unwrap_or("") {
-            "error" => 0, "warning" => 1, _ => 2
+            "error" => 0,
+            "warning" => 1,
+            _ => 2,
         };
         let rank_b = match b["severity"].as_str().unwrap_or("") {
-            "error" => 0, "warning" => 1, _ => 2
+            "error" => 0,
+            "warning" => 1,
+            _ => 2,
         };
         rank_a.cmp(&rank_b)
     });
@@ -625,7 +666,8 @@ async fn handle_check_bom_health(
                 category: "bom",
                 component: Some(reference.to_owned()),
                 issue: format!("{} has no value assigned", reference),
-                recommendation: "Set the component value (e.g., '100nF', '10k', 'STM32F411')".to_string(),
+                recommendation: "Set the component value (e.g., '100nF', '10k', 'STM32F411')"
+                    .to_string(),
             });
         }
 
@@ -650,8 +692,13 @@ async fn handle_check_bom_health(
                 severity: "warning",
                 category: "bom",
                 component: Some(reference.to_owned()),
-                issue: format!("{} ({}) has no MPN (Manufacturer Part Number)", reference, value),
-                recommendation: "Add an MPN property for accurate BOM generation and supply chain lookup".to_string(),
+                issue: format!(
+                    "{} ({}) has no MPN (Manufacturer Part Number)",
+                    reference, value
+                ),
+                recommendation:
+                    "Add an MPN property for accurate BOM generation and supply chain lookup"
+                        .to_string(),
             });
         }
     }
@@ -677,13 +724,23 @@ async fn handle_check_bom_health(
 
 fn is_power_pin_name(name: &str) -> bool {
     let upper = name.to_uppercase();
-    upper.starts_with("VCC") || upper.starts_with("VDD") || upper.starts_with("VBUS")
-        || upper.starts_with("V+") || upper.starts_with("VIN")
-        || upper.starts_with("3V3") || upper.starts_with("5V")
-        || upper.starts_with("1V") || upper.starts_with("2V")
-        || upper == "AVCC" || upper == "AVDD" || upper == "DVCC" || upper == "DVDD"
-        || upper.starts_with("VCAP") || upper.starts_with("VREF")
-        || upper.contains("POWER") || upper.contains("PWR")
+    upper.starts_with("VCC")
+        || upper.starts_with("VDD")
+        || upper.starts_with("VBUS")
+        || upper.starts_with("V+")
+        || upper.starts_with("VIN")
+        || upper.starts_with("3V3")
+        || upper.starts_with("5V")
+        || upper.starts_with("1V")
+        || upper.starts_with("2V")
+        || upper == "AVCC"
+        || upper == "AVDD"
+        || upper == "DVCC"
+        || upper == "DVDD"
+        || upper.starts_with("VCAP")
+        || upper.starts_with("VREF")
+        || upper.contains("POWER")
+        || upper.contains("PWR")
 }
 
 fn has_i2c_pins(pins: &[konnect_sexp::schematic::LibPin]) -> bool {
@@ -702,9 +759,9 @@ fn collect_capacitor_nets(
         if !inst.reference.starts_with('C') || inst.reference.starts_with("CN") {
             continue; // Only capacitors
         }
-        let lib_sym = lib_syms.iter().find(|n| {
-            n.get(1).and_then(|c| c.as_str()) == Some(&inst.lib_id)
-        });
+        let lib_sym = lib_syms
+            .iter()
+            .find(|n| n.get(1).and_then(|c| c.as_str()) == Some(&inst.lib_id));
         if let Some(sym) = lib_sym {
             let pins = extract_lib_pins(sym);
             for pin in &pins {
@@ -731,17 +788,24 @@ fn collect_bulk_cap_nets(
         }
         // Check if value suggests bulk cap (>= 10uF)
         let val_upper = inst.value.to_uppercase();
-        let is_bulk = val_upper.contains("10U") || val_upper.contains("22U")
-            || val_upper.contains("47U") || val_upper.contains("100U")
-            || val_upper.contains("220U") || val_upper.contains("470U")
-            || val_upper.contains("1000U") || val_upper.contains("10µ")
-            || val_upper.contains("22µ") || val_upper.contains("47µ");
+        let is_bulk = val_upper.contains("10U")
+            || val_upper.contains("22U")
+            || val_upper.contains("47U")
+            || val_upper.contains("100U")
+            || val_upper.contains("220U")
+            || val_upper.contains("470U")
+            || val_upper.contains("1000U")
+            || val_upper.contains("10µ")
+            || val_upper.contains("22µ")
+            || val_upper.contains("47µ");
 
-        if !is_bulk { continue; }
+        if !is_bulk {
+            continue;
+        }
 
-        let lib_sym = lib_syms.iter().find(|n| {
-            n.get(1).and_then(|c| c.as_str()) == Some(&inst.lib_id)
-        });
+        let lib_sym = lib_syms
+            .iter()
+            .find(|n| n.get(1).and_then(|c| c.as_str()) == Some(&inst.lib_id));
         if let Some(sym) = lib_sym {
             let pins = extract_lib_pins(sym);
             for pin in &pins {
@@ -815,10 +879,17 @@ fn collect_power_nets(content: &str) -> Vec<String> {
 
 fn is_power_net_name(name: &str) -> bool {
     let upper = name.to_uppercase();
-    upper.starts_with("VCC") || upper.starts_with("VDD") || upper.starts_with("3V3")
-        || upper.starts_with("5V") || upper.starts_with("12V") || upper.starts_with("VBUS")
-        || upper == "GND" || upper == "DGND" || upper == "AGND"
-        || upper.starts_with("+") || upper.starts_with("V+")
+    upper.starts_with("VCC")
+        || upper.starts_with("VDD")
+        || upper.starts_with("3V3")
+        || upper.starts_with("5V")
+        || upper.starts_with("12V")
+        || upper.starts_with("VBUS")
+        || upper == "GND"
+        || upper == "DGND"
+        || upper == "AGND"
+        || upper.starts_with("+")
+        || upper.starts_with("V+")
 }
 
 /// Collect nets that have test points connected.
@@ -844,20 +915,27 @@ fn has_pull_up_on_net(
 ) -> bool {
     // Check if any resistor has one pin on this net and the other on a power net
     for inst in instances {
-        if !inst.reference.starts_with('R') { continue; }
-        let lib_sym = lib_syms.iter().find(|n| {
-            n.get(1).and_then(|c| c.as_str()) == Some(&inst.lib_id)
-        });
+        if !inst.reference.starts_with('R') {
+            continue;
+        }
+        let lib_sym = lib_syms
+            .iter()
+            .find(|n| n.get(1).and_then(|c| c.as_str()) == Some(&inst.lib_id));
         if let Some(sym) = lib_sym {
             let pins = extract_lib_pins(sym);
-            let pin_nets: Vec<Option<String>> = pins.iter().map(|p| {
-                let (px, py) = pin_endpoint(p, inst.pin_transform());
-                find_net_at_point(content, px, py)
-            }).collect();
+            let pin_nets: Vec<Option<String>> = pins
+                .iter()
+                .map(|p| {
+                    let (px, py) = pin_endpoint(p, inst.pin_transform());
+                    find_net_at_point(content, px, py)
+                })
+                .collect();
 
             let has_target_net = pin_nets.iter().any(|n| n.as_deref() == Some(net_name));
             let has_power_net = pin_nets.iter().any(|n| {
-                n.as_ref().map(|name| is_power_net_name(name)).unwrap_or(false)
+                n.as_ref()
+                    .map(|name| is_power_net_name(name))
+                    .unwrap_or(false)
             });
             if has_target_net && has_power_net {
                 return true;
@@ -883,7 +961,7 @@ fn find_net_at_point(content: &str, x: f64, y: f64) -> Option<String> {
         let block = &content[abs..block_end.min(content.len())];
         if let Some(at_pos) = block.find("(at ") {
             let at_str = &block[at_pos + 4..];
-            let parts: Vec<&str> = at_str.split(|c: char| c == ' ' || c == ')').take(2).collect();
+            let parts: Vec<&str> = at_str.split([' ', ')']).take(2).collect();
             if parts.len() >= 2 {
                 if let (Ok(lx), Ok(ly)) = (parts[0].parse::<f64>(), parts[1].parse::<f64>()) {
                     if (lx - x).abs() < tolerance && (ly - y).abs() < tolerance {
@@ -907,7 +985,7 @@ fn find_net_at_point(content: &str, x: f64, y: f64) -> Option<String> {
         let block = &content[abs..block_end.min(content.len())];
         if let Some(at_pos) = block.find("(at ") {
             let at_str = &block[at_pos + 4..];
-            let parts: Vec<&str> = at_str.split(|c: char| c == ' ' || c == ')').take(2).collect();
+            let parts: Vec<&str> = at_str.split([' ', ')']).take(2).collect();
             if parts.len() >= 2 {
                 if let (Ok(lx), Ok(ly)) = (parts[0].parse::<f64>(), parts[1].parse::<f64>()) {
                     if (lx - x).abs() < tolerance && (ly - y).abs() < tolerance {
@@ -922,30 +1000,39 @@ fn find_net_at_point(content: &str, x: f64, y: f64) -> Option<String> {
     None
 }
 
-fn check_silkscreen_overlap(_content: &str, tree: &konnect_sexp::parser::SexpNode) -> Vec<AuditFinding> {
+fn check_silkscreen_overlap(
+    _content: &str,
+    tree: &konnect_sexp::parser::SexpNode,
+) -> Vec<AuditFinding> {
     // Simplified check: look for footprints that are very close together
     // A full implementation would check bounding boxes of silkscreen elements
     let fps = tree.find_all("footprint");
     let mut findings = Vec::new();
 
-    let positions: Vec<(String, f64, f64)> = fps.iter().filter_map(|fp| {
-        let reference = fp.find_all("property").iter()
-            .find(|p| p.get(1).and_then(|n| n.as_str()) == Some("Reference"))
-            .and_then(|p| p.get(2))
-            .and_then(|n| n.as_str())?
-            .to_string();
-        let at = fp.find("at")?;
-        let x = at.get_f64(1)?;
-        let y = at.get_f64(2)?;
-        Some((reference, x, y))
-    }).collect();
+    let positions: Vec<(String, f64, f64)> = fps
+        .iter()
+        .filter_map(|fp| {
+            let reference = fp
+                .find_all("property")
+                .iter()
+                .find(|p| p.get(1).and_then(|n| n.as_str()) == Some("Reference"))
+                .and_then(|p| p.get(2))
+                .and_then(|n| n.as_str())?
+                .to_string();
+            let at = fp.find("at")?;
+            let x = at.get_f64(1)?;
+            let y = at.get_f64(2)?;
+            Some((reference, x, y))
+        })
+        .collect();
 
     for i in 0..positions.len() {
         for j in (i + 1)..positions.len() {
             let (ref ref_a, xa, ya) = positions[i];
             let (ref ref_b, xb, yb) = positions[j];
             let dist = ((xa - xb).powi(2) + (ya - yb).powi(2)).sqrt();
-            if dist < 1.0 { // Less than 1mm apart
+            if dist < 1.0 {
+                // Less than 1mm apart
                 findings.push(AuditFinding {
                     severity: "warning",
                     category: "dfm",

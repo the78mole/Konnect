@@ -57,9 +57,15 @@ pub fn hier_label_to_sexp(l: &cse::HierarchicalLabel) -> konnect_sexp::schematic
 /// Collect all labels from a schematic into konnect-sexp Label format.
 pub fn all_labels_as_sexp(sch: &cse::Schematic) -> Vec<konnect_sexp::schematic::Label> {
     let mut labels = Vec::new();
-    for l in sch.labels.iter() { labels.push(label_to_sexp(l)); }
-    for g in sch.global_labels.iter() { labels.push(global_label_to_sexp(g)); }
-    for h in sch.hierarchical_labels.iter() { labels.push(hier_label_to_sexp(h)); }
+    for l in sch.labels.iter() {
+        labels.push(label_to_sexp(l));
+    }
+    for g in sch.global_labels.iter() {
+        labels.push(global_label_to_sexp(g));
+    }
+    for h in sch.hierarchical_labels.iter() {
+        labels.push(hier_label_to_sexp(h));
+    }
     labels
 }
 

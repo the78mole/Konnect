@@ -56,7 +56,10 @@ fn user_config_dir() -> PathBuf {
     #[cfg(target_os = "macos")]
     {
         let home = std::env::var("HOME").unwrap_or_default();
-        PathBuf::from(home).join("Library").join("Application Support").join("konnect")
+        PathBuf::from(home)
+            .join("Library")
+            .join("Application Support")
+            .join("konnect")
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
@@ -418,7 +421,11 @@ async fn handle_list_design_rules(
     let user_config = read_config(&user_config_path(), default_user_config()).await;
     let user_rules: Vec<String> = user_config["design_rules"]
         .as_array()
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
 
     let project_rules: Vec<String> = if let Ok(project_dir) = resolve_project_dir(args, ctx) {
@@ -426,7 +433,11 @@ async fn handle_list_design_rules(
         let config = read_config(&path, default_project_config()).await;
         config["design_rules"]
             .as_array()
-            .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
             .unwrap_or_default()
     } else {
         Vec::new()

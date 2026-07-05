@@ -54,7 +54,10 @@ pub fn run_install() -> Result<()> {
     let exe_str = exe.to_string_lossy().to_string();
     let hook_count = patch_claude_settings(&exe_str)?;
     if hook_count > 0 {
-        println!("  [+] Hooks: {} entries patched into settings.json", hook_count);
+        println!(
+            "  [+] Hooks: {} entries patched into settings.json",
+            hook_count
+        );
     } else {
         println!("  [=] Hooks: already installed (no changes)");
     }
@@ -429,11 +432,7 @@ fn detect_kicad_from_registry() -> Option<PathBuf> {
 
     // Use reg.exe to query the registry (avoids winreg dependency)
     let output = Command::new("reg")
-        .args([
-            "query",
-            r"HKLM\SOFTWARE\KiCad\10.0",
-            "/ve",
-        ])
+        .args(["query", r"HKLM\SOFTWARE\KiCad\10.0", "/ve"])
         .output()
         .ok()?;
 

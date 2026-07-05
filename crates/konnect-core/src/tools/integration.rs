@@ -285,12 +285,9 @@ async fn handle_search_jlcpcb_parts(
 
         let rows: Vec<serde_json::Value> = if category.is_some() {
             let cat_like = format!("%{}%", category.as_deref().unwrap_or(""));
-            stmt.query_map(
-                rusqlite::params![like_query, cat_like],
-                row_to_part_json,
-            )?
-            .filter_map(|r| r.ok())
-            .collect()
+            stmt.query_map(rusqlite::params![like_query, cat_like], row_to_part_json)?
+                .filter_map(|r| r.ok())
+                .collect()
         } else {
             stmt.query_map(rusqlite::params![like_query], row_to_part_json)?
                 .filter_map(|r| r.ok())
@@ -337,16 +334,17 @@ async fn handle_get_jlcpcb_part(
         .map_err(|e| anyhow::anyhow!("{:?}", e))?
         .to_string();
 
-    let result = tokio::task::spawn_blocking(move || -> anyhow::Result<Option<serde_json::Value>> {
-        let conn = rusqlite::Connection::open(&db_path)?;
-        let mut stmt = conn.prepare(
+    let result =
+        tokio::task::spawn_blocking(move || -> anyhow::Result<Option<serde_json::Value>> {
+            let conn = rusqlite::Connection::open(&db_path)?;
+            let mut stmt = conn.prepare(
             "SELECT LCSC, MFR_Part, Package, Manufacturer, Library_Type, Description, Price, Stock \
              FROM components WHERE LCSC = ?1 LIMIT 1"
         )?;
-        let mut rows = stmt.query_map(rusqlite::params![lcsc_id], row_to_part_json)?;
-        Ok(rows.next().and_then(|r| r.ok()))
-    })
-    .await??;
+            let mut rows = stmt.query_map(rusqlite::params![lcsc_id], row_to_part_json)?;
+            Ok(rows.next().and_then(|r| r.ok()))
+        })
+        .await??;
 
     match result {
         Some(part) => Ok(CallToolResult::text(
@@ -377,10 +375,10 @@ async fn handle_suggest_alternatives(
     // Extract package from footprint (e.g. "Resistor_SMD:R_0402" → "0402")
     let package_hint = footprint
         .split(':')
-        .last()
+        .next_back()
         .unwrap_or("")
         .split('_')
-        .last()
+        .next_back()
         .unwrap_or("")
         .to_string();
 
@@ -513,7 +511,10 @@ async fn handle_enrich_datasheets(
                         // find (property "Datasheet" "...") and replace the URL.
                         let lcsc_pat = format!(r#"(property "LCSC" "{}")"#, lcsc_id);
                         let mut search_from = 0usize;
-                        while let Some(lcsc_pos) = new_content[search_from..].find(&lcsc_pat).map(|i| i + search_from) {
+                        while let Some(lcsc_pos) = new_content[search_from..]
+                            .find(&lcsc_pat)
+                            .map(|i| i + search_from)
+                        {
                             // Find the enclosing symbol block
                             let before = &new_content[..lcsc_pos];
                             if let Some(sym_start) = before.rfind("\n  (symbol") {
@@ -671,11 +672,7 @@ async fn handle_autoroute(
         ])
         .status();
 
-    let result = tokio::time::timeout(
-        std::time::Duration::from_secs(timeout_secs),
-        status,
-    )
-    .await;
+    let result = tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), status).await;
 
     match result {
         Ok(Ok(status)) if status.success() => {
@@ -692,14 +689,18 @@ async fn handle_autoroute(
                     .unwrap(),
                 ))
             } else {
-                Ok(CallToolResult::error("Freerouting completed but no SES file produced"))
+                Ok(CallToolResult::error(
+                    "Freerouting completed but no SES file produced",
+                ))
             }
         }
         Ok(Ok(status)) => Ok(CallToolResult::error(format!(
             "Freerouting exited with code {}",
             status.code().unwrap_or(-1)
         ))),
-        Ok(Err(e)) => Ok(CallToolResult::error(format!("Failed to run Freerouting: {e}"))),
+        Ok(Err(e)) => Ok(CallToolResult::error(format!(
+            "Failed to run Freerouting: {e}"
+        ))),
         Err(_) => Ok(CallToolResult::error(format!(
             "Freerouting timed out after {} seconds",
             timeout_secs

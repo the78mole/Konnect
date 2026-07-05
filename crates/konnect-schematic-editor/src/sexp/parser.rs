@@ -17,7 +17,10 @@ fn skip_ws(b: &[u8], pos: &mut usize) {
 fn parse_node(b: &[u8], pos: &mut usize) -> Result<SexpNode> {
     skip_ws(b, pos);
     if *pos >= b.len() {
-        return Err(Error::Parse { pos: *pos, msg: "Unexpected end of input".into() });
+        return Err(Error::Parse {
+            pos: *pos,
+            msg: "Unexpected end of input".into(),
+        });
     }
     match b[*pos] {
         b'(' => parse_list(b, pos),
@@ -32,7 +35,10 @@ fn parse_list(b: &[u8], pos: &mut usize) -> Result<SexpNode> {
     loop {
         skip_ws(b, pos);
         if *pos >= b.len() {
-            return Err(Error::Parse { pos: *pos, msg: "Unclosed parenthesis".into() });
+            return Err(Error::Parse {
+                pos: *pos,
+                msg: "Unclosed parenthesis".into(),
+            });
         }
         if b[*pos] == b')' {
             *pos += 1;
@@ -48,26 +54,41 @@ fn parse_string(b: &[u8], pos: &mut usize) -> Result<SexpNode> {
     let mut s: Vec<u8> = Vec::new();
     loop {
         if *pos >= b.len() {
-            return Err(Error::Parse { pos: *pos, msg: "Unterminated string".into() });
+            return Err(Error::Parse {
+                pos: *pos,
+                msg: "Unterminated string".into(),
+            });
         }
         match b[*pos] {
-            b'"' => { *pos += 1; break; }
+            b'"' => {
+                *pos += 1;
+                break;
+            }
             b'\\' => {
                 *pos += 1;
                 if *pos >= b.len() {
-                    return Err(Error::Parse { pos: *pos, msg: "Unterminated escape".into() });
+                    return Err(Error::Parse {
+                        pos: *pos,
+                        msg: "Unterminated escape".into(),
+                    });
                 }
                 match b[*pos] {
-                    b'"'  => s.push(b'"'),
+                    b'"' => s.push(b'"'),
                     b'\\' => s.push(b'\\'),
-                    b'n'  => s.push(b'\n'),
-                    b't'  => s.push(b'\t'),
-                    b'r'  => s.push(b'\r'),
-                    c     => { s.push(b'\\'); s.push(c); }
+                    b'n' => s.push(b'\n'),
+                    b't' => s.push(b'\t'),
+                    b'r' => s.push(b'\r'),
+                    c => {
+                        s.push(b'\\');
+                        s.push(c);
+                    }
                 }
                 *pos += 1;
             }
-            c => { s.push(c); *pos += 1; }
+            c => {
+                s.push(c);
+                *pos += 1;
+            }
         }
     }
     Ok(SexpNode::Str(String::from_utf8_lossy(&s).into_owned()))
@@ -75,9 +96,7 @@ fn parse_string(b: &[u8], pos: &mut usize) -> Result<SexpNode> {
 
 fn parse_atom(b: &[u8], pos: &mut usize) -> Result<SexpNode> {
     let start = *pos;
-    while *pos < b.len()
-        && !matches!(b[*pos], b' ' | b'\t' | b'\n' | b'\r' | b'(' | b')' | b'"')
-    {
+    while *pos < b.len() && !matches!(b[*pos], b' ' | b'\t' | b'\n' | b'\r' | b'(' | b')' | b'"') {
         *pos += 1;
     }
     if *pos == start {

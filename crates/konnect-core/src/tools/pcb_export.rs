@@ -283,7 +283,11 @@ async fn handle_export_pdf(
     // Collect optional layer list
     let layers: Vec<String> = args["layers"]
         .as_array()
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
     let layer_refs: Vec<&str> = layers.iter().map(|s| s.as_str()).collect();
 
@@ -308,7 +312,11 @@ async fn handle_export_svg(
 
     let layers: Vec<String> = args["layers"]
         .as_array()
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
     let layer_refs: Vec<&str> = layers.iter().map(|s| s.as_str()).collect();
 
@@ -428,19 +436,18 @@ async fn handle_refill_zones(
     let result = with_ipc(addr, move |client| {
         client.refill_zones()?;
         Ok(())
-    }).await;
+    })
+    .await;
 
     match result {
-        Ok(Ok(())) => {
-            Ok(CallToolResult::text(
-                serde_json::to_string_pretty(&json!({
-                    "success": true,
-                    "method": "ipc",
-                    "board": board.to_str().unwrap_or("")
-                }))
-                .unwrap(),
-            ))
-        }
+        Ok(Ok(())) => Ok(CallToolResult::text(
+            serde_json::to_string_pretty(&json!({
+                "success": true,
+                "method": "ipc",
+                "board": board.to_str().unwrap_or("")
+            }))
+            .unwrap(),
+        )),
         _ => {
             // Fallback: run kicad-cli with zone-fill option if supported
             // kicad-cli pcb export gerber fills zones as a side effect

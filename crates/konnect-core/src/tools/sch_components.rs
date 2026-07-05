@@ -10,10 +10,7 @@ use crate::tools::{get_path, opt_f64, opt_str, require_f64, require_str, ToolCon
 use konnect_schematic_editor as cse;
 use konnect_sexp::{
     geometry::snap_point,
-    schematic::{
-        extract_lib_pins, extract_symbol_instances, pin_endpoint,
-        read_schematic,
-    },
+    schematic::{extract_lib_pins, extract_symbol_instances, pin_endpoint, read_schematic},
     writer::{apply_edits, find_block_with_leading_whitespace, new_uuid, write_atomic, SexpEdit},
 };
 use serde_json::json;
@@ -292,7 +289,9 @@ async fn handle_create_schematic(
     write_atomic(&path, template)?;
     let sch = cse::Schematic::load(&path)?;
     sch.overwrite()?;
-    Ok(CallToolResult::json(&json!({ "created": path.display().to_string() })))
+    Ok(CallToolResult::json(
+        &json!({ "created": path.display().to_string() }),
+    ))
 }
 
 async fn handle_add_schematic_component(
@@ -320,7 +319,7 @@ async fn handle_add_schematic_component(
     let (x, y) = snap_point(x, y, 1.27);
 
     let ref_str = reference.unwrap_or("?");
-    let val_str = value.unwrap_or(lib_id.split(':').last().unwrap_or("?"));
+    let val_str = value.unwrap_or(lib_id.split(':').next_back().unwrap_or("?"));
 
     // Load via konnect-schematic-editor
     let mut sch = cse::Schematic::load(&sch_path)?;
@@ -403,10 +402,7 @@ async fn handle_add_schematic_component(
                     cse::sexp::atom("reference"),
                     cse::sexp::qstr(ref_str),
                 ]),
-                cse::sexp::SexpNode::List(vec![
-                    cse::sexp::atom("unit"),
-                    cse::sexp::atom("1"),
-                ]),
+                cse::sexp::SexpNode::List(vec![cse::sexp::atom("unit"), cse::sexp::atom("1")]),
             ]),
         ]),
     ]);
@@ -495,25 +491,42 @@ async fn handle_edit_schematic_component(
             Some(o) => field_offset + o,
             None => return (content.to_string(), false),
         };
-        let new_content = format!("{}{}{}", &content[..field_offset], new_val, &content[val_end..]);
+        let new_content = format!(
+            "{}{}{}",
+            &content[..field_offset],
+            new_val,
+            &content[val_end..]
+        );
         (new_content, true)
     };
 
     if let Some(new_ref) = opt_str(args, "new_reference") {
         let (c, ok) = update_field(&content, &reference, "Reference", new_ref);
-        if ok { content = c; changed.push(format!("Reference → {}", new_ref)); }
+        if ok {
+            content = c;
+            changed.push(format!("Reference → {}", new_ref));
+        }
     }
     if let Some(val) = opt_str(args, "value") {
         let (c, ok) = update_field(&content, &reference, "Value", val);
-        if ok { content = c; changed.push(format!("Value → {}", val)); }
+        if ok {
+            content = c;
+            changed.push(format!("Value → {}", val));
+        }
     }
     if let Some(fp) = opt_str(args, "footprint") {
         let (c, ok) = update_field(&content, &reference, "Footprint", fp);
-        if ok { content = c; changed.push(format!("Footprint → {}", fp)); }
+        if ok {
+            content = c;
+            changed.push(format!("Footprint → {}", fp));
+        }
     }
     if let Some(ds) = opt_str(args, "datasheet") {
         let (c, ok) = update_field(&content, &reference, "Datasheet", ds);
-        if ok { content = c; changed.push(format!("Datasheet → {}", ds)); }
+        if ok {
+            content = c;
+            changed.push(format!("Datasheet → {}", ds));
+        }
     }
 
     write_atomic(&sch_path, &content)?;
@@ -604,8 +617,14 @@ async fn handle_move_schematic_component(
         Ok(r) => r.to_string(),
         Err(e) => return Ok(e),
     };
-    let new_x = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let new_y = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
+    let new_x = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let new_y = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
     let (new_x, new_y) = snap_point(new_x, new_y, 1.27);
 
     let mut sch = cse::Schematic::load(&sch_path)?;
@@ -614,7 +633,9 @@ async fn handle_move_schematic_component(
         Some(sym) => {
             sym.move_to(new_x, new_y);
             sch.overwrite()?;
-            Ok(CallToolResult::json(&json!({ "moved": reference, "x": new_x, "y": new_y })))
+            Ok(CallToolResult::json(
+                &json!({ "moved": reference, "x": new_x, "y": new_y }),
+            ))
         }
         None => Err(anyhow::anyhow!("Component '{}' not found", reference)),
     }
@@ -629,7 +650,10 @@ async fn handle_rotate_schematic_component(
         Ok(r) => r.to_string(),
         Err(e) => return Ok(e),
     };
-    let rotation = match require_f64(args, "rotation") { Ok(v) => v, Err(e) => return Ok(e) };
+    let rotation = match require_f64(args, "rotation") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
 
     let mut sch = cse::Schematic::load(&sch_path)?;
 
@@ -637,7 +661,9 @@ async fn handle_rotate_schematic_component(
         Some(sym) => {
             sym.set_rotation(rotation);
             sch.overwrite()?;
-            Ok(CallToolResult::json(&json!({ "rotated": reference, "rotation": rotation })))
+            Ok(CallToolResult::json(
+                &json!({ "rotated": reference, "rotation": rotation }),
+            ))
         }
         None => Err(anyhow::anyhow!("Component '{}' not found", reference)),
     }
@@ -656,12 +682,30 @@ async fn handle_move_region(
     _ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let x1 = match require_f64(args, "x1") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y1 = match require_f64(args, "y1") { Ok(v) => v, Err(e) => return Ok(e) };
-    let x2 = match require_f64(args, "x2") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y2 = match require_f64(args, "y2") { Ok(v) => v, Err(e) => return Ok(e) };
-    let dx = match require_f64(args, "dx") { Ok(v) => v, Err(e) => return Ok(e) };
-    let dy = match require_f64(args, "dy") { Ok(v) => v, Err(e) => return Ok(e) };
+    let x1 = match require_f64(args, "x1") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y1 = match require_f64(args, "y1") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let x2 = match require_f64(args, "x2") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y2 = match require_f64(args, "y2") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let dx = match require_f64(args, "dx") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let dy = match require_f64(args, "dy") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
 
     let mut sch = cse::Schematic::load(&sch_path)?;
 
@@ -714,11 +758,19 @@ async fn handle_get_schematic_pin_locations(
     let instances = extract_symbol_instances(&tree);
     let inst = match instances.iter().find(|i| i.reference == reference) {
         Some(i) => i,
-        None => return Ok(CallToolResult::error(format!("Component '{}' not found", reference))),
+        None => {
+            return Ok(CallToolResult::error(format!(
+                "Component '{}' not found",
+                reference
+            )))
+        }
     };
 
     // Find the library symbol definition within the schematic's lib_symbols section
-    let lib_syms = tree.find("lib_symbols").map(|n| n.find_all("symbol")).unwrap_or_default();
+    let lib_syms = tree
+        .find("lib_symbols")
+        .map(|n| n.find_all("symbol"))
+        .unwrap_or_default();
     let lib_sym = lib_syms
         .iter()
         .find(|n| n.get(1).and_then(|c| c.as_str()) == Some(&inst.lib_id));
@@ -758,12 +810,19 @@ async fn handle_batch_get_pin_locations(
     let sch_path = get_path(args, "schematic")?;
     let refs = args["references"]
         .as_array()
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect::<Vec<_>>())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect::<Vec<_>>()
+        })
         .unwrap_or_default();
 
     let (_, tree) = read_schematic(&sch_path)?; // single read
     let instances = extract_symbol_instances(&tree);
-    let lib_syms = tree.find("lib_symbols").map(|n| n.find_all("symbol")).unwrap_or_default();
+    let lib_syms = tree
+        .find("lib_symbols")
+        .map(|n| n.find_all("symbol"))
+        .unwrap_or_default();
 
     let results: Vec<serde_json::Value> = refs
         .iter()
@@ -803,9 +862,8 @@ async fn handle_get_schematic_view(
     tokio::fs::create_dir_all(&tmp_dir).await?;
 
     // KiCAD 10 CLI only supports SVG export for schematics (no bitmap)
-    let svg_path = crate::tools::cli::render_schematic_svg(
-        &ctx.config.kicad_cli, &sch_path, &tmp_dir
-    ).await?;
+    let svg_path =
+        crate::tools::cli::render_schematic_svg(&ctx.config.kicad_cli, &sch_path, &tmp_dir).await?;
 
     let svg_content = tokio::fs::read_to_string(&svg_path).await?;
     tokio::fs::remove_dir_all(&tmp_dir).await.ok();
@@ -825,9 +883,18 @@ async fn handle_add_component_annotation(
     _ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let reference = match require_str(args, "reference") { Ok(r) => r.to_string(), Err(e) => return Ok(e) };
-    let key = match require_str(args, "key") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let value = match require_str(args, "value") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+    let reference = match require_str(args, "reference") {
+        Ok(r) => r.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let key = match require_str(args, "key") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let value = match require_str(args, "value") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
 
     let content = std::fs::read_to_string(&sch_path)?;
 
@@ -835,7 +902,12 @@ async fn handle_add_component_annotation(
     let ref_search = format!(r#"(property "Reference" "{reference}""#);
     let ref_pos = match content.find(&ref_search) {
         Some(o) => o,
-        None => return Ok(CallToolResult::error(format!("Component '{}' not found", reference))),
+        None => {
+            return Ok(CallToolResult::error(format!(
+                "Component '{}' not found",
+                reference
+            )))
+        }
     };
 
     let before = &content[..ref_pos];
@@ -850,7 +922,9 @@ async fn handle_add_component_annotation(
 
     // Find the position just before (instances in the symbol block, or before closing paren
     let sym_block = &content[sym_start..sym_end];
-    let insert_rel = sym_block.find("(instances").unwrap_or(sym_block.rfind(')').unwrap_or(sym_block.len() - 1));
+    let insert_rel = sym_block
+        .find("(instances")
+        .unwrap_or(sym_block.rfind(')').unwrap_or(sym_block.len() - 1));
     let insert_abs = sym_start + insert_rel;
 
     // Build the property S-expression
@@ -873,10 +947,17 @@ async fn handle_group_components(
     _ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let group_name = match require_str(args, "group_name") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+    let group_name = match require_str(args, "group_name") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
     let refs = args["references"]
         .as_array()
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect::<Vec<_>>())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect::<Vec<_>>()
+        })
         .unwrap_or_default();
 
     if refs.is_empty() {
@@ -904,7 +985,9 @@ async fn handle_group_components(
         };
 
         let sym_block = &content[sym_start..sym_end];
-        let insert_rel = sym_block.find("(instances").unwrap_or(sym_block.rfind(')').unwrap_or(sym_block.len() - 1));
+        let insert_rel = sym_block
+            .find("(instances")
+            .unwrap_or(sym_block.rfind(')').unwrap_or(sym_block.len() - 1));
         let insert_abs = sym_start + insert_rel;
 
         let prop_sexp = format!(
@@ -929,8 +1012,14 @@ async fn handle_replace_component(
     _ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
-    let reference = match require_str(args, "reference") { Ok(r) => r.to_string(), Err(e) => return Ok(e) };
-    let new_lib_id = match require_str(args, "new_lib_id") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+    let reference = match require_str(args, "reference") {
+        Ok(r) => r.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let new_lib_id = match require_str(args, "new_lib_id") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
 
     let mut content = std::fs::read_to_string(&sch_path)?;
 
@@ -938,7 +1027,12 @@ async fn handle_replace_component(
     let ref_search = format!(r#"(property "Reference" "{reference}""#);
     let ref_pos = match content.find(&ref_search) {
         Some(o) => o,
-        None => return Ok(CallToolResult::error(format!("Component '{}' not found", reference))),
+        None => {
+            return Ok(CallToolResult::error(format!(
+                "Component '{}' not found",
+                reference
+            )))
+        }
     };
 
     let before = &content[..ref_pos];
@@ -952,7 +1046,11 @@ async fn handle_replace_component(
     let lib_id_pat = "(lib_id \"";
     let lib_id_rel = match sym_block_start.find(lib_id_pat) {
         Some(o) => o,
-        None => return Ok(CallToolResult::error("Could not find lib_id in symbol block")),
+        None => {
+            return Ok(CallToolResult::error(
+                "Could not find lib_id in symbol block",
+            ))
+        }
     };
     let lib_id_abs = sym_start + lib_id_rel + lib_id_pat.len();
     let lib_id_end = match content[lib_id_abs..].find('"') {
@@ -962,7 +1060,14 @@ async fn handle_replace_component(
 
     let old_lib_id = content[lib_id_abs..lib_id_end].to_string();
 
-    let new_content = apply_edits(content, vec![SexpEdit::replace(lib_id_abs, lib_id_end, new_lib_id.clone())]);
+    let new_content = apply_edits(
+        content,
+        vec![SexpEdit::replace(
+            lib_id_abs,
+            lib_id_end,
+            new_lib_id.clone(),
+        )],
+    );
     content = new_content;
 
     // Ensure the new library symbol definition is present

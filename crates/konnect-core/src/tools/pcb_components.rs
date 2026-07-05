@@ -18,9 +18,9 @@ where
     F: FnOnce(&KiCadIpcClient) -> anyhow::Result<T> + Send + 'static,
 {
     match tokio::task::spawn_blocking(move || f(&KiCadIpcClient::new(&addr))).await {
-        Ok(Ok(r))  => Ok(Ok(r)),
+        Ok(Ok(r)) => Ok(Ok(r)),
         Ok(Err(e)) => Ok(Err(e.to_string())),
-        Err(e)     => Err(anyhow::anyhow!("Thread error: {}", e)),
+        Err(e) => Err(anyhow::anyhow!("Thread error: {}", e)),
     }
 }
 
@@ -28,10 +28,13 @@ macro_rules! ipc {
     ($ctx:expr, |$c:ident| $body:expr) => {{
         let addr = $ctx.config.ipc_address.clone();
         match with_ipc(addr, move |$c| $body).await? {
-            Ok(v)    => v,
-            Err(msg) => return Ok(CallToolResult::error(format!(
-                "KiCAD must be running with the board loaded (IPC error: {})", msg
-            ))),
+            Ok(v) => v,
+            Err(msg) => {
+                return Ok(CallToolResult::error(format!(
+                    "KiCAD must be running with the board loaded (IPC error: {})",
+                    msg
+                )))
+            }
         }
     }};
 }
@@ -240,14 +243,27 @@ pub fn tools() -> Vec<ToolDef> {
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
-async fn handle_place_component(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let footprint = match require_str(args, "footprint") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let x         = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y         = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
-    let rotation  = args["rotation"].as_f64().unwrap_or(0.0);
-    let layer     = args["layer"].as_str().unwrap_or("F.Cu").to_string();
+async fn handle_place_component(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let footprint = match require_str(args, "footprint") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let x = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let rotation = args["rotation"].as_f64().unwrap_or(0.0);
+    let layer = args["layer"].as_str().unwrap_or("F.Cu").to_string();
 
-    let fp = ipc!(ctx, |c| c.place_footprint(&footprint, x, y, rotation, &layer));
+    let fp = ipc!(ctx, |c| c
+        .place_footprint(&footprint, x, y, rotation, &layer));
     Ok(CallToolResult::json(&json!({
         "placed": fp.reference,
         "footprint": fp.footprint,
@@ -256,39 +272,77 @@ async fn handle_place_component(args: &serde_json::Value, ctx: &ToolContext) -> 
     })))
 }
 
-async fn handle_move_component(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let reference = match require_str(args, "reference") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let x = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
+async fn handle_move_component(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let reference = match require_str(args, "reference") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let x = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
 
     let ref_ipc = reference.clone();
     ipc!(ctx, |c| c.move_footprint(&ref_ipc, x, y));
-    Ok(CallToolResult::json(&json!({ "moved": reference, "x": x, "y": y })))
+    Ok(CallToolResult::json(
+        &json!({ "moved": reference, "x": x, "y": y }),
+    ))
 }
 
-async fn handle_rotate_component(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let reference = match require_str(args, "reference") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let rotation  = match require_f64(args, "rotation") { Ok(v) => v, Err(e) => return Ok(e) };
+async fn handle_rotate_component(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let reference = match require_str(args, "reference") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let rotation = match require_f64(args, "rotation") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
 
     let ref_ipc = reference.clone();
     ipc!(ctx, |c| c.rotate_footprint(&ref_ipc, rotation));
-    Ok(CallToolResult::json(&json!({ "rotated": reference, "rotation": rotation })))
+    Ok(CallToolResult::json(
+        &json!({ "rotated": reference, "rotation": rotation }),
+    ))
 }
 
-async fn handle_delete_component(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let reference = match require_str(args, "reference") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+async fn handle_delete_component(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let reference = match require_str(args, "reference") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
 
     let ref_ipc = reference.clone();
     ipc!(ctx, |c| c.delete_footprint(&ref_ipc));
     Ok(CallToolResult::json(&json!({ "deleted": reference })))
 }
 
-async fn handle_edit_component(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_edit_component(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     // IPC doesn't have a direct "set value" command; re-get the footprint and report
     // For now this is a query + informational response. Full field edits require S-expr.
-    let reference = match require_str(args, "reference") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+    let reference = match require_str(args, "reference") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
     let fp = ipc!(ctx, |c| {
-        c.get_footprint(&reference)?.ok_or_else(|| anyhow::anyhow!("Footprint '{}' not found", reference))
+        c.get_footprint(&reference)?
+            .ok_or_else(|| anyhow::anyhow!("Footprint '{}' not found", reference))
     });
     Ok(CallToolResult::json(&json!({
         "reference": fp.reference,
@@ -298,10 +352,17 @@ async fn handle_edit_component(args: &serde_json::Value, ctx: &ToolContext) -> a
     })))
 }
 
-async fn handle_find_component(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let reference = match require_str(args, "reference") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+async fn handle_find_component(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let reference = match require_str(args, "reference") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
     let fp = ipc!(ctx, |c| {
-        c.get_footprint(&reference)?.ok_or_else(|| anyhow::anyhow!("Footprint '{}' not found", reference))
+        c.get_footprint(&reference)?
+            .ok_or_else(|| anyhow::anyhow!("Footprint '{}' not found", reference))
     });
     Ok(CallToolResult::json(&json!({
         "reference": fp.reference,
@@ -312,12 +373,18 @@ async fn handle_find_component(args: &serde_json::Value, ctx: &ToolContext) -> a
     })))
 }
 
-async fn handle_get_component_pads(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_get_component_pads(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let board_path = get_path(args, "board")?;
-    let reference  = match require_str(args, "reference") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+    let reference = match require_str(args, "reference") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
 
     let content = std::fs::read_to_string(&board_path)?;
-    let tree    = konnect_sexp::parser::parse_sexp(&content)?;
+    let tree = konnect_sexp::parser::parse_sexp(&content)?;
 
     // Find the footprint with matching reference
     let fp_node = tree.find_all("footprint").into_iter().find(|fp| {
@@ -329,7 +396,12 @@ async fn handle_get_component_pads(args: &serde_json::Value, _ctx: &ToolContext)
 
     let fp_node = match fp_node {
         Some(n) => n,
-        None => return Ok(CallToolResult::error(format!("Footprint '{}' not found", reference))),
+        None => {
+            return Ok(CallToolResult::error(format!(
+                "Footprint '{}' not found",
+                reference
+            )))
+        }
     };
 
     let fp_at = fp_node.find("at");
@@ -337,60 +409,108 @@ async fn handle_get_component_pads(args: &serde_json::Value, _ctx: &ToolContext)
     let fp_y = fp_at.and_then(|a| a.get_f64(2)).unwrap_or(0.0);
     let fp_rot = fp_at.and_then(|a| a.get_f64(3)).unwrap_or(0.0);
 
-    let pads: Vec<serde_json::Value> = fp_node.find_all("pad").iter().filter_map(|pad| {
-        let number  = pad.get(1)?.as_str()?.to_string();
-        let pad_at  = pad.find("at")?;
-        let local_x = pad_at.get_f64(1)?;
-        let local_y = pad_at.get_f64(2)?;
-        // Transform local pad coords to board space (simplified: only rotation)
-        let rad = fp_rot.to_radians();
-        let board_x = fp_x + local_x * rad.cos() - local_y * rad.sin();
-        let board_y = fp_y + local_x * rad.sin() + local_y * rad.cos();
-        let net = pad.find("net").and_then(|n| n.get(2)).and_then(|n| n.as_str()).unwrap_or("").to_string();
-        Some(json!({ "number": number, "x": board_x, "y": board_y, "net": net }))
-    }).collect();
+    let pads: Vec<serde_json::Value> = fp_node
+        .find_all("pad")
+        .iter()
+        .filter_map(|pad| {
+            let number = pad.get(1)?.as_str()?.to_string();
+            let pad_at = pad.find("at")?;
+            let local_x = pad_at.get_f64(1)?;
+            let local_y = pad_at.get_f64(2)?;
+            // Transform local pad coords to board space (simplified: only rotation)
+            let rad = fp_rot.to_radians();
+            let board_x = fp_x + local_x * rad.cos() - local_y * rad.sin();
+            let board_y = fp_y + local_x * rad.sin() + local_y * rad.cos();
+            let net = pad
+                .find("net")
+                .and_then(|n| n.get(2))
+                .and_then(|n| n.as_str())
+                .unwrap_or("")
+                .to_string();
+            Some(json!({ "number": number, "x": board_x, "y": board_y, "net": net }))
+        })
+        .collect();
 
-    Ok(CallToolResult::json(&json!({ "reference": reference, "pad_count": pads.len(), "pads": pads })))
+    Ok(CallToolResult::json(
+        &json!({ "reference": reference, "pad_count": pads.len(), "pads": pads }),
+    ))
 }
 
-async fn handle_get_pad_position(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let pad_number = match require_str(args, "pad_number") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+async fn handle_get_pad_position(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let pad_number = match require_str(args, "pad_number") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
     let pads_result = handle_get_component_pads(args, ctx).await?;
     // Parse the result and filter for the specific pad number
     if let Some(crate::mcp::protocol::ToolContent::Text { text }) = pads_result.content.first() {
         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) {
             if let Some(pads) = parsed["pads"].as_array() {
-                if let Some(pad) = pads.iter().find(|p| p["number"].as_str() == Some(&pad_number)) {
+                if let Some(pad) = pads
+                    .iter()
+                    .find(|p| p["number"].as_str() == Some(&pad_number))
+                {
                     return Ok(CallToolResult::json(pad));
                 }
             }
         }
     }
-    Ok(CallToolResult::error(format!("Pad '{}' not found", pad_number)))
+    Ok(CallToolResult::error(format!(
+        "Pad '{}' not found",
+        pad_number
+    )))
 }
 
-async fn handle_get_component_list(_args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_get_component_list(
+    _args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let fps = ipc!(ctx, |c| c.list_footprints());
-    let items: Vec<serde_json::Value> = fps.iter().map(|fp| json!({
-        "reference": fp.reference,
-        "value": fp.value,
-        "footprint": fp.footprint,
-        "x": fp.position.x, "y": fp.position.y,
-        "rotation": fp.rotation, "layer": fp.layer
-    })).collect();
-    Ok(CallToolResult::json(&json!({ "count": items.len(), "components": items })))
+    let items: Vec<serde_json::Value> = fps
+        .iter()
+        .map(|fp| {
+            json!({
+                "reference": fp.reference,
+                "value": fp.value,
+                "footprint": fp.footprint,
+                "x": fp.position.x, "y": fp.position.y,
+                "rotation": fp.rotation, "layer": fp.layer
+            })
+        })
+        .collect();
+    Ok(CallToolResult::json(
+        &json!({ "count": items.len(), "components": items }),
+    ))
 }
 
-async fn handle_place_array(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let footprint  = match require_str(args, "footprint") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let start_x    = match require_f64(args, "start_x")  { Ok(v) => v, Err(e) => return Ok(e) };
-    let start_y    = match require_f64(args, "start_y")  { Ok(v) => v, Err(e) => return Ok(e) };
-    let count_x    = args["count_x"].as_u64().unwrap_or(1) as usize;
-    let count_y    = args["count_y"].as_u64().unwrap_or(1) as usize;
-    let spacing_x  = match require_f64(args, "spacing_x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let spacing_y  = args["spacing_y"].as_f64().unwrap_or(spacing_x);
-    let prefix     = args["ref_prefix"].as_str().unwrap_or("U").to_string();
-    let ref_start  = args["ref_start"].as_u64().unwrap_or(1) as usize;
+async fn handle_place_array(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let footprint = match require_str(args, "footprint") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let start_x = match require_f64(args, "start_x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let start_y = match require_f64(args, "start_y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let count_x = args["count_x"].as_u64().unwrap_or(1) as usize;
+    let count_y = args["count_y"].as_u64().unwrap_or(1) as usize;
+    let spacing_x = match require_f64(args, "spacing_x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let spacing_y = args["spacing_y"].as_f64().unwrap_or(spacing_x);
+    let prefix = args["ref_prefix"].as_str().unwrap_or("U").to_string();
+    let ref_start = args["ref_start"].as_u64().unwrap_or(1) as usize;
 
     let mut placed = Vec::new();
     let mut n = ref_start;
@@ -401,28 +521,51 @@ async fn handle_place_array(args: &serde_json::Value, ctx: &ToolContext) -> anyh
             let reference = format!("{prefix}{n}");
             let fp_id = footprint.clone();
             let ref2 = reference.clone();
-            match with_ipc(ctx.config.ipc_address.clone(), move |c| c.place_footprint(&fp_id, x, y, 0.0, "F.Cu")).await? {
-                Ok(fp) => placed.push(json!({ "reference": ref2, "x": fp.position.x, "y": fp.position.y })),
-                Err(e) => return Ok(CallToolResult::error(format!("IPC error placing {}: {}", reference, e))),
+            match with_ipc(ctx.config.ipc_address.clone(), move |c| {
+                c.place_footprint(&fp_id, x, y, 0.0, "F.Cu")
+            })
+            .await?
+            {
+                Ok(fp) => placed
+                    .push(json!({ "reference": ref2, "x": fp.position.x, "y": fp.position.y })),
+                Err(e) => {
+                    return Ok(CallToolResult::error(format!(
+                        "IPC error placing {}: {}",
+                        reference, e
+                    )))
+                }
             }
             n += 1;
         }
     }
-    Ok(CallToolResult::json(&json!({ "placed_count": placed.len(), "components": placed })))
+    Ok(CallToolResult::json(
+        &json!({ "placed_count": placed.len(), "components": placed }),
+    ))
 }
 
-async fn handle_align_components(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let refs  = args["references"].as_array().cloned().unwrap_or_default();
-    let axis  = args["axis"].as_str().unwrap_or("x").to_string();
-    let value = match require_f64(args, "value") { Ok(v) => v, Err(e) => return Ok(e) };
+async fn handle_align_components(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let refs = args["references"].as_array().cloned().unwrap_or_default();
+    let axis = args["axis"].as_str().unwrap_or("x").to_string();
+    let value = match require_f64(args, "value") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
 
     let mut aligned = Vec::new();
     for ref_val in &refs {
-        let reference = match ref_val.as_str() { Some(r) => r.to_string(), None => continue };
+        let reference = match ref_val.as_str() {
+            Some(r) => r.to_string(),
+            None => continue,
+        };
         let ref2 = reference.clone();
         let axis_clone = axis.clone();
         let res = with_ipc(ctx.config.ipc_address.clone(), move |c| {
-            let fp = c.get_footprint(&ref2)?.ok_or_else(|| anyhow::anyhow!("not found"))?;
+            let fp = c
+                .get_footprint(&ref2)?
+                .ok_or_else(|| anyhow::anyhow!("not found"))?;
             let (nx, ny) = if axis_clone == "y" {
                 (fp.position.x, value)
             } else {
@@ -430,28 +573,53 @@ async fn handle_align_components(args: &serde_json::Value, ctx: &ToolContext) ->
             };
             c.move_footprint(&ref2, nx, ny)?;
             Ok((nx, ny))
-        }).await?;
+        })
+        .await?;
         match res {
             Ok((nx, ny)) => aligned.push(json!({ "reference": reference, "x": nx, "y": ny })),
             Err(e) => return Ok(CallToolResult::error(format!("IPC error: {}", e))),
         }
     }
-    Ok(CallToolResult::json(&json!({ "aligned_count": aligned.len(), "components": aligned })))
+    Ok(CallToolResult::json(
+        &json!({ "aligned_count": aligned.len(), "components": aligned }),
+    ))
 }
 
-async fn handle_duplicate_component(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let reference     = match require_str(args, "reference")     { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let _new_reference = match require_str(args, "new_reference") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let x             = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y             = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
+async fn handle_duplicate_component(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let reference = match require_str(args, "reference") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let _new_reference = match require_str(args, "new_reference") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let x = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
 
     // Get the source footprint's footprint ID and rotation
     let ref_ipc = reference.clone();
     let src = ipc!(ctx, |c| {
-        c.get_footprint(&ref_ipc)?.ok_or_else(|| anyhow::anyhow!("Footprint '{}' not found", ref_ipc))
+        c.get_footprint(&ref_ipc)?
+            .ok_or_else(|| anyhow::anyhow!("Footprint '{}' not found", ref_ipc))
     });
 
-    let fp = ipc!(ctx, |c| c.place_footprint(&src.footprint, x, y, src.rotation, &src.layer));
+    let fp = ipc!(ctx, |c| c.place_footprint(
+        &src.footprint,
+        x,
+        y,
+        src.rotation,
+        &src.layer
+    ));
     Ok(CallToolResult::json(&json!({
         "duplicated_from": reference,
         "new_reference": fp.reference,
@@ -459,13 +627,28 @@ async fn handle_duplicate_component(args: &serde_json::Value, ctx: &ToolContext)
     })))
 }
 
-async fn handle_get_board_2d_view(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_get_board_2d_view(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     use base64::Engine;
     let board_path = get_path(args, "board")?;
     let layers: Vec<String> = args["layers"]
         .as_array()
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
-        .unwrap_or_else(|| vec!["F.Cu".into(), "B.Cu".into(), "F.SilkS".into(), "B.SilkS".into(), "Edge.Cuts".into()]);
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_else(|| {
+            vec![
+                "F.Cu".into(),
+                "B.Cu".into(),
+                "F.SilkS".into(),
+                "B.SilkS".into(),
+                "Edge.Cuts".into(),
+            ]
+        });
 
     let tmp = board_path.with_extension("render.png");
     let layer_refs: Vec<&str> = layers.iter().map(String::as_str).collect();

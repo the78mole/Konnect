@@ -247,7 +247,10 @@ fn set_constraint(content: &str, key: &str, value: f64) -> String {
 
     if let Some(pos) = content.find(&pat) {
         // Replace existing value
-        let end = content[pos..].find(')').map(|i| pos + i + 1).unwrap_or(content.len());
+        let end = content[pos..]
+            .find(')')
+            .map(|i| pos + i + 1)
+            .unwrap_or(content.len());
         let new_entry = format!("({} {})", key, value);
         format!("{}{}{}", &content[..pos], new_entry, &content[end..])
     } else {
@@ -427,7 +430,9 @@ async fn handle_check_kicad_ui(
     // Try IPC ping
     let addr = ctx.config.ipc_address.clone();
     let ipc_ok = task::spawn_blocking(move || {
-        konnect_ipc::client::KiCadIpcClient::new(&addr).ping().unwrap_or(false)
+        konnect_ipc::client::KiCadIpcClient::new(&addr)
+            .ping()
+            .unwrap_or(false)
     })
     .await
     .unwrap_or(false);
@@ -460,14 +465,16 @@ async fn handle_launch_kicad_ui(
             if wait_ready {
                 // Poll IPC until responsive or timeout
                 let addr = ctx.config.ipc_address.clone();
-                let deadline = std::time::Instant::now()
-                    + std::time::Duration::from_secs(timeout_secs);
+                let deadline =
+                    std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs);
 
                 loop {
                     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                     let addr2 = addr.clone();
                     let ok = task::spawn_blocking(move || {
-                        konnect_ipc::client::KiCadIpcClient::new(&addr2).ping().unwrap_or(false)
+                        konnect_ipc::client::KiCadIpcClient::new(&addr2)
+                            .ping()
+                            .unwrap_or(false)
                     })
                     .await
                     .unwrap_or(false);
@@ -649,10 +656,7 @@ fn translate_block(
                 let coords_str = &after[..close];
                 let parts: Vec<&str> = coords_str.split_whitespace().collect();
                 if parts.len() >= 2 {
-                    if let (Ok(x), Ok(y)) = (
-                        parts[0].parse::<f64>(),
-                        parts[1].parse::<f64>(),
-                    ) {
+                    if let (Ok(x), Ok(y)) = (parts[0].parse::<f64>(), parts[1].parse::<f64>()) {
                         new_result.push_str(&format!("{} {}", x + dx, y + dy));
                         if parts.len() > 2 {
                             new_result.push(' ');
@@ -719,7 +723,10 @@ async fn handle_set_layer_constraints(
     _ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
     let board = get_path(args, "board")?;
-    let layer = match require_str(args, "layer") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+    let layer = match require_str(args, "layer") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
     let mut content = tokio::fs::read_to_string(&board).await?;
     let mut changed = Vec::new();
 
@@ -738,11 +745,22 @@ async fn handle_set_layer_constraints(
             for (i, ch) in content[setup_pos..].char_indices() {
                 match ch {
                     '(' => depth += 1,
-                    ')' => { depth -= 1; if depth == 0 { setup_end = setup_pos + i; break; } }
+                    ')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            setup_end = setup_pos + i;
+                            break;
+                        }
+                    }
                     _ => {}
                 }
             }
-            content = format!("{}{}{}", &content[..setup_end], rule_sexp, &content[setup_end..]);
+            content = format!(
+                "{}{}{}",
+                &content[..setup_end],
+                rule_sexp,
+                &content[setup_end..]
+            );
             changed.push(format!("clearance = {} on {}", clearance, layer));
         }
     }
@@ -757,11 +775,22 @@ async fn handle_set_layer_constraints(
             for (i, ch) in content[setup_pos..].char_indices() {
                 match ch {
                     '(' => depth += 1,
-                    ')' => { depth -= 1; if depth == 0 { setup_end = setup_pos + i; break; } }
+                    ')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            setup_end = setup_pos + i;
+                            break;
+                        }
+                    }
                     _ => {}
                 }
             }
-            content = format!("{}{}{}", &content[..setup_end], rule_sexp, &content[setup_end..]);
+            content = format!(
+                "{}{}{}",
+                &content[..setup_end],
+                rule_sexp,
+                &content[setup_end..]
+            );
             changed.push(format!("min_trace_width = {} on {}", trace_width, layer));
         }
     }
@@ -787,8 +816,14 @@ async fn handle_check_clearance(
     _ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
     let board = get_path(args, "board")?;
-    let ref1 = match require_str(args, "ref1") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let ref2 = match require_str(args, "ref2") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+    let ref1 = match require_str(args, "ref1") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let ref2 = match require_str(args, "ref2") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
 
     let content = std::fs::read_to_string(&board)?;
     let tree = konnect_sexp::parser::parse_sexp(&content)?;
@@ -831,4 +866,3 @@ fn find_footprint_position(
 
     Ok((fp_x, fp_y))
 }
-

@@ -1,4 +1,7 @@
-use konnect_schematic_editor::{Schematic, sexp::{parser, writer}};
+use konnect_schematic_editor::{
+    sexp::{parser, writer},
+    Schematic,
+};
 
 // ---- S-expression parser round-trip ----------------------------------------
 
@@ -27,8 +30,8 @@ fn parse_escaped_string() {
 #[test]
 fn writer_round_trip() {
     let input = r#"(kicad_sch (version 20231120) (generator "kicad"))"#;
-    let node  = parser::parse(input).unwrap();
-    let out   = writer::write(&node);
+    let node = parser::parse(input).unwrap();
+    let out = writer::write(&node);
     // Re-parse and check structure is preserved
     let node2 = parser::parse(out.trim()).unwrap();
     assert_eq!(node2.tag(), Some("kicad_sch"));
@@ -200,9 +203,9 @@ fn symbol_position() {
 fn symbol_booleans() {
     let sch = load_minimal();
     let r1 = sch.symbols.by_reference("R1").unwrap();
-    assert_eq!(r1.in_bom,   true);
+    assert_eq!(r1.in_bom, true);
     assert_eq!(r1.on_board, true);
-    assert_eq!(r1.dnp,      false);
+    assert_eq!(r1.dnp, false);
 }
 
 #[test]
@@ -250,7 +253,7 @@ fn wire_properties() {
     let sch = load_minimal();
     let w = sch.wires.get(0).unwrap();
     assert_eq!(w.start, (90.0, 100.0));
-    assert_eq!(w.end,   (100.0, 100.0));
+    assert_eq!(w.end, (100.0, 100.0));
     assert!(w.is_horizontal());
     assert!(!w.is_vertical());
     assert!((w.length() - 10.0).abs() < 1e-9);
@@ -270,7 +273,10 @@ fn spatial_within_circle() {
     let sch = load_minimal();
     // R1 is at (100,100), C1 at (150,100) — radius 10 from R1 should find R1 only
     let found = sch.within_circle(100.0, 100.0, 10.0);
-    let sym_count = found.iter().filter(|e| matches!(e, konnect_schematic_editor::LocatedElement::Symbol(_))).count();
+    let sym_count = found
+        .iter()
+        .filter(|e| matches!(e, konnect_schematic_editor::LocatedElement::Symbol(_)))
+        .count();
     assert_eq!(sym_count, 1);
 }
 
@@ -279,7 +285,10 @@ fn spatial_within_rectangle() {
     let sch = load_minimal();
     // Box that covers both symbols
     let found = sch.within_rectangle(80.0, 80.0, 200.0, 120.0);
-    let sym_count = found.iter().filter(|e| matches!(e, konnect_schematic_editor::LocatedElement::Symbol(_))).count();
+    let sym_count = found
+        .iter()
+        .filter(|e| matches!(e, konnect_schematic_editor::LocatedElement::Symbol(_)))
+        .count();
     assert_eq!(sym_count, 2);
 }
 
@@ -322,7 +331,10 @@ fn diff_detects_value_change() {
     let tmp = fresh_minimal_file();
 
     let mut sch = Schematic::load(tmp.path()).unwrap();
-    sch.symbols.by_reference_mut("R1").unwrap().set_value_str("1k");
+    sch.symbols
+        .by_reference_mut("R1")
+        .unwrap()
+        .set_value_str("1k");
 
     let cs = sch.diff_against_disk().unwrap();
     assert!(!cs.is_empty());

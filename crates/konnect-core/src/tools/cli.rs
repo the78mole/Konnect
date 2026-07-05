@@ -54,7 +54,9 @@ async fn run_cli(cli: &str, args: &[&str], timeout_dur: Duration) -> Result<Stri
     let mut cmd = Command::new(cli);
     cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
 
-    let child = cmd.spawn().with_context(|| format!("Failed to spawn kicad-cli: {}", cli))?;
+    let child = cmd
+        .spawn()
+        .with_context(|| format!("Failed to spawn kicad-cli: {}", cli))?;
 
     let output = timeout(timeout_dur, child.wait_with_output())
         .await
@@ -91,9 +93,12 @@ async fn run_cli(cli: &str, args: &[&str], timeout_dur: Duration) -> Result<Stri
 pub async fn run_erc(cli: &str, schematic: &Path) -> Result<Vec<ErcViolation>> {
     let out_path = schematic.with_extension("erc.json");
     let args = [
-        "sch", "erc",
-        "--output", out_path.to_str().unwrap(),
-        "--format", "json",
+        "sch",
+        "erc",
+        "--output",
+        out_path.to_str().unwrap(),
+        "--format",
+        "json",
         schematic.to_str().unwrap(),
     ];
     run_cli(cli, &args, LONG_TIMEOUT).await?;
@@ -115,18 +120,16 @@ fn parse_erc_json(raw: &serde_json::Value) -> Vec<ErcViolation> {
     };
 
     arr.iter()
-        .filter_map(|v| {
-            Some(ErcViolation {
-                severity: v["severity"].as_str().unwrap_or("error").to_string(),
-                description: v["description"].as_str().unwrap_or("").to_string(),
-                sheet: v["sheet"].as_str().map(String::from),
-                pos: v.get("pos").and_then(|p| {
-                    Some(ErcPos {
-                        x: p["x"].as_f64()?,
-                        y: p["y"].as_f64()?,
-                    })
-                }),
-            })
+        .map(|v| ErcViolation {
+            severity: v["severity"].as_str().unwrap_or("error").to_string(),
+            description: v["description"].as_str().unwrap_or("").to_string(),
+            sheet: v["sheet"].as_str().map(String::from),
+            pos: v.get("pos").and_then(|p| {
+                Some(ErcPos {
+                    x: p["x"].as_f64()?,
+                    y: p["y"].as_f64()?,
+                })
+            }),
         })
         .collect()
 }
@@ -138,9 +141,12 @@ fn parse_erc_json(raw: &serde_json::Value) -> Vec<ErcViolation> {
 pub async fn run_drc(cli: &str, pcb: &Path, refill_zones: bool) -> Result<Vec<DrcViolation>> {
     let out_path = pcb.with_extension("drc.json");
     let mut args = vec![
-        "pcb", "drc",
-        "--output", out_path.to_str().unwrap(),
-        "--format", "json",
+        "pcb",
+        "drc",
+        "--output",
+        out_path.to_str().unwrap(),
+        "--format",
+        "json",
     ];
     if refill_zones {
         args.push("--refill-zones");
@@ -159,17 +165,15 @@ pub async fn run_drc(cli: &str, pcb: &Path, refill_zones: bool) -> Result<Vec<Dr
         .and_then(|v| v.as_array())
         .unwrap_or(&vec![])
         .iter()
-        .filter_map(|v| {
-            Some(DrcViolation {
-                severity: v["severity"].as_str().unwrap_or("error").to_string(),
-                description: v["description"].as_str().unwrap_or("").to_string(),
-                pos: v.get("pos").and_then(|p| {
-                    Some(ErcPos {
-                        x: p["x"].as_f64()?,
-                        y: p["y"].as_f64()?,
-                    })
-                }),
-            })
+        .map(|v| DrcViolation {
+            severity: v["severity"].as_str().unwrap_or("error").to_string(),
+            description: v["description"].as_str().unwrap_or("").to_string(),
+            pos: v.get("pos").and_then(|p| {
+                Some(ErcPos {
+                    x: p["x"].as_f64()?,
+                    y: p["y"].as_f64()?,
+                })
+            }),
         })
         .collect())
 }
@@ -193,11 +197,16 @@ pub async fn annotate_schematic(_cli: &str, schematic: &Path) -> Result<()> {
         if let Some(end) = new_content[abs..].find('"') {
             let reference = &new_content[abs..abs + end];
             // Extract prefix and number: "R1" → ("R", 1)
-            let prefix: String = reference.chars().take_while(|c| c.is_alphabetic() || *c == '#').collect();
+            let prefix: String = reference
+                .chars()
+                .take_while(|c| c.is_alphabetic() || *c == '#')
+                .collect();
             let num_str: String = reference.chars().skip(prefix.len()).collect();
             if let Ok(num) = num_str.parse::<usize>() {
                 let counter = counters.entry(prefix).or_insert(0);
-                if num >= *counter { *counter = num + 1; }
+                if num >= *counter {
+                    *counter = num + 1;
+                }
             }
         }
         pos = abs + 1;
@@ -236,10 +245,17 @@ pub async fn annotate_schematic(_cli: &str, schematic: &Path) -> Result<()> {
 // ─── Schematic Export ────────────────────────────────────────────────────────
 
 /// KiCAD 10: `sch export svg --output <dir> <input>`
-pub async fn export_schematic_svg(cli: &str, schematic: &Path, output_dir: &Path) -> Result<PathBuf> {
+pub async fn export_schematic_svg(
+    cli: &str,
+    schematic: &Path,
+    output_dir: &Path,
+) -> Result<PathBuf> {
     let args = [
-        "sch", "export", "svg",
-        "--output", output_dir.to_str().unwrap(),
+        "sch",
+        "export",
+        "svg",
+        "--output",
+        output_dir.to_str().unwrap(),
         schematic.to_str().unwrap(),
     ];
     run_cli(cli, &args, LONG_TIMEOUT).await?;
@@ -250,8 +266,11 @@ pub async fn export_schematic_svg(cli: &str, schematic: &Path, output_dir: &Path
 /// KiCAD 10: `sch export pdf --output <path> <input>`
 pub async fn export_schematic_pdf(cli: &str, schematic: &Path, output: &Path) -> Result<()> {
     let args = [
-        "sch", "export", "pdf",
-        "--output", output.to_str().unwrap(),
+        "sch",
+        "export",
+        "pdf",
+        "--output",
+        output.to_str().unwrap(),
         schematic.to_str().unwrap(),
     ];
     run_cli(cli, &args, LONG_TIMEOUT).await?;
@@ -263,8 +282,11 @@ pub async fn export_schematic_pdf(cli: &str, schematic: &Path, output: &Path) ->
 /// Default output is CSV-like with Reference,Value,Footprint,Qty,DNP fields.
 pub async fn export_bom(cli: &str, schematic: &Path, output: &Path, _format: &str) -> Result<()> {
     let args = [
-        "sch", "export", "bom",
-        "--output", output.to_str().unwrap(),
+        "sch",
+        "export",
+        "bom",
+        "--output",
+        output.to_str().unwrap(),
         schematic.to_str().unwrap(),
     ];
     run_cli(cli, &args, LONG_TIMEOUT).await?;
@@ -273,7 +295,12 @@ pub async fn export_bom(cli: &str, schematic: &Path, output: &Path, _format: &st
 
 /// KiCAD 10: `sch export netlist --output <path> --format <fmt> <input>`
 /// Valid formats: kicadsexpr, kicadxml, cadstar, orcadpcb2, spice, spicemodel, pads, allegro
-pub async fn export_netlist(cli: &str, schematic: &Path, output: &Path, format: &str) -> Result<()> {
+pub async fn export_netlist(
+    cli: &str,
+    schematic: &Path,
+    output: &Path,
+    format: &str,
+) -> Result<()> {
     // Map friendly names to v10 format values
     let lower = format.to_lowercase();
     let v10_format = match lower.as_str() {
@@ -287,9 +314,13 @@ pub async fn export_netlist(cli: &str, schematic: &Path, output: &Path, format: 
         _ => &lower,
     };
     let args = [
-        "sch", "export", "netlist",
-        "--output", output.to_str().unwrap(),
-        "--format", v10_format,
+        "sch",
+        "export",
+        "netlist",
+        "--output",
+        output.to_str().unwrap(),
+        "--format",
+        v10_format,
         schematic.to_str().unwrap(),
     ];
     run_cli(cli, &args, LONG_TIMEOUT).await?;
@@ -301,8 +332,11 @@ pub async fn export_netlist(cli: &str, schematic: &Path, output: &Path, format: 
 /// KiCAD 10: `pcb export gerbers --output <dir> <input>` (PLURAL!)
 pub async fn export_gerber(cli: &str, pcb: &Path, output_dir: &Path) -> Result<()> {
     let args = [
-        "pcb", "export", "gerbers",
-        "--output", output_dir.to_str().unwrap(),
+        "pcb",
+        "export",
+        "gerbers",
+        "--output",
+        output_dir.to_str().unwrap(),
         pcb.to_str().unwrap(),
     ];
     run_cli(cli, &args, LONG_TIMEOUT).await?;
@@ -312,8 +346,11 @@ pub async fn export_gerber(cli: &str, pcb: &Path, output_dir: &Path) -> Result<(
 /// KiCAD 10: `pcb export drill --output <dir> <input>`
 pub async fn export_drill(cli: &str, pcb: &Path, output: &Path) -> Result<()> {
     let args = [
-        "pcb", "export", "drill",
-        "--output", output.to_str().unwrap(),
+        "pcb",
+        "export",
+        "drill",
+        "--output",
+        output.to_str().unwrap(),
         pcb.to_str().unwrap(),
     ];
     run_cli(cli, &args, LONG_TIMEOUT).await?;
@@ -322,10 +359,7 @@ pub async fn export_drill(cli: &str, pcb: &Path, output: &Path) -> Result<()> {
 
 /// KiCAD 10: `pcb export pdf --output <path> [--layers <layer>]... <input>`
 pub async fn export_pdf(cli: &str, pcb: &Path, output: &Path, layers: &[&str]) -> Result<()> {
-    let mut args = vec![
-        "pcb", "export", "pdf",
-        "--output", output.to_str().unwrap(),
-    ];
+    let mut args = vec!["pcb", "export", "pdf", "--output", output.to_str().unwrap()];
     for layer in layers {
         args.push("--layers");
         args.push(layer);
@@ -337,10 +371,7 @@ pub async fn export_pdf(cli: &str, pcb: &Path, output: &Path, layers: &[&str]) -
 
 /// KiCAD 10: `pcb export svg --output <path> [--layers <layer>]... <input>`
 pub async fn export_svg_pcb(cli: &str, pcb: &Path, output: &Path, layers: &[&str]) -> Result<()> {
-    let mut args = vec![
-        "pcb", "export", "svg",
-        "--output", output.to_str().unwrap(),
-    ];
+    let mut args = vec!["pcb", "export", "svg", "--output", output.to_str().unwrap()];
     for layer in layers {
         args.push("--layers");
         args.push(layer);
@@ -370,8 +401,11 @@ pub async fn export_3d(cli: &str, pcb: &Path, output: &Path, format: &str) -> Re
         ),
     };
     let args = vec![
-        "pcb", "export", subcommand,
-        "--output", output.to_str().unwrap(),
+        "pcb",
+        "export",
+        subcommand,
+        "--output",
+        output.to_str().unwrap(),
         pcb.to_str().unwrap(),
     ];
     run_cli(cli, &args, LONG_TIMEOUT).await?;
@@ -380,11 +414,20 @@ pub async fn export_3d(cli: &str, pcb: &Path, output: &Path, format: &str) -> Re
 
 /// KiCAD 10: `pcb export pos --output <path> --format <fmt> <input>`
 /// Formats: ascii (default), csv, gerber
-pub async fn export_position_file(cli: &str, pcb: &Path, output: &Path, format: &str) -> Result<()> {
+pub async fn export_position_file(
+    cli: &str,
+    pcb: &Path,
+    output: &Path,
+    format: &str,
+) -> Result<()> {
     let args = [
-        "pcb", "export", "pos",
-        "--output", output.to_str().unwrap(),
-        "--format", format,
+        "pcb",
+        "export",
+        "pos",
+        "--output",
+        output.to_str().unwrap(),
+        "--format",
+        format,
         pcb.to_str().unwrap(),
     ];
     run_cli(cli, &args, LONG_TIMEOUT).await?;
@@ -394,8 +437,11 @@ pub async fn export_position_file(cli: &str, pcb: &Path, output: &Path, format: 
 /// KiCAD 10: `pcb export ipcd356 --output <path> <input>`
 pub async fn export_ipcd356(cli: &str, pcb: &Path, output: &Path) -> Result<()> {
     let args = [
-        "pcb", "export", "ipcd356",
-        "--output", output.to_str().unwrap(),
+        "pcb",
+        "export",
+        "ipcd356",
+        "--output",
+        output.to_str().unwrap(),
         pcb.to_str().unwrap(),
     ];
     run_cli(cli, &args, LONG_TIMEOUT).await?;

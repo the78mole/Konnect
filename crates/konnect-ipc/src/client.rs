@@ -82,7 +82,11 @@ impl KiCadIpcClient {
     }
 
     /// Send a protobuf command and return the response Any.
-    fn send_command(&self, command: &impl Message, type_name: &str) -> Result<Option<prost_types::Any>> {
+    fn send_command(
+        &self,
+        command: &impl Message,
+        type_name: &str,
+    ) -> Result<Option<prost_types::Any>> {
         if self.socket_path.is_empty() {
             anyhow::bail!(
                 "KiCAD IPC socket path not configured. \
@@ -100,28 +104,38 @@ impl KiCadIpcClient {
         };
 
         let request_bytes = request.encode_to_vec();
-        debug!("[BETA] IPC → {} ({} bytes) to {}", type_name, request_bytes.len(), self.socket_path);
+        debug!(
+            "[BETA] IPC → {} ({} bytes) to {}",
+            type_name,
+            request_bytes.len(),
+            self.socket_path
+        );
 
         // Connect via NNG req0 socket
-        let socket = nng::Socket::new(nng::Protocol::Req0)
-            .context("Failed to create NNG socket")?;
+        let socket =
+            nng::Socket::new(nng::Protocol::Req0).context("Failed to create NNG socket")?;
 
         // Build the dial URL
-        let dial_url = if self.socket_path.starts_with("ipc://") || self.socket_path.starts_with("tcp://") {
-            self.socket_path.clone()
-        } else {
-            format!("ipc://{}", self.socket_path)
-        };
+        let dial_url =
+            if self.socket_path.starts_with("ipc://") || self.socket_path.starts_with("tcp://") {
+                self.socket_path.clone()
+            } else {
+                format!("ipc://{}", self.socket_path)
+            };
 
-        socket.dial(&dial_url)
+        socket
+            .dial(&dial_url)
             .with_context(|| format!("Cannot connect to KiCAD IPC at {}", dial_url))?;
 
         // Send request
         let msg = nng::Message::from(request_bytes.as_slice());
-        socket.send(msg).map_err(|(_, e)| anyhow::anyhow!("NNG send failed: {}", e))?;
+        socket
+            .send(msg)
+            .map_err(|(_, e)| anyhow::anyhow!("NNG send failed: {}", e))?;
 
         // Receive response
-        let reply = socket.recv()
+        let reply = socket
+            .recv()
             .map_err(|e| anyhow::anyhow!("NNG recv failed: {}", e))?;
 
         let response = kiapi::common::ApiResponse::decode(reply.as_slice())
@@ -199,17 +213,24 @@ impl KiCadIpcClient {
         let response_any = self.send_command(&cmd, "kiapi.board.commands.GetNets")?;
         if let Some(any) = response_any {
             let resp: kiapi::board::commands::NetsResponse = unpack_any(&any)?;
-            Ok(resp.nets.iter().map(|n| IpcNet {
-                name: n.name.clone(),
-                netcode: n.code.as_ref().map(|c| c.value).unwrap_or(0),
-            }).collect())
+            Ok(resp
+                .nets
+                .iter()
+                .map(|n| IpcNet {
+                    name: n.name.clone(),
+                    netcode: n.code.as_ref().map(|c| c.value).unwrap_or(0),
+                })
+                .collect())
         } else {
             Ok(vec![])
         }
     }
 
     /// Get board items by type.
-    pub fn get_items(&self, item_type: kiapi::common::types::KiCadObjectType) -> Result<Vec<prost_types::Any>> {
+    pub fn get_items(
+        &self,
+        item_type: kiapi::common::types::KiCadObjectType,
+    ) -> Result<Vec<prost_types::Any>> {
         let header = self.make_header()?;
         let cmd = kiapi::common::commands::GetItems {
             header: Some(header),
@@ -231,17 +252,23 @@ impl KiCadIpcClient {
         for item in &items {
             if let Ok(fp) = kiapi::board::types::FootprintInstance::decode(item.value.as_slice()) {
                 let pos = fp.position.as_ref();
-                let ref_text = fp.reference_field.as_ref()
+                let ref_text = fp
+                    .reference_field
+                    .as_ref()
                     .and_then(|f| f.text.as_ref())
                     .and_then(|bt| bt.text.as_ref())
                     .map(|t| t.text.clone())
                     .unwrap_or_default();
-                let val_text = fp.value_field.as_ref()
+                let val_text = fp
+                    .value_field
+                    .as_ref()
                     .and_then(|f| f.text.as_ref())
                     .and_then(|bt| bt.text.as_ref())
                     .map(|t| t.text.clone())
                     .unwrap_or_default();
-                let lib_id = fp.definition.as_ref()
+                let lib_id = fp
+                    .definition
+                    .as_ref()
                     .and_then(|d| d.id.as_ref())
                     .map(|id| format!("{}:{}", id.library_nickname, id.entry_name))
                     .unwrap_or_default();
@@ -253,7 +280,11 @@ impl KiCadIpcClient {
                         x: pos.map(|p| nm_to_mm(p.x_nm)).unwrap_or(0.0),
                         y: pos.map(|p| nm_to_mm(p.y_nm)).unwrap_or(0.0),
                     },
-                    rotation: fp.orientation.as_ref().map(|a| a.value_degrees).unwrap_or(0.0),
+                    rotation: fp
+                        .orientation
+                        .as_ref()
+                        .map(|a| a.value_degrees)
+                        .unwrap_or(0.0),
                     layer: layer_enum_to_name(fp.layer).to_string(),
                 });
             }
@@ -278,7 +309,10 @@ impl KiCadIpcClient {
         let header = self.make_header()?;
         let cmd = kiapi::common::commands::DeleteItems {
             header: Some(header),
-            item_ids: ids.iter().map(|id| kiapi::common::types::Kiid { value: id.clone() }).collect(),
+            item_ids: ids
+                .iter()
+                .map(|id| kiapi::common::types::Kiid { value: id.clone() })
+                .collect(),
         };
         self.send_command(&cmd, "kiapi.common.commands.DeleteItems")?;
         Ok(())
@@ -318,9 +352,16 @@ impl KiCadIpcClient {
     }
 
     /// End a commit (push or drop).
-    pub fn end_commit(&self, commit_id: &str, action: kiapi::common::commands::CommitAction, message: &str) -> Result<()> {
+    pub fn end_commit(
+        &self,
+        commit_id: &str,
+        action: kiapi::common::commands::CommitAction,
+        message: &str,
+    ) -> Result<()> {
         let cmd = kiapi::common::commands::EndCommit {
-            id: Some(kiapi::common::types::Kiid { value: commit_id.to_string() }),
+            id: Some(kiapi::common::types::Kiid {
+                value: commit_id.to_string(),
+            }),
             action: action as i32,
             message: message.to_string(),
         };
@@ -330,12 +371,20 @@ impl KiCadIpcClient {
 
     /// Push (commit) changes.
     pub fn push_commit(&self, commit_id: &str, description: &str) -> Result<()> {
-        self.end_commit(commit_id, kiapi::common::commands::CommitAction::CmaCommit, description)
+        self.end_commit(
+            commit_id,
+            kiapi::common::commands::CommitAction::CmaCommit,
+            description,
+        )
     }
 
     /// Drop (rollback) changes.
     pub fn drop_commit(&self, commit_id: &str) -> Result<()> {
-        self.end_commit(commit_id, kiapi::common::commands::CommitAction::CmaDrop, "")
+        self.end_commit(
+            commit_id,
+            kiapi::common::commands::CommitAction::CmaDrop,
+            "",
+        )
     }
 
     // ─── PCB Item Operations (real protobuf implementations) ───────────
@@ -360,7 +409,9 @@ impl KiCadIpcClient {
         let items = self.get_items(kiapi::common::types::KiCadObjectType::KotPcbFootprint)?;
         for item in &items {
             if let Ok(fp) = kiapi::board::types::FootprintInstance::decode(item.value.as_slice()) {
-                let ref_text = fp.reference_field.as_ref()
+                let ref_text = fp
+                    .reference_field
+                    .as_ref()
                     .and_then(|f| f.text.as_ref())
                     .and_then(|bt| bt.text.as_ref())
                     .map(|t| t.text.as_str())
@@ -376,7 +427,17 @@ impl KiCadIpcClient {
     }
 
     /// Add a track segment to the board.
-    pub fn add_track(&self, net_name: &str, layer: &str, width: f64, x1: f64, y1: f64, x2: f64, y2: f64) -> Result<()> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_track(
+        &self,
+        net_name: &str,
+        layer: &str,
+        width: f64,
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+    ) -> Result<()> {
         let net_code = self.resolve_net_code(net_name)?;
         let track = crate::builders::build_track(net_name, net_code, layer, width, x1, y1, x2, y2);
         let any = crate::builders::pack_any(&track, "kiapi.board.types.Track");
@@ -403,7 +464,11 @@ impl KiCadIpcClient {
     }
 
     /// Query tracks, optionally filtered by net and/or layer.
-    pub fn get_tracks(&self, net_filter: Option<&str>, layer_filter: Option<&str>) -> Result<Vec<IpcTrack>> {
+    pub fn get_tracks(
+        &self,
+        net_filter: Option<&str>,
+        layer_filter: Option<&str>,
+    ) -> Result<Vec<IpcTrack>> {
         let items = self.get_items(kiapi::common::types::KiCadObjectType::KotPcbTrace)?;
         let mut tracks = Vec::new();
         for item in &items {
@@ -413,11 +478,15 @@ impl KiCadIpcClient {
 
                 // Apply net filter
                 if let Some(nf) = net_filter {
-                    if net_name != nf { continue; }
+                    if net_name != nf {
+                        continue;
+                    }
                 }
                 // Apply layer filter
                 if let Some(lf) = layer_filter {
-                    if layer_name != lf { continue; }
+                    if layer_name != lf {
+                        continue;
+                    }
                 }
 
                 let start = track.start.as_ref();
@@ -425,14 +494,26 @@ impl KiCadIpcClient {
                 tracks.push(IpcTrack {
                     net_name: net_name.to_string(),
                     layer: layer_name.to_string(),
-                    width: track.width.as_ref().map(|w| crate::builders::nm_to_mm(w.value_nm)).unwrap_or(0.25),
+                    width: track
+                        .width
+                        .as_ref()
+                        .map(|w| crate::builders::nm_to_mm(w.value_nm))
+                        .unwrap_or(0.25),
                     start: IpcVector2 {
-                        x: start.map(|p| crate::builders::nm_to_mm(p.x_nm)).unwrap_or(0.0),
-                        y: start.map(|p| crate::builders::nm_to_mm(p.y_nm)).unwrap_or(0.0),
+                        x: start
+                            .map(|p| crate::builders::nm_to_mm(p.x_nm))
+                            .unwrap_or(0.0),
+                        y: start
+                            .map(|p| crate::builders::nm_to_mm(p.y_nm))
+                            .unwrap_or(0.0),
                     },
                     end: IpcVector2 {
-                        x: end.map(|p| crate::builders::nm_to_mm(p.x_nm)).unwrap_or(0.0),
-                        y: end.map(|p| crate::builders::nm_to_mm(p.y_nm)).unwrap_or(0.0),
+                        x: end
+                            .map(|p| crate::builders::nm_to_mm(p.x_nm))
+                            .unwrap_or(0.0),
+                        y: end
+                            .map(|p| crate::builders::nm_to_mm(p.y_nm))
+                            .unwrap_or(0.0),
                     },
                 });
             }
@@ -445,8 +526,12 @@ impl KiCadIpcClient {
         // Find the footprint, update position, send UpdateItems
         let items = self.get_items(kiapi::common::types::KiCadObjectType::KotPcbFootprint)?;
         for item in &items {
-            if let Ok(mut fp) = kiapi::board::types::FootprintInstance::decode(item.value.as_slice()) {
-                let ref_text = fp.reference_field.as_ref()
+            if let Ok(mut fp) =
+                kiapi::board::types::FootprintInstance::decode(item.value.as_slice())
+            {
+                let ref_text = fp
+                    .reference_field
+                    .as_ref()
                     .and_then(|f| f.text.as_ref())
                     .and_then(|bt| bt.text.as_ref())
                     .map(|t| t.text.as_str())
@@ -472,14 +557,20 @@ impl KiCadIpcClient {
     pub fn rotate_footprint(&self, reference: &str, angle: f64) -> Result<()> {
         let items = self.get_items(kiapi::common::types::KiCadObjectType::KotPcbFootprint)?;
         for item in &items {
-            if let Ok(mut fp) = kiapi::board::types::FootprintInstance::decode(item.value.as_slice()) {
-                let ref_text = fp.reference_field.as_ref()
+            if let Ok(mut fp) =
+                kiapi::board::types::FootprintInstance::decode(item.value.as_slice())
+            {
+                let ref_text = fp
+                    .reference_field
+                    .as_ref()
                     .and_then(|f| f.text.as_ref())
                     .and_then(|bt| bt.text.as_ref())
                     .map(|t| t.text.as_str())
                     .unwrap_or("");
                 if ref_text == reference {
-                    fp.orientation = Some(kiapi::common::types::Angle { value_degrees: angle });
+                    fp.orientation = Some(kiapi::common::types::Angle {
+                        value_degrees: angle,
+                    });
                     let any = crate::builders::pack_any(&fp, "kiapi.board.types.FootprintInstance");
                     let header = self.make_header()?;
                     let cmd = kiapi::common::commands::UpdateItems {
@@ -501,7 +592,14 @@ impl KiCadIpcClient {
     }
 
     /// Place a footprint — currently requires KiCAD's ParseAndCreateItemsFromString.
-    pub fn place_footprint(&self, lib_id: &str, x: f64, y: f64, rotation: f64, layer: &str) -> Result<IpcFootprint> {
+    pub fn place_footprint(
+        &self,
+        lib_id: &str,
+        x: f64,
+        y: f64,
+        rotation: f64,
+        layer: &str,
+    ) -> Result<IpcFootprint> {
         // KiCAD 10 IPC doesn't have a direct "place footprint from library" command.
         // The CreateItems command requires a fully formed FootprintInstance protobuf,
         // which needs the complete footprint definition (pads, shapes, etc.) from the library.
@@ -511,7 +609,8 @@ impl KiCadIpcClient {
   (layer "{layer}")
   (at {x} {y} {rotation})
 )"#,
-            lib_id = lib_id, layer = layer,
+            lib_id = lib_id,
+            layer = layer,
             x = crate::builders::mm_to_nm(x) as f64 / 1_000_000.0,
             y = crate::builders::mm_to_nm(y) as f64 / 1_000_000.0,
             rotation = rotation,
@@ -551,14 +650,26 @@ impl KiCadIpcClient {
                 let size = bbox.size.as_ref();
                 return Ok(IpcBoardExtents {
                     min: IpcVector2 {
-                        x: pos.map(|p| crate::builders::nm_to_mm(p.x_nm)).unwrap_or(0.0),
-                        y: pos.map(|p| crate::builders::nm_to_mm(p.y_nm)).unwrap_or(0.0),
+                        x: pos
+                            .map(|p| crate::builders::nm_to_mm(p.x_nm))
+                            .unwrap_or(0.0),
+                        y: pos
+                            .map(|p| crate::builders::nm_to_mm(p.y_nm))
+                            .unwrap_or(0.0),
                     },
                     max: IpcVector2 {
-                        x: pos.map(|p| crate::builders::nm_to_mm(p.x_nm)).unwrap_or(0.0)
-                            + size.map(|s| crate::builders::nm_to_mm(s.x_nm)).unwrap_or(0.0),
-                        y: pos.map(|p| crate::builders::nm_to_mm(p.y_nm)).unwrap_or(0.0)
-                            + size.map(|s| crate::builders::nm_to_mm(s.y_nm)).unwrap_or(0.0),
+                        x: pos
+                            .map(|p| crate::builders::nm_to_mm(p.x_nm))
+                            .unwrap_or(0.0)
+                            + size
+                                .map(|s| crate::builders::nm_to_mm(s.x_nm))
+                                .unwrap_or(0.0),
+                        y: pos
+                            .map(|p| crate::builders::nm_to_mm(p.y_nm))
+                            .unwrap_or(0.0)
+                            + size
+                                .map(|s| crate::builders::nm_to_mm(s.y_nm))
+                                .unwrap_or(0.0),
                     },
                 });
             }
@@ -569,20 +680,27 @@ impl KiCadIpcClient {
     /// Get enabled layers.
     pub fn get_layers(&self) -> Result<Vec<IpcLayer>> {
         let doc = self.get_board_document()?;
-        let cmd = kiapi::board::commands::GetBoardEnabledLayers {
-            board: Some(doc),
-        };
+        let cmd = kiapi::board::commands::GetBoardEnabledLayers { board: Some(doc) };
         let resp_any = self.send_command(&cmd, "kiapi.board.commands.GetBoardEnabledLayers")?;
         if let Some(any) = resp_any {
             let resp: kiapi::board::commands::BoardEnabledLayersResponse = unpack_any(&any)?;
-            let layers = resp.layers.iter().map(|&l| {
-                let bl = kiapi::board::types::BoardLayer::try_from(l).unwrap_or(kiapi::board::types::BoardLayer::BlUndefined);
-                IpcLayer {
-                    name: bl.as_str_name().trim_start_matches("BL_").replace('_', ".").to_string(),
-                    id: l,
-                    kind: String::new(),
-                }
-            }).collect();
+            let layers = resp
+                .layers
+                .iter()
+                .map(|&l| {
+                    let bl = kiapi::board::types::BoardLayer::try_from(l)
+                        .unwrap_or(kiapi::board::types::BoardLayer::BlUndefined);
+                    IpcLayer {
+                        name: bl
+                            .as_str_name()
+                            .trim_start_matches("BL_")
+                            .replace('_', ".")
+                            .to_string(),
+                        id: l,
+                        kind: String::new(),
+                    }
+                })
+                .collect();
             Ok(layers)
         } else {
             Ok(vec![])
@@ -590,7 +708,14 @@ impl KiCadIpcClient {
     }
 
     /// Set board outline (rectangle on Edge.Cuts) via S-expression string.
-    pub fn set_board_outline(&self, _shape: &str, x: f64, y: f64, width: f64, height: f64) -> Result<()> {
+    pub fn set_board_outline(
+        &self,
+        _shape: &str,
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+    ) -> Result<()> {
         let x2 = x + width;
         let y2 = y + height;
         // 4 line segments forming a rectangle on Edge.Cuts
@@ -599,10 +724,22 @@ impl KiCadIpcClient {
 (gr_line (start {} {}) (end {} {}) (stroke (width 0.05) (type default)) (layer "Edge.Cuts"))
 (gr_line (start {} {}) (end {} {}) (stroke (width 0.05) (type default)) (layer "Edge.Cuts"))
 (gr_line (start {} {}) (end {} {}) (stroke (width 0.05) (type default)) (layer "Edge.Cuts"))"#,
-            x, y, x2, y,   // top
-            x2, y, x2, y2, // right
-            x2, y2, x, y2, // bottom
-            x, y2, x, y,   // left
+            x,
+            y,
+            x2,
+            y, // top
+            x2,
+            y,
+            x2,
+            y2, // right
+            x2,
+            y2,
+            x,
+            y2, // bottom
+            x,
+            y2,
+            x,
+            y, // left
         );
         let doc = self.get_board_document()?;
         let cmd = kiapi::common::commands::ParseAndCreateItemsFromString {
@@ -617,7 +754,10 @@ impl KiCadIpcClient {
     pub fn add_text(&self, layer: &str, text: &str, x: f64, y: f64) -> Result<()> {
         let sexp = format!(
             r#"(gr_text "{}" (at {} {}) (layer "{}") (effects (font (size 1.5 1.5) (thickness 0.15))))"#,
-            text.replace('"', "\\\""), x, y, layer
+            text.replace('"', "\\\""),
+            x,
+            y,
+            layer
         );
         let doc = self.get_board_document()?;
         let cmd = kiapi::common::commands::ParseAndCreateItemsFromString {

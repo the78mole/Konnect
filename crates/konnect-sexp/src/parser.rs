@@ -50,9 +50,7 @@ impl SexpNode {
 
     /// Find the first direct child List whose head matches `tag`.
     pub fn find(&self, tag: &str) -> Option<&SexpNode> {
-        self.children()?
-            .iter()
-            .find(|n| n.head() == Some(tag))
+        self.children()?.iter().find(|n| n.head() == Some(tag))
     }
 
     /// Collect all direct child Lists whose head matches `tag`.
@@ -120,7 +118,10 @@ pub fn parse_sexp(input: &str) -> Result<SexpNode, SexpError> {
 }
 
 fn sexp(input: &str) -> IResult<&str, SexpNode> {
-    preceded(multispace0, alt((parse_list, parse_quoted_string, parse_atom)))(input)
+    preceded(
+        multispace0,
+        alt((parse_list, parse_quoted_string, parse_atom)),
+    )(input)
 }
 
 fn parse_list(input: &str) -> IResult<&str, SexpNode> {

@@ -52,11 +52,11 @@ fn format_gr_text(text: &str, x: f64, y: f64, rot: f64, layer: &str, size: f64) 
 }
 
 fn format_npth_footprint(x: f64, y: f64, drill_d: f64, reference: &str) -> String {
-    let fp_uuid   = new_uuid();
-    let ref_uuid  = new_uuid();
-    let val_uuid  = new_uuid();
-    let pad_uuid  = new_uuid();
-    let pad_size  = drill_d + 0.5;
+    let fp_uuid = new_uuid();
+    let ref_uuid = new_uuid();
+    let val_uuid = new_uuid();
+    let pad_uuid = new_uuid();
+    let pad_size = drill_d + 0.5;
     format!(
         "\n  (footprint \"MountingHole:MountingHole_{drill_d:.1}mm\"\n    \
          (layer \"F.Cu\")\n    (at {x} {y})\n    \
@@ -70,7 +70,14 @@ fn format_npth_footprint(x: f64, y: f64, drill_d: f64, reference: &str) -> Strin
     )
 }
 
-fn format_zone_polygon(net_id: i32, net_name: &str, layer: &str, clearance: f64, min_width: f64, points: &[(f64, f64)]) -> String {
+fn format_zone_polygon(
+    net_id: i32,
+    net_name: &str,
+    layer: &str,
+    clearance: f64,
+    min_width: f64,
+    points: &[(f64, f64)],
+) -> String {
     let uuid = new_uuid();
     let pts: String = points
         .iter()
@@ -257,10 +264,19 @@ pub fn tools() -> Vec<ToolDef> {
 
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 
-async fn handle_set_board_size(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_set_board_size(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let board_path = get_path(args, "board")?;
-    let width  = match require_f64(args, "width")  { Ok(v) => v, Err(e) => return Ok(e) };
-    let height = match require_f64(args, "height") { Ok(v) => v, Err(e) => return Ok(e) };
+    let width = match require_f64(args, "width") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let height = match require_f64(args, "height") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
     let ox = args["origin_x"].as_f64().unwrap_or(0.0);
     let oy = args["origin_y"].as_f64().unwrap_or(0.0);
 
@@ -288,19 +304,50 @@ async fn handle_set_board_size(args: &serde_json::Value, _ctx: &ToolContext) -> 
     })))
 }
 
-async fn handle_get_board_info(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_get_board_info(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let board_path = get_path(args, "board")?;
     let content = std::fs::read_to_string(&board_path)?;
     let tree = parse_sexp(&content)?;
 
     let tb = tree.find("title_block");
-    let title   = tb.and_then(|t| t.find("title")).and_then(|n| n.get(1)).and_then(|n| n.as_str()).unwrap_or("").to_string();
-    let date    = tb.and_then(|t| t.find("date")).and_then(|n| n.get(1)).and_then(|n| n.as_str()).unwrap_or("").to_string();
-    let rev     = tb.and_then(|t| t.find("rev")).and_then(|n| n.get(1)).and_then(|n| n.as_str()).unwrap_or("").to_string();
-    let company = tb.and_then(|t| t.find("company")).and_then(|n| n.get(1)).and_then(|n| n.as_str()).unwrap_or("").to_string();
+    let title = tb
+        .and_then(|t| t.find("title"))
+        .and_then(|n| n.get(1))
+        .and_then(|n| n.as_str())
+        .unwrap_or("")
+        .to_string();
+    let date = tb
+        .and_then(|t| t.find("date"))
+        .and_then(|n| n.get(1))
+        .and_then(|n| n.as_str())
+        .unwrap_or("")
+        .to_string();
+    let rev = tb
+        .and_then(|t| t.find("rev"))
+        .and_then(|n| n.get(1))
+        .and_then(|n| n.as_str())
+        .unwrap_or("")
+        .to_string();
+    let company = tb
+        .and_then(|t| t.find("company"))
+        .and_then(|n| n.get(1))
+        .and_then(|n| n.as_str())
+        .unwrap_or("")
+        .to_string();
 
-    let layers = tree.find("layers").map(|n| n.find_all("").len()).unwrap_or(0);
-    let paper  = tree.find("paper").and_then(|n| n.get(1)).and_then(|n| n.as_str()).unwrap_or("A4").to_string();
+    let layers = tree
+        .find("layers")
+        .map(|n| n.find_all("").len())
+        .unwrap_or(0);
+    let paper = tree
+        .find("paper")
+        .and_then(|n| n.get(1))
+        .and_then(|n| n.as_str())
+        .unwrap_or("A4")
+        .to_string();
 
     let net_count = tree.find_all("net").len().saturating_sub(1); // exclude net 0
 
@@ -313,21 +360,21 @@ async fn handle_get_board_info(args: &serde_json::Value, _ctx: &ToolContext) -> 
     })))
 }
 
-async fn handle_get_board_extents(args: &serde_json::Value, ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_get_board_extents(
+    args: &serde_json::Value,
+    ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let board_path = get_path(args, "board")?;
 
-    // Try IPC first
-    match with_ipc(ctx.config.ipc_address.clone(), |c| c.get_board_extents()).await? {
-        Ok(ext) => {
-            return Ok(CallToolResult::json(&json!({
-                "x_min": ext.min.x, "y_min": ext.min.y,
-                "x_max": ext.max.x, "y_max": ext.max.y,
-                "width": ext.max.x - ext.min.x,
-                "height": ext.max.y - ext.min.y,
-                "source": "ipc"
-            })));
-        }
-        Err(_) => {} // fall through to file-based computation
+    // Try IPC first; fall through to file-based computation on error
+    if let Ok(ext) = with_ipc(ctx.config.ipc_address.clone(), |c| c.get_board_extents()).await? {
+        return Ok(CallToolResult::json(&json!({
+            "x_min": ext.min.x, "y_min": ext.min.y,
+            "x_max": ext.max.x, "y_max": ext.max.y,
+            "width": ext.max.x - ext.min.x,
+            "height": ext.max.y - ext.min.y,
+            "source": "ipc"
+        })));
     }
 
     // File-based fallback: collect all coordinates from gr_lines and footprint positions
@@ -337,14 +384,19 @@ async fn handle_get_board_extents(args: &serde_json::Value, ctx: &ToolContext) -
     let (mut min_x, mut min_y) = (f64::MAX, f64::MAX);
     let (mut max_x, mut max_y) = (f64::MIN, f64::MIN);
     let mut update = |x: f64, y: f64| {
-        min_x = min_x.min(x); min_y = min_y.min(y);
-        max_x = max_x.max(x); max_y = max_y.max(y);
+        min_x = min_x.min(x);
+        min_y = min_y.min(y);
+        max_x = max_x.max(x);
+        max_y = max_y.max(y);
     };
 
     for line in tree.find_all("gr_line") {
         if let (Some(s), Some(e)) = (line.find("start"), line.find("end")) {
-            if let (Some(x1), Some(y1), Some(x2), Some(y2)) = (s.get_f64(1), s.get_f64(2), e.get_f64(1), e.get_f64(2)) {
-                update(x1, y1); update(x2, y2);
+            if let (Some(x1), Some(y1), Some(x2), Some(y2)) =
+                (s.get_f64(1), s.get_f64(2), e.get_f64(1), e.get_f64(2))
+            {
+                update(x1, y1);
+                update(x2, y2);
             }
         }
     }
@@ -357,7 +409,9 @@ async fn handle_get_board_extents(args: &serde_json::Value, ctx: &ToolContext) -
     }
 
     if min_x == f64::MAX {
-        return Ok(CallToolResult::json(&json!({ "x_min": 0, "y_min": 0, "x_max": 0, "y_max": 0, "width": 0, "height": 0, "source": "empty" })));
+        return Ok(CallToolResult::json(
+            &json!({ "x_min": 0, "y_min": 0, "x_max": 0, "y_max": 0, "width": 0, "height": 0, "source": "empty" }),
+        ));
     }
 
     Ok(CallToolResult::json(&json!({
@@ -369,14 +423,21 @@ async fn handle_get_board_extents(args: &serde_json::Value, ctx: &ToolContext) -
     })))
 }
 
-async fn handle_get_layer_list(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_get_layer_list(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let board_path = get_path(args, "board")?;
     let content = std::fs::read_to_string(&board_path)?;
     let tree = parse_sexp(&content)?;
 
     let layers_node = match tree.find("layers") {
         Some(n) => n,
-        None => return Ok(CallToolResult::error("No (layers) section found in board file")),
+        None => {
+            return Ok(CallToolResult::error(
+                "No (layers) section found in board file",
+            ))
+        }
     };
 
     // Each child of layers looks like: (0 "F.Cu" signal)
@@ -384,19 +445,31 @@ async fn handle_get_layer_list(args: &serde_json::Value, _ctx: &ToolContext) -> 
         .find_all("")
         .iter()
         .filter_map(|node| {
-            let id   = node.get_f64(1).map(|n| n as i32)?;
+            let id = node.get_f64(1).map(|n| n as i32)?;
             let name = node.get(2)?.as_str()?.to_string();
-            let kind = node.get(3).and_then(|n| n.as_str()).unwrap_or("user").to_string();
+            let kind = node
+                .get(3)
+                .and_then(|n| n.as_str())
+                .unwrap_or("user")
+                .to_string();
             Some(json!({ "id": id, "name": name, "type": kind }))
         })
         .collect();
 
-    Ok(CallToolResult::json(&json!({ "count": layers.len(), "layers": layers })))
+    Ok(CallToolResult::json(
+        &json!({ "count": layers.len(), "layers": layers }),
+    ))
 }
 
-async fn handle_add_layer(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_add_layer(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let board_path = get_path(args, "board")?;
-    let layer_name = match require_str(args, "layer_name") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+    let layer_name = match require_str(args, "layer_name") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
     let layer_type = args["layer_type"].as_str().unwrap_or("signal");
 
     let content = std::fs::read_to_string(&board_path)?;
@@ -411,15 +484,19 @@ async fn handle_add_layer(args: &serde_json::Value, _ctx: &ToolContext) -> anyho
     let tree = parse_sexp(&content)?;
     let used_ids: std::collections::HashSet<i32> = tree
         .find("layers")
-        .map(|n| n.find_all("").iter()
-            .filter_map(|node| node.get_f64(1).map(|n| n as i32))
-            .collect())
+        .map(|n| {
+            n.find_all("")
+                .iter()
+                .filter_map(|node| node.get_f64(1).map(|n| n as i32))
+                .collect()
+        })
         .unwrap_or_default();
     let new_id = (1..=30).find(|id| !used_ids.contains(id)).unwrap_or(1);
 
     // Find close of the layers block
     let layers_block = &content[layers_pos..];
-    let close_rel = layers_block.find("\n  )")
+    let close_rel = layers_block
+        .find("\n  )")
         .or_else(|| layers_block.find(')'))
         .unwrap_or(layers_block.len().saturating_sub(1));
     let insert_pos = layers_pos + close_rel;
@@ -433,38 +510,66 @@ async fn handle_add_layer(args: &serde_json::Value, _ctx: &ToolContext) -> anyho
     })))
 }
 
-async fn handle_set_active_layer(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_set_active_layer(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let board_path = get_path(args, "board")?;
-    let layer = match require_str(args, "layer") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
+    let layer = match require_str(args, "layer") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
 
     let content = std::fs::read_to_string(&board_path)?;
     let new_content = if let Some(pos) = content.find("(active_layer ") {
         let after = pos + "(active_layer ".len();
         let close = content[after..].find(')').unwrap_or(0);
         let layer_end = after + close;
-        apply_edits(content, vec![SexpEdit::replace(after, layer_end, format!("\"{layer}\""))])
+        apply_edits(
+            content,
+            vec![SexpEdit::replace(after, layer_end, format!("\"{layer}\""))],
+        )
     } else {
         // Insert into setup block
-        let setup_close = content.find("(setup")
+        let setup_close = content
+            .find("(setup")
             .and_then(|p| content[p..].find('\n').map(|off| p + off))
             .unwrap_or(content.rfind(')').unwrap_or(content.len()));
-        apply_edits(content, vec![SexpEdit::insert(
-            setup_close,
-            format!("\n    (active_layer \"{layer}\")"),
-        )])
+        apply_edits(
+            content,
+            vec![SexpEdit::insert(
+                setup_close,
+                format!("\n    (active_layer \"{layer}\")"),
+            )],
+        )
     };
     write_atomic(&board_path, &new_content)?;
 
     Ok(CallToolResult::json(&json!({ "active_layer": layer })))
 }
 
-async fn handle_add_board_outline(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_add_board_outline(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let board_path = get_path(args, "board")?;
-    let x1 = match require_f64(args, "x1") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y1 = match require_f64(args, "y1") { Ok(v) => v, Err(e) => return Ok(e) };
-    let x2 = match require_f64(args, "x2") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y2 = match require_f64(args, "y2") { Ok(v) => v, Err(e) => return Ok(e) };
-    let w  = 0.05_f64;
+    let x1 = match require_f64(args, "x1") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y1 = match require_f64(args, "y1") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let x2 = match require_f64(args, "x2") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y2 = match require_f64(args, "y2") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let w = 0.05_f64;
 
     let lines = format!(
         "{}{}{}{}",
@@ -485,12 +590,21 @@ async fn handle_add_board_outline(args: &serde_json::Value, _ctx: &ToolContext) 
     })))
 }
 
-async fn handle_add_mounting_hole(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
-    let board_path  = get_path(args, "board")?;
-    let x           = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y           = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
-    let drill_d     = args["drill_diameter"].as_f64().unwrap_or(3.2);
-    let reference   = args["reference"].as_str().unwrap_or("H1");
+async fn handle_add_mounting_hole(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
+    let board_path = get_path(args, "board")?;
+    let x = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let drill_d = args["drill_diameter"].as_f64().unwrap_or(3.2);
+    let reference = args["reference"].as_str().unwrap_or("H1");
 
     let fp_sexp = format_npth_footprint(x, y, drill_d, reference);
     let content = std::fs::read_to_string(&board_path)?;
@@ -503,14 +617,26 @@ async fn handle_add_mounting_hole(args: &serde_json::Value, _ctx: &ToolContext) 
     })))
 }
 
-async fn handle_add_board_text(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_add_board_text(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let board_path = get_path(args, "board")?;
-    let text       = match require_str(args, "text") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let x          = match require_f64(args, "x") { Ok(v) => v, Err(e) => return Ok(e) };
-    let y          = match require_f64(args, "y") { Ok(v) => v, Err(e) => return Ok(e) };
-    let layer      = args["layer"].as_str().unwrap_or("F.SilkS");
-    let size       = args["size"].as_f64().unwrap_or(1.0);
-    let rotation   = args["rotation"].as_f64().unwrap_or(0.0);
+    let text = match require_str(args, "text") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let x = match require_f64(args, "x") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let y = match require_f64(args, "y") {
+        Ok(v) => v,
+        Err(e) => return Ok(e),
+    };
+    let layer = args["layer"].as_str().unwrap_or("F.SilkS");
+    let size = args["size"].as_f64().unwrap_or(1.0);
+    let rotation = args["rotation"].as_f64().unwrap_or(0.0);
 
     let gr_text = format_gr_text(&text, x, y, rotation, layer, size);
     let content = std::fs::read_to_string(&board_path)?;
@@ -523,13 +649,22 @@ async fn handle_add_board_text(args: &serde_json::Value, _ctx: &ToolContext) -> 
     })))
 }
 
-async fn handle_add_zone(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow::Result<CallToolResult> {
+async fn handle_add_zone(
+    args: &serde_json::Value,
+    _ctx: &ToolContext,
+) -> anyhow::Result<CallToolResult> {
     let board_path = get_path(args, "board")?;
-    let net_name   = match require_str(args, "net_name") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let layer      = match require_str(args, "layer") { Ok(v) => v.to_string(), Err(e) => return Ok(e) };
-    let clearance  = args["clearance"].as_f64().unwrap_or(0.2);
-    let min_width  = args["min_width"].as_f64().unwrap_or(0.2);
-    let pts_arr    = match args["points"].as_array() {
+    let net_name = match require_str(args, "net_name") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let layer = match require_str(args, "layer") {
+        Ok(v) => v.to_string(),
+        Err(e) => return Ok(e),
+    };
+    let clearance = args["clearance"].as_f64().unwrap_or(0.2);
+    let min_width = args["min_width"].as_f64().unwrap_or(0.2);
+    let pts_arr = match args["points"].as_array() {
         Some(a) => a.clone(),
         None => return Ok(CallToolResult::error("Missing 'points' array")),
     };
@@ -543,8 +678,8 @@ async fn handle_add_zone(args: &serde_json::Value, _ctx: &ToolContext) -> anyhow
         return Ok(CallToolResult::error("Zone requires at least 3 points"));
     }
 
-    let content  = std::fs::read_to_string(&board_path)?;
-    let net_id   = find_net_id(&content, &net_name).unwrap_or(0);
+    let content = std::fs::read_to_string(&board_path)?;
+    let net_id = find_net_id(&content, &net_name).unwrap_or(0);
     let zone_sexp = format_zone_polygon(net_id, &net_name, &layer, clearance, min_width, &points);
 
     let close_pos = content.rfind(')').unwrap_or(content.len());

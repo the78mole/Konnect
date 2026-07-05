@@ -6,7 +6,11 @@ pub fn fmt_f64(v: f64) -> String {
     let s = format!("{:.6}", v);
     let s = s.trim_end_matches('0');
     let s = s.trim_end_matches('.');
-    if s.is_empty() || s == "-" { "0".to_owned() } else { s.to_owned() }
+    if s.is_empty() || s == "-" {
+        "0".to_owned()
+    } else {
+        s.to_owned()
+    }
 }
 
 // ---- At ---------------------------------------------------------------------
@@ -20,11 +24,19 @@ pub struct At {
 
 impl At {
     pub fn new(x: f64, y: f64) -> Self {
-        At { x, y, rotation: None }
+        At {
+            x,
+            y,
+            rotation: None,
+        }
     }
 
     pub fn with_rotation(x: f64, y: f64, rotation: f64) -> Self {
-        At { x, y, rotation: Some(rotation) }
+        At {
+            x,
+            y,
+            rotation: Some(rotation),
+        }
     }
 
     pub fn from_sexp(node: &SexpNode) -> Option<Self> {
@@ -67,15 +79,28 @@ pub struct Property {
 
 impl Property {
     pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
-        Property { name: name.into(), value: value.into(), sub_nodes: vec![] }
+        Property {
+            name: name.into(),
+            value: value.into(),
+            sub_nodes: vec![],
+        }
     }
 
     pub fn from_sexp(node: &SexpNode) -> Option<Self> {
         let args = node.args();
-        let name  = args.first()?.text()?.to_owned();
+        let name = args.first()?.text()?.to_owned();
         let value = args.get(1)?.text()?.to_owned();
-        let sub_nodes = args.iter().skip(2).filter(|n| n.is_list()).cloned().collect();
-        Some(Property { name, value, sub_nodes })
+        let sub_nodes = args
+            .iter()
+            .skip(2)
+            .filter(|n| n.is_list())
+            .cloned()
+            .collect();
+        Some(Property {
+            name,
+            value,
+            sub_nodes,
+        })
     }
 
     pub fn to_sexp(&self) -> SexpNode {

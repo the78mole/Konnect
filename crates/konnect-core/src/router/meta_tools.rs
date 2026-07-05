@@ -56,10 +56,9 @@ pub fn meta_tool_descriptions() -> Vec<McpToolDescription> {
         },
         McpToolDescription {
             name: "unload_toolset".to_string(),
-            description:
-                "Unload a toolset to remove its tools from the active session. \
+            description: "Unload a toolset to remove its tools from the active session. \
                  Use this to keep the tool list manageable when switching tasks."
-                    .to_string(),
+                .to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -137,12 +136,7 @@ pub async fn handle_meta_tool(
 
 async fn handle_list_toolboxes(ctx: &std::sync::Arc<ToolContext>) -> CallToolResult {
     use std::collections::HashSet;
-    let active: HashSet<String> = ctx
-        .router
-        .active_names()
-        .await
-        .into_iter()
-        .collect();
+    let active: HashSet<String> = ctx.router.active_names().await.into_iter().collect();
 
     let toolsets: Vec<Value> = ctx
         .router

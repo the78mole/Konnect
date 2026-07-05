@@ -10,8 +10,8 @@ use crate::sexp::{atom, parser, qstr, tagged, writer, SexpNode};
 use crate::types::{At, ChangeSet};
 
 use label::{
-    GlobalLabel, GlobalLabelCollection, HierarchicalLabel, HierarchicalLabelCollection,
-    Label, LabelCollection,
+    GlobalLabel, GlobalLabelCollection, HierarchicalLabel, HierarchicalLabelCollection, Label,
+    LabelCollection,
 };
 use misc::{Junction, NoConnect, Text};
 use symbol::{Symbol, SymbolCollection};
@@ -31,12 +31,12 @@ pub enum LocatedElement<'a> {
 impl<'a> LocatedElement<'a> {
     pub fn position(&self) -> (f64, f64) {
         match self {
-            LocatedElement::Symbol(s)      => s.position(),
-            LocatedElement::Wire(w)        => w.midpoint(),
-            LocatedElement::Label(l)       => l.position(),
+            LocatedElement::Symbol(s) => s.position(),
+            LocatedElement::Wire(w) => w.midpoint(),
+            LocatedElement::Label(l) => l.position(),
             LocatedElement::GlobalLabel(g) => g.position(),
-            LocatedElement::Junction(j)    => j.position(),
-            LocatedElement::Text(t)        => t.position(),
+            LocatedElement::Junction(j) => j.position(),
+            LocatedElement::Text(t) => t.position(),
         }
     }
 }
@@ -66,20 +66,20 @@ impl<'a> LocatedElement<'a> {
 pub struct Schematic {
     filepath: PathBuf,
 
-    pub version:           Option<u32>,
-    pub generator:         Option<String>,
+    pub version: Option<u32>,
+    pub generator: Option<String>,
     pub generator_version: Option<String>,
-    pub uuid:              Option<String>,
-    pub paper:             Option<String>,
+    pub uuid: Option<String>,
+    pub paper: Option<String>,
 
-    pub symbols:              SymbolCollection,
-    pub wires:                WireCollection,
-    pub labels:               LabelCollection,
-    pub global_labels:        GlobalLabelCollection,
-    pub hierarchical_labels:  HierarchicalLabelCollection,
-    pub junctions:            Vec<Junction>,
-    pub texts:                Vec<Text>,
-    pub no_connects:          Vec<NoConnect>,
+    pub symbols: SymbolCollection,
+    pub wires: WireCollection,
+    pub labels: LabelCollection,
+    pub global_labels: GlobalLabelCollection,
+    pub hierarchical_labels: HierarchicalLabelCollection,
+    pub junctions: Vec<Junction>,
+    pub texts: Vec<Text>,
+    pub no_connects: Vec<NoConnect>,
 
     /// All nodes we don't model (title_block, lib_symbols, bus, sheet, …)
     /// preserved verbatim so round-trips don't lose anything.
@@ -195,10 +195,16 @@ impl Schematic {
                     for prop in &sym.properties {
                         if let Some(op) = orig.property(&prop.name) {
                             if op != prop.value {
-                                cs.record(format!("{r}.{}: {:?} → {:?}", prop.name, op, prop.value));
+                                cs.record(format!(
+                                    "{r}.{}: {:?} → {:?}",
+                                    prop.name, op, prop.value
+                                ));
                             }
                         } else {
-                            cs.record(format!("{r}: add property {} = {:?}", prop.name, prop.value));
+                            cs.record(format!(
+                                "{r}: add property {} = {:?}",
+                                prop.name, prop.value
+                            ));
                         }
                     }
                     let (ax, ay) = sym.position();
@@ -221,7 +227,10 @@ impl Schematic {
         // Wire count diff (coarse)
         let wdiff = self.wires.len() as i64 - original.wires.len() as i64;
         if wdiff != 0 {
-            cs.record(format!("wires: {}{wdiff}", if wdiff > 0 { "+" } else { "" }));
+            cs.record(format!(
+                "wires: {}{wdiff}",
+                if wdiff > 0 { "+" } else { "" }
+            ));
         }
 
         Ok(cs)
@@ -233,27 +242,39 @@ impl Schematic {
         let mut out = Vec::new();
         for el in self.symbols.iter() {
             let (ex, ey) = el.position();
-            if dist(ex, ey, x, y) <= radius { out.push(LocatedElement::Symbol(el)); }
+            if dist(ex, ey, x, y) <= radius {
+                out.push(LocatedElement::Symbol(el));
+            }
         }
         for el in self.wires.iter() {
             let (ex, ey) = el.midpoint();
-            if dist(ex, ey, x, y) <= radius { out.push(LocatedElement::Wire(el)); }
+            if dist(ex, ey, x, y) <= radius {
+                out.push(LocatedElement::Wire(el));
+            }
         }
         for el in self.labels.iter() {
             let (ex, ey) = el.position();
-            if dist(ex, ey, x, y) <= radius { out.push(LocatedElement::Label(el)); }
+            if dist(ex, ey, x, y) <= radius {
+                out.push(LocatedElement::Label(el));
+            }
         }
         for el in self.global_labels.iter() {
             let (ex, ey) = el.position();
-            if dist(ex, ey, x, y) <= radius { out.push(LocatedElement::GlobalLabel(el)); }
+            if dist(ex, ey, x, y) <= radius {
+                out.push(LocatedElement::GlobalLabel(el));
+            }
         }
         for el in self.junctions.iter() {
             let (ex, ey) = el.position();
-            if dist(ex, ey, x, y) <= radius { out.push(LocatedElement::Junction(el)); }
+            if dist(ex, ey, x, y) <= radius {
+                out.push(LocatedElement::Junction(el));
+            }
         }
         for el in self.texts.iter() {
             let (ex, ey) = el.position();
-            if dist(ex, ey, x, y) <= radius { out.push(LocatedElement::Text(el)); }
+            if dist(ex, ey, x, y) <= radius {
+                out.push(LocatedElement::Text(el));
+            }
         }
         out
     }
@@ -265,27 +286,39 @@ impl Schematic {
         let mut out = Vec::new();
         for el in self.symbols.iter() {
             let (ex, ey) = el.position();
-            if in_r(ex, ey) { out.push(LocatedElement::Symbol(el)); }
+            if in_r(ex, ey) {
+                out.push(LocatedElement::Symbol(el));
+            }
         }
         for el in self.wires.iter() {
             let (ex, ey) = el.midpoint();
-            if in_r(ex, ey) { out.push(LocatedElement::Wire(el)); }
+            if in_r(ex, ey) {
+                out.push(LocatedElement::Wire(el));
+            }
         }
         for el in self.labels.iter() {
             let (ex, ey) = el.position();
-            if in_r(ex, ey) { out.push(LocatedElement::Label(el)); }
+            if in_r(ex, ey) {
+                out.push(LocatedElement::Label(el));
+            }
         }
         for el in self.global_labels.iter() {
             let (ex, ey) = el.position();
-            if in_r(ex, ey) { out.push(LocatedElement::GlobalLabel(el)); }
+            if in_r(ex, ey) {
+                out.push(LocatedElement::GlobalLabel(el));
+            }
         }
         for el in self.junctions.iter() {
             let (ex, ey) = el.position();
-            if in_r(ex, ey) { out.push(LocatedElement::Junction(el)); }
+            if in_r(ex, ey) {
+                out.push(LocatedElement::Junction(el));
+            }
         }
         for el in self.texts.iter() {
             let (ex, ey) = el.position();
-            if in_r(ex, ey) { out.push(LocatedElement::Text(el)); }
+            if in_r(ex, ey) {
+                out.push(LocatedElement::Text(el));
+            }
         }
         out
     }
@@ -293,88 +326,90 @@ impl Schematic {
     // ---- internal -----------------------------------------------------------
 
     fn from_sexp(root: SexpNode, filepath: PathBuf) -> Result<Self> {
-        let mut version           = None;
-        let mut generator         = None;
+        let mut version = None;
+        let mut generator = None;
         let mut generator_version = None;
-        let mut uuid              = None;
-        let mut paper             = None;
+        let mut uuid = None;
+        let mut paper = None;
 
-        let mut symbols:     Vec<Symbol>             = vec![];
-        let mut wires:       Vec<Wire>               = vec![];
-        let mut labels:      Vec<Label>              = vec![];
-        let mut glob_labels: Vec<GlobalLabel>        = vec![];
-        let mut hier_labels: Vec<HierarchicalLabel>  = vec![];
-        let mut junctions:   Vec<Junction>           = vec![];
-        let mut texts:       Vec<Text>               = vec![];
-        let mut no_connects: Vec<NoConnect>          = vec![];
-        let mut raw_other:   Vec<SexpNode>           = vec![];
+        let mut symbols: Vec<Symbol> = vec![];
+        let mut wires: Vec<Wire> = vec![];
+        let mut labels: Vec<Label> = vec![];
+        let mut glob_labels: Vec<GlobalLabel> = vec![];
+        let mut hier_labels: Vec<HierarchicalLabel> = vec![];
+        let mut junctions: Vec<Junction> = vec![];
+        let mut texts: Vec<Text> = vec![];
+        let mut no_connects: Vec<NoConnect> = vec![];
+        let mut raw_other: Vec<SexpNode> = vec![];
 
         for child in root.args() {
             match child.tag() {
-                Some("version") => { version = child.float_value().map(|v| v as u32); }
-                Some("generator") => { generator = child.value().map(str::to_owned); }
-                Some("generator_version") => { generator_version = child.value().map(str::to_owned); }
-                Some("uuid") => { uuid = child.value().map(str::to_owned); }
-                Some("paper") => { paper = child.value().map(str::to_owned); }
-                Some("symbol") => {
-                    match Symbol::from_sexp(child) {
-                        Ok(s)  => symbols.push(s),
-                        Err(e) => eprintln!("[konnect-schematic-editor] skipping symbol: {e}"),
-                    }
+                Some("version") => {
+                    version = child.float_value().map(|v| v as u32);
                 }
-                Some("wire") => {
-                    match Wire::from_sexp(child) {
-                        Ok(w)  => wires.push(w),
-                        Err(e) => eprintln!("[konnect-schematic-editor] skipping wire: {e}"),
-                    }
+                Some("generator") => {
+                    generator = child.value().map(str::to_owned);
                 }
-                Some("label") | Some("net_label") => {
-                    match Label::from_sexp(child) {
-                        Ok(l)  => labels.push(l),
-                        Err(e) => eprintln!("[konnect-schematic-editor] skipping label: {e}"),
-                    }
+                Some("generator_version") => {
+                    generator_version = child.value().map(str::to_owned);
                 }
-                Some("global_label") => {
-                    match GlobalLabel::from_sexp(child) {
-                        Ok(g)  => glob_labels.push(g),
-                        Err(e) => eprintln!("[konnect-schematic-editor] skipping global_label: {e}"),
-                    }
+                Some("uuid") => {
+                    uuid = child.value().map(str::to_owned);
                 }
-                Some("hierarchical_label") => {
-                    match HierarchicalLabel::from_sexp(child) {
-                        Ok(h)  => hier_labels.push(h),
-                        Err(e) => eprintln!("[konnect-schematic-editor] skipping hierarchical_label: {e}"),
-                    }
+                Some("paper") => {
+                    paper = child.value().map(str::to_owned);
                 }
-                Some("junction") => {
-                    match Junction::from_sexp(child) {
-                        Ok(j)  => junctions.push(j),
-                        Err(e) => eprintln!("[konnect-schematic-editor] skipping junction: {e}"),
+                Some("symbol") => match Symbol::from_sexp(child) {
+                    Ok(s) => symbols.push(s),
+                    Err(e) => eprintln!("[konnect-schematic-editor] skipping symbol: {e}"),
+                },
+                Some("wire") => match Wire::from_sexp(child) {
+                    Ok(w) => wires.push(w),
+                    Err(e) => eprintln!("[konnect-schematic-editor] skipping wire: {e}"),
+                },
+                Some("label") | Some("net_label") => match Label::from_sexp(child) {
+                    Ok(l) => labels.push(l),
+                    Err(e) => eprintln!("[konnect-schematic-editor] skipping label: {e}"),
+                },
+                Some("global_label") => match GlobalLabel::from_sexp(child) {
+                    Ok(g) => glob_labels.push(g),
+                    Err(e) => eprintln!("[konnect-schematic-editor] skipping global_label: {e}"),
+                },
+                Some("hierarchical_label") => match HierarchicalLabel::from_sexp(child) {
+                    Ok(h) => hier_labels.push(h),
+                    Err(e) => {
+                        eprintln!("[konnect-schematic-editor] skipping hierarchical_label: {e}")
                     }
+                },
+                Some("junction") => match Junction::from_sexp(child) {
+                    Ok(j) => junctions.push(j),
+                    Err(e) => eprintln!("[konnect-schematic-editor] skipping junction: {e}"),
+                },
+                Some("text") => match Text::from_sexp(child) {
+                    Ok(t) => texts.push(t),
+                    Err(e) => eprintln!("[konnect-schematic-editor] skipping text: {e}"),
+                },
+                Some("no_connect") => match NoConnect::from_sexp(child) {
+                    Ok(nc) => no_connects.push(nc),
+                    Err(e) => eprintln!("[konnect-schematic-editor] skipping no_connect: {e}"),
+                },
+                _ => {
+                    raw_other.push(child.clone());
                 }
-                Some("text") => {
-                    match Text::from_sexp(child) {
-                        Ok(t)  => texts.push(t),
-                        Err(e) => eprintln!("[konnect-schematic-editor] skipping text: {e}"),
-                    }
-                }
-                Some("no_connect") => {
-                    match NoConnect::from_sexp(child) {
-                        Ok(nc) => no_connects.push(nc),
-                        Err(e) => eprintln!("[konnect-schematic-editor] skipping no_connect: {e}"),
-                    }
-                }
-                _ => { raw_other.push(child.clone()); }
             }
         }
 
         Ok(Schematic {
             filepath,
-            version, generator, generator_version, uuid, paper,
-            symbols:             SymbolCollection::new(symbols),
-            wires:               WireCollection::new(wires),
-            labels:              LabelCollection::new(labels),
-            global_labels:       GlobalLabelCollection::new(glob_labels),
+            version,
+            generator,
+            generator_version,
+            uuid,
+            paper,
+            symbols: SymbolCollection::new(symbols),
+            wires: WireCollection::new(wires),
+            labels: LabelCollection::new(labels),
+            global_labels: GlobalLabelCollection::new(glob_labels),
             hierarchical_labels: HierarchicalLabelCollection::new(hier_labels),
             junctions,
             texts,
@@ -386,33 +421,61 @@ impl Schematic {
     fn to_sexp(&self) -> SexpNode {
         let mut c = vec![atom("kicad_sch")];
 
-        if let Some(v)  = self.version   { c.push(tagged("version", vec![atom(v.to_string())])); }
-        if let Some(g)  = &self.generator { c.push(tagged("generator", vec![atom(g.clone())])); }
-        if let Some(gv) = &self.generator_version { c.push(tagged("generator_version", vec![atom(gv.clone())])); }
-        if let Some(u)  = &self.uuid     { c.push(tagged("uuid",  vec![qstr(u.clone())])); }
-        if let Some(p)  = &self.paper    { c.push(tagged("paper", vec![qstr(p.clone())])); }
+        if let Some(v) = self.version {
+            c.push(tagged("version", vec![atom(v.to_string())]));
+        }
+        if let Some(g) = &self.generator {
+            c.push(tagged("generator", vec![atom(g.clone())]));
+        }
+        if let Some(gv) = &self.generator_version {
+            c.push(tagged("generator_version", vec![atom(gv.clone())]));
+        }
+        if let Some(u) = &self.uuid {
+            c.push(tagged("uuid", vec![qstr(u.clone())]));
+        }
+        if let Some(p) = &self.paper {
+            c.push(tagged("paper", vec![qstr(p.clone())]));
+        }
 
         // Preserved nodes — emit in order:
         // lib_symbols and title_block go early; sheet_instances/symbol_instances go late
         let early_tags = ["lib_symbols", "title_block", "lib_text_vars"];
-        let late_tags  = ["sheet_instances", "symbol_instances"];
+        let late_tags = ["sheet_instances", "symbol_instances"];
 
         // Early raw_other nodes
         for node in &self.raw_other {
             let tag = node.tag().unwrap_or("");
-            if early_tags.contains(&tag) { c.push(node.clone()); }
+            if early_tags.contains(&tag) {
+                c.push(node.clone());
+            }
         }
 
         // Typed elements in KiCAD 10 required order:
         // junctions → no_connects → wires → texts → labels → symbols (LAST)
-        for j  in &self.junctions                 { c.push(j.to_sexp()); }
-        for nc in &self.no_connects               { c.push(nc.to_sexp()); }
-        for w  in self.wires.iter()               { c.push(w.to_sexp()); }
-        for t  in &self.texts                     { c.push(t.to_sexp()); }
-        for l  in self.labels.iter()              { c.push(l.to_sexp()); }
-        for g  in self.global_labels.iter()       { c.push(g.to_sexp()); }
-        for h  in self.hierarchical_labels.iter() { c.push(h.to_sexp()); }
-        for s  in self.symbols.iter()             { c.push(s.to_sexp()); } // ALWAYS LAST
+        for j in &self.junctions {
+            c.push(j.to_sexp());
+        }
+        for nc in &self.no_connects {
+            c.push(nc.to_sexp());
+        }
+        for w in self.wires.iter() {
+            c.push(w.to_sexp());
+        }
+        for t in &self.texts {
+            c.push(t.to_sexp());
+        }
+        for l in self.labels.iter() {
+            c.push(l.to_sexp());
+        }
+        for g in self.global_labels.iter() {
+            c.push(g.to_sexp());
+        }
+        for h in self.hierarchical_labels.iter() {
+            c.push(h.to_sexp());
+        }
+        for s in self.symbols.iter() {
+            c.push(s.to_sexp());
+        } // ALWAYS LAST
 
         // Remaining raw_other nodes (sheet_instances, etc.)
         for node in &self.raw_other {
@@ -424,7 +487,9 @@ impl Schematic {
         }
         for node in &self.raw_other {
             let tag = node.tag().unwrap_or("");
-            if late_tags.contains(&tag) { c.push(node.clone()); }
+            if late_tags.contains(&tag) {
+                c.push(node.clone());
+            }
         }
 
         SexpNode::List(c)
@@ -433,10 +498,13 @@ impl Schematic {
 
 impl std::fmt::Debug for Schematic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<Schematic '{}' symbols={} wires={}>",
+        write!(
+            f,
+            "<Schematic '{}' symbols={} wires={}>",
             self.filepath.display(),
             self.symbols.len(),
-            self.wires.len())
+            self.wires.len()
+        )
     }
 }
 
@@ -451,7 +519,8 @@ fn atomic_write(path: &Path, content: &str) -> crate::error::Result<()> {
     use std::io::Write;
     let tmp_path = path.with_extension("kicad_sch.tmp");
     let mut f = std::fs::File::create(&tmp_path).map_err(crate::error::Error::Io)?;
-    f.write_all(content.as_bytes()).map_err(crate::error::Error::Io)?;
+    f.write_all(content.as_bytes())
+        .map_err(crate::error::Error::Io)?;
     f.sync_all().map_err(crate::error::Error::Io)?;
     drop(f);
     std::fs::rename(&tmp_path, path).map_err(crate::error::Error::Io)?;

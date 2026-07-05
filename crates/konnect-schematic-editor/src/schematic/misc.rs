@@ -15,18 +15,30 @@ pub struct Junction {
 
 impl Junction {
     pub fn new(x: f64, y: f64) -> Self {
-        Junction { x, y, diameter: 0.0, uuid: uuid::Uuid::new_v4().to_string(), raw_color: None }
+        Junction {
+            x,
+            y,
+            diameter: 0.0,
+            uuid: uuid::Uuid::new_v4().to_string(),
+            raw_color: None,
+        }
     }
 
     pub fn from_sexp(node: &SexpNode) -> Result<Self> {
         let at = node.find("at").ok_or(Error::MissingField("at"))?;
-        let s  = at.scalar_args();
+        let s = at.scalar_args();
         let x: f64 = s.first().and_then(|v| v.parse().ok()).unwrap_or(0.0);
         let y: f64 = s.get(1).and_then(|v| v.parse().ok()).unwrap_or(0.0);
         let diameter = node.get_float("diameter").unwrap_or(0.0);
         let uuid = node.get_value("uuid").unwrap_or("").to_owned();
         let raw_color = node.find("color").cloned();
-        Ok(Junction { x, y, diameter, uuid, raw_color })
+        Ok(Junction {
+            x,
+            y,
+            diameter,
+            uuid,
+            raw_color,
+        })
     }
 
     pub fn to_sexp(&self) -> SexpNode {
@@ -35,13 +47,20 @@ impl Junction {
             tagged("at", vec![atom(fmt_f64(self.x)), atom(fmt_f64(self.y))]),
             tagged("diameter", vec![atom(fmt_f64(self.diameter))]),
         ];
-        if let Some(col) = &self.raw_color { c.push(col.clone()); }
+        if let Some(col) = &self.raw_color {
+            c.push(col.clone());
+        }
         c.push(tagged("uuid", vec![qstr(self.uuid.clone())]));
         SexpNode::List(c)
     }
 
-    pub fn position(&self) -> (f64, f64) { (self.x, self.y) }
-    pub fn translate(&mut self, dx: f64, dy: f64) { self.x += dx; self.y += dy; }
+    pub fn position(&self) -> (f64, f64) {
+        (self.x, self.y)
+    }
+    pub fn translate(&mut self, dx: f64, dy: f64) {
+        self.x += dx;
+        self.y += dy;
+    }
 }
 
 // ---- Text -------------------------------------------------------------------
@@ -49,7 +68,7 @@ impl Junction {
 #[derive(Debug, Clone)]
 pub struct Text {
     pub text: String,
-    pub at:   At,
+    pub at: At,
     pub uuid: String,
     pub effects: Option<Effects>,
 }
@@ -58,29 +77,46 @@ impl Text {
     pub fn new(text: impl Into<String>, x: f64, y: f64) -> Self {
         Text {
             text: text.into(),
-            at:   At::new(x, y),
+            at: At::new(x, y),
             uuid: uuid::Uuid::new_v4().to_string(),
             effects: None,
         }
     }
 
     pub fn from_sexp(node: &SexpNode) -> Result<Self> {
-        let text = node.value().ok_or(Error::MissingField("text content"))?.to_owned();
-        let at   = node.find("at").and_then(At::from_sexp).ok_or(Error::MissingField("at"))?;
+        let text = node
+            .value()
+            .ok_or(Error::MissingField("text content"))?
+            .to_owned();
+        let at = node
+            .find("at")
+            .and_then(At::from_sexp)
+            .ok_or(Error::MissingField("at"))?;
         let uuid = node.get_value("uuid").unwrap_or("").to_owned();
         let effects = node.find("effects").and_then(Effects::from_sexp);
-        Ok(Text { text, at, uuid, effects })
+        Ok(Text {
+            text,
+            at,
+            uuid,
+            effects,
+        })
     }
 
     pub fn to_sexp(&self) -> SexpNode {
         let mut c = vec![atom("text"), qstr(self.text.clone()), self.at.to_sexp()];
-        if let Some(e) = &self.effects { c.push(e.to_sexp()); }
+        if let Some(e) = &self.effects {
+            c.push(e.to_sexp());
+        }
         c.push(tagged("uuid", vec![qstr(self.uuid.clone())]));
         SexpNode::List(c)
     }
 
-    pub fn position(&self) -> (f64, f64) { (self.at.x, self.at.y) }
-    pub fn translate(&mut self, dx: f64, dy: f64) { self.at.translate(dx, dy); }
+    pub fn position(&self) -> (f64, f64) {
+        (self.at.x, self.at.y)
+    }
+    pub fn translate(&mut self, dx: f64, dy: f64) {
+        self.at.translate(dx, dy);
+    }
 }
 
 // ---- NoConnect --------------------------------------------------------------
@@ -94,12 +130,16 @@ pub struct NoConnect {
 
 impl NoConnect {
     pub fn new(x: f64, y: f64) -> Self {
-        NoConnect { x, y, uuid: uuid::Uuid::new_v4().to_string() }
+        NoConnect {
+            x,
+            y,
+            uuid: uuid::Uuid::new_v4().to_string(),
+        }
     }
 
     pub fn from_sexp(node: &SexpNode) -> Result<Self> {
         let at = node.find("at").ok_or(Error::MissingField("at"))?;
-        let s  = at.scalar_args();
+        let s = at.scalar_args();
         let x: f64 = s.first().and_then(|v| v.parse().ok()).unwrap_or(0.0);
         let y: f64 = s.get(1).and_then(|v| v.parse().ok()).unwrap_or(0.0);
         let uuid = node.get_value("uuid").unwrap_or("").to_owned();
@@ -114,5 +154,7 @@ impl NoConnect {
         ])
     }
 
-    pub fn position(&self) -> (f64, f64) { (self.x, self.y) }
+    pub fn position(&self) -> (f64, f64) {
+        (self.x, self.y)
+    }
 }

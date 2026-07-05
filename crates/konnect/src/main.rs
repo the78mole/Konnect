@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
         .iter()
         .position(|a| a == "--config")
         .and_then(|pos| args.get(pos + 1))
-        .map(|s| std::path::PathBuf::from(s));
+        .map(std::path::PathBuf::from);
 
     let config = if let Some(ref path) = config_path {
         Config::load_from(path)?
@@ -61,18 +61,15 @@ async fn main() -> Result<()> {
     };
 
     // ─── Initialize tracing (stderr only — stdout is MCP protocol) ──
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&config.log_level));
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.log_level));
 
     fmt::Subscriber::builder()
         .with_writer(std::io::stderr)
         .with_env_filter(filter)
         .init();
 
-    info!(
-        "Konnect v{} starting",
-        env!("CARGO_PKG_VERSION")
-    );
+    info!("Konnect v{} starting", env!("CARGO_PKG_VERSION"));
 
     let server_config = konnect_core::tools::ServerConfig {
         kicad_cli: config.kicad_cli.clone(),

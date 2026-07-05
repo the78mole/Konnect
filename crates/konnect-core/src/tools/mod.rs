@@ -3,12 +3,9 @@
 pub mod cli;
 pub mod config;
 pub mod design_review;
-pub mod sch_bridge;
-pub mod schematic_builder;
 pub mod integration;
 pub mod library;
 pub mod manufacturing;
-pub mod templates;
 pub mod pcb_board;
 pub mod pcb_components;
 pub mod pcb_export;
@@ -16,9 +13,12 @@ pub mod pcb_routing;
 pub mod project;
 pub mod sch_analysis;
 pub mod sch_batch;
+pub mod sch_bridge;
 pub mod sch_components;
 pub mod sch_export;
 pub mod sch_wiring;
+pub mod schematic_builder;
+pub mod templates;
 pub mod verification;
 
 use crate::mcp::protocol::{CallToolResult, McpToolDescription};
@@ -142,9 +142,7 @@ macro_rules! tool {
         let h: $crate::tools::ToolHandlerFn = std::sync::Arc::new(move |args, ctx| {
             let args = args.clone();
             let ctx = ctx.clone();
-            Box::pin(async move {
-                ($handler)(&args, &*ctx).await
-            })
+            Box::pin(async move { ($handler)(&args, &*ctx).await })
         });
         $crate::tools::ToolDef {
             name: $name,
@@ -226,7 +224,10 @@ mod arg_helper_tests {
         let args = json!({});
         let err = require_str(&args, "path").expect_err("should fail");
         assert!(err.is_error);
-        assert_eq!(extract_error_kind(&err).as_deref(), Some("invalid_argument"));
+        assert_eq!(
+            extract_error_kind(&err).as_deref(),
+            Some("invalid_argument")
+        );
         // The body carries the field name so clients can branch.
         let body = match &err.content[0] {
             crate::mcp::protocol::ToolContent::Text { text } => text.clone(),
@@ -240,7 +241,10 @@ mod arg_helper_tests {
     fn require_f64_non_number_produces_structured_invalid_argument() {
         let args = json!({ "x": "not a number" });
         let err = require_f64(&args, "x").expect_err("should fail");
-        assert_eq!(extract_error_kind(&err).as_deref(), Some("invalid_argument"));
+        assert_eq!(
+            extract_error_kind(&err).as_deref(),
+            Some("invalid_argument")
+        );
     }
 
     #[test]
@@ -298,7 +302,10 @@ fn kicad_config_base() -> std::path::PathBuf {
 pub fn resolve_lib_symbol(lib_id: &str) -> Option<String> {
     let parts: Vec<&str> = lib_id.splitn(2, ':').collect();
     if parts.len() != 2 {
-        tracing::warn!("[BETA] Cannot resolve lib_id '{}' — expected 'Library:Symbol' format", lib_id);
+        tracing::warn!(
+            "[BETA] Cannot resolve lib_id '{}' — expected 'Library:Symbol' format",
+            lib_id
+        );
         return None;
     }
     let (library_name, symbol_name) = (parts[0], parts[1]);
@@ -346,7 +353,10 @@ pub fn resolve_lib_symbol(lib_id: &str) -> Option<String> {
         }
     }
 
-    tracing::warn!("[BETA] Symbol '{}' not found in any library directory", lib_id);
+    tracing::warn!(
+        "[BETA] Symbol '{}' not found in any library directory",
+        lib_id
+    );
     None
 }
 
@@ -361,12 +371,19 @@ fn extract_symbol_block(content: &str, symbol_name: &str) -> Option<String> {
             '(' => depth += 1,
             ')' => {
                 depth -= 1;
-                if depth == 0 { end = start + i + 1; break; }
+                if depth == 0 {
+                    end = start + i + 1;
+                    break;
+                }
             }
             _ => {}
         }
     }
-    if end > start { Some(content[start..end].to_string()) } else { None }
+    if end > start {
+        Some(content[start..end].to_string())
+    } else {
+        None
+    }
 }
 
 /// Insert a symbol definition into the schematic's lib_symbols section.
@@ -400,13 +417,23 @@ pub fn ensure_lib_symbol_in_schematic(content: &mut String, lib_id: &str) {
                 '(' => depth += 1,
                 ')' => {
                     depth -= 1;
-                    if depth == 0 { ls_end = ls_start + i; break; }
+                    if depth == 0 {
+                        ls_end = ls_start + i;
+                        break;
+                    }
                 }
                 _ => {}
             }
         }
-        let indented = sym_def.lines()
-            .map(|l| if l.is_empty() { String::new() } else { format!("\t\t{}", l) })
+        let indented = sym_def
+            .lines()
+            .map(|l| {
+                if l.is_empty() {
+                    String::new()
+                } else {
+                    format!("\t\t{}", l)
+                }
+            })
             .collect::<Vec<_>>()
             .join("\n");
         content.insert_str(ls_end, &format!("\n{}\n\t", indented));
@@ -418,7 +445,9 @@ fn find_kicad_symbol_dirs() -> Vec<std::path::PathBuf> {
     let mut dirs = Vec::new();
     if let Ok(dir) = std::env::var("KICAD10_SYMBOL_DIR") {
         let p = std::path::PathBuf::from(&dir);
-        if p.is_dir() { dirs.push(p); }
+        if p.is_dir() {
+            dirs.push(p);
+        }
     }
     #[cfg(target_os = "windows")]
     {
@@ -430,7 +459,9 @@ fn find_kicad_symbol_dirs() -> Vec<std::path::PathBuf> {
         ];
         for c in &candidates {
             let p = std::path::PathBuf::from(c);
-            if p.is_dir() && !dirs.contains(&p) { dirs.push(p); }
+            if p.is_dir() && !dirs.contains(&p) {
+                dirs.push(p);
+            }
         }
     }
     #[cfg(not(target_os = "windows"))]
@@ -438,7 +469,9 @@ fn find_kicad_symbol_dirs() -> Vec<std::path::PathBuf> {
         let candidates = ["/usr/share/kicad/symbols", "/usr/local/share/kicad/symbols"];
         for c in &candidates {
             let p = std::path::PathBuf::from(c);
-            if p.is_dir() && !dirs.contains(&p) { dirs.push(p); }
+            if p.is_dir() && !dirs.contains(&p) {
+                dirs.push(p);
+            }
         }
     }
     dirs

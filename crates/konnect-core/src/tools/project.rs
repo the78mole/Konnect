@@ -262,12 +262,7 @@ async fn handle_snapshot_project(
     let pdf_name = format!("{}_{}_{}.pdf", stem, label, ts);
     let pdf_path = output_dir.join(&pdf_name);
 
-    crate::tools::cli::export_schematic_pdf(
-        &ctx.config.kicad_cli,
-        &schematic,
-        &pdf_path,
-    )
-    .await?;
+    crate::tools::cli::export_schematic_pdf(&ctx.config.kicad_cli, &schematic, &pdf_path).await?;
 
     let mut result = json!({
         "snapshot": pdf_path.display().to_string(),
@@ -281,13 +276,8 @@ async fn handle_snapshot_project(
         let pcb_pdf_name = format!("{}_pcb_{}_{}.pdf", stem, label, ts);
         let pcb_pdf_path = output_dir.join(&pcb_pdf_name);
         let layers = &["F.Cu", "B.Cu", "F.Silkscreen", "B.Silkscreen", "Edge.Cuts"];
-        let _ = crate::tools::cli::export_pdf(
-            &ctx.config.kicad_cli,
-            &pcb,
-            &pcb_pdf_path,
-            layers,
-        )
-        .await;
+        let _ =
+            crate::tools::cli::export_pdf(&ctx.config.kicad_cli, &pcb, &pcb_pdf_path, layers).await;
         result["pcb_snapshot"] = json!(pcb_pdf_path.display().to_string());
     }
 
@@ -301,7 +291,10 @@ async fn handle_open_viewer(
     let sch_path = get_path(args, "schematic")?;
 
     if !sch_path.exists() {
-        return Ok(CallToolResult::error(format!("File not found: {}", sch_path.display())));
+        return Ok(CallToolResult::error(format!(
+            "File not found: {}",
+            sch_path.display()
+        )));
     }
 
     // Find the viewer binary — it should be next to the konnect binary
@@ -309,7 +302,11 @@ async fn handle_open_viewer(
 
     match viewer_binary {
         Some(viewer_path) => {
-            tracing::info!("[BETA] Launching schematic viewer: {} {}", viewer_path.display(), sch_path.display());
+            tracing::info!(
+                "[BETA] Launching schematic viewer: {} {}",
+                viewer_path.display(),
+                sch_path.display()
+            );
 
             // Spawn as detached process
             let child = std::process::Command::new(&viewer_path)
@@ -331,7 +328,7 @@ async fn handle_open_viewer(
         }
         None => Ok(CallToolResult::error(
             "Schematic viewer binary (schematic-viewer.exe) not found. \
-             It should be in the same directory as konnect.exe."
+             It should be in the same directory as konnect.exe.",
         )),
     }
 }
@@ -340,17 +337,18 @@ fn find_viewer_binary() -> Option<std::path::PathBuf> {
     // Check next to the current executable
     if let Ok(exe_path) = std::env::current_exe() {
         let dir = exe_path.parent()?;
-        let viewer = dir.join(if cfg!(target_os = "windows") { "schematic-viewer.exe" } else { "schematic-viewer" });
+        let viewer = dir.join(if cfg!(target_os = "windows") {
+            "schematic-viewer.exe"
+        } else {
+            "schematic-viewer"
+        });
         if viewer.exists() {
             return Some(viewer);
         }
     }
 
     // Check common locations
-    let candidates = [
-        "schematic-viewer.exe",
-        "schematic-viewer",
-    ];
+    let candidates = ["schematic-viewer.exe", "schematic-viewer"];
     for c in &candidates {
         let p = std::path::PathBuf::from(c);
         if p.exists() {

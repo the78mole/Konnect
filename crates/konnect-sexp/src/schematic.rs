@@ -2,8 +2,8 @@
 //!
 //! Provides typed query functions used by the tool implementations.
 
-use crate::geometry::{PinTransform, transform_pin};
-use crate::parser::{SexpNode, parse_sexp};
+use crate::geometry::{transform_pin, PinTransform};
+use crate::parser::{parse_sexp, SexpNode};
 use crate::SexpError;
 use std::path::Path;
 
@@ -78,7 +78,13 @@ pub fn extract_wires(tree: &SexpNode) -> Vec<Wire> {
                 .and_then(|u| u.get(1))
                 .and_then(|u| u.as_str())
                 .map(String::from);
-            Some(Wire { x1, y1, x2, y2, uuid })
+            Some(Wire {
+                x1,
+                y1,
+                x2,
+                y2,
+                uuid,
+            })
         })
         .collect()
 }
@@ -112,7 +118,11 @@ pub fn extract_labels(tree: &SexpNode) -> Vec<Label> {
         ("hierarchical_label", LabelKind::HierarchicalLabel),
     ] {
         for node in tree.find_all(kind_str) {
-            let net = node.get(1).and_then(|n| n.as_str()).unwrap_or("").to_string();
+            let net = node
+                .get(1)
+                .and_then(|n| n.as_str())
+                .unwrap_or("")
+                .to_string();
             let (x, y, rotation) = parse_at(node).unwrap_or((0.0, 0.0, 0.0));
             let uuid = node
                 .find("uuid")
@@ -233,7 +243,10 @@ pub fn extract_lib_pins(sym_node: &SexpNode) -> Vec<LibPin> {
         .iter()
         .filter_map(|node| {
             let (x, y, rotation) = parse_at(node)?;
-            let length = node.find("length").and_then(|l| l.get_f64(1)).unwrap_or(0.0);
+            let length = node
+                .find("length")
+                .and_then(|l| l.get_f64(1))
+                .unwrap_or(0.0);
             let number = node
                 .find("number")
                 .and_then(|n| n.get(1))
@@ -246,7 +259,14 @@ pub fn extract_lib_pins(sym_node: &SexpNode) -> Vec<LibPin> {
                 .and_then(|n| n.as_str())
                 .unwrap_or("")
                 .to_string();
-            Some(LibPin { number, name, local_x: x, local_y: y, rotation, length })
+            Some(LibPin {
+                number,
+                name,
+                local_x: x,
+                local_y: y,
+                rotation,
+                length,
+            })
         })
         .collect()
 }
@@ -279,17 +299,13 @@ pub fn find_t_junctions(wires: &[Wire], tol: f64) -> Vec<(f64, f64)> {
                     continue;
                 }
                 // Point is on w2 but NOT at its endpoints
-                let at_endpoint =
-                    crate::geometry::points_coincident(px, py, w2.x1, w2.y1, tol)
+                let at_endpoint = crate::geometry::points_coincident(px, py, w2.x1, w2.y1, tol)
                     || crate::geometry::points_coincident(px, py, w2.x2, w2.y2, tol);
-                if !at_endpoint
-                    && point_on_segment(px, py, w2.x1, w2.y1, w2.x2, w2.y2, tol)
-                {
+                if !at_endpoint && point_on_segment(px, py, w2.x1, w2.y1, w2.x2, w2.y2, tol) {
                     // Avoid duplicate junction positions
-                    if !junctions
-                        .iter()
-                        .any(|(jx, jy): &(f64, f64)| crate::geometry::points_coincident(px, py, *jx, *jy, tol))
-                    {
+                    if !junctions.iter().any(|(jx, jy): &(f64, f64)| {
+                        crate::geometry::points_coincident(px, py, *jx, *jy, tol)
+                    }) {
                         junctions.push((px, py));
                     }
                 }
