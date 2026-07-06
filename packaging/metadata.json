@@ -14,14 +14,14 @@
   },
   "versions": [
     {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "status": "stable",
       "kicad_version": "10.0",
       "kicad_version_max": "10.99",
-      "download_sha256": "b30bd1ea78c250f09bf184c9594f8ad022c80220a20e68fec76c59651ab217d2",
-      "download_size": 7793182,
-      "download_url": "https://github.com/mixelpixx/Konnect/releases/download/v0.1.0/konnect-pcm-v0.1.0.zip",
-      "install_size": 21969771
+      "download_sha256": "",
+      "download_size": 0,
+      "download_url": "https://github.com/mixelpixx/Konnect/releases/download/v0.1.1/konnect-pcm-v0.1.1.zip",
+      "install_size": 0
     }
   ]
 }

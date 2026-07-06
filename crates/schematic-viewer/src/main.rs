@@ -8,7 +8,7 @@
 //! Watches a .kicad_sch file, renders to SVG via kicad-cli, and displays
 //! in a native window with pan/zoom and auto-refresh.
 //!
-//! Usage: schematic-viewer [path/to/file.kicad_sch]
+//! Usage: schematic-viewer [--kicad-cli <path>] [path/to/file.kicad_sch]
 
 use notify::{EventKind, RecursiveMode, Watcher};
 use std::path::{Path, PathBuf};
@@ -22,42 +22,88 @@ use tauri::{AppHandle, Emitter, Manager};
 struct ViewerState {
     schematic_path: Mutex<Option<PathBuf>>,
     kicad_cli: Mutex<String>,
+    /// File passed on the command line, handed to the frontend when it asks.
+    startup_file: Mutex<Option<String>>,
+    /// The active file watcher. Replacing it drops (and stops) the previous
+    /// one, so only the currently-open schematic is ever watched.
+    watcher: Mutex<Option<notify::RecommendedWatcher>>,
 }
 
-impl Default for ViewerState {
-    fn default() -> Self {
-        ViewerState {
-            schematic_path: Mutex::new(None),
-            kicad_cli: Mutex::new(detect_kicad_cli()),
+// ─── Binary discovery ───────────────────────────────────────────────────────
+
+/// Resolve kicad-cli: explicit override → platform candidates → PATH.
+/// Candidate lists mirror `plugin/settings_dialog.py::detect_kicad_cli`.
+fn resolve_kicad_cli(override_path: Option<String>) -> String {
+    if let Some(p) = override_path {
+        if !p.is_empty() {
+            return p;
         }
     }
+    let candidates: &[&str] = if cfg!(target_os = "windows") {
+        &[
+            r"C:\KiCad\10.0\bin\kicad-cli.exe",
+            r"C:\Program Files\KiCad\10.0\bin\kicad-cli.exe",
+            r"C:\Program Files\KiCad\9.0\bin\kicad-cli.exe",
+        ]
+    } else if cfg!(target_os = "macos") {
+        &[
+            "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli",
+            "/usr/local/bin/kicad-cli",
+        ]
+    } else {
+        &[
+            "/usr/bin/kicad-cli",
+            "/usr/local/bin/kicad-cli",
+            "/snap/kicad/current/usr/bin/kicad-cli",
+        ]
+    };
+    for c in candidates {
+        if Path::new(c).exists() {
+            return c.to_string();
+        }
+    }
+    "kicad-cli".to_string() // hope it's on PATH
 }
 
-fn detect_kicad_cli() -> String {
-    let candidates = [
-        r"C:\KiCad\10.0\bin\kicad-cli.exe",
-        r"C:\Program Files\KiCad\10.0\bin\kicad-cli.exe",
-    ];
-    for c in &candidates {
-        if Path::new(c).exists() { return c.to_string(); }
+/// Resolve the KiCAD GUI binary for "Open in KiCAD".
+fn resolve_kicad_binary() -> String {
+    let candidates: &[&str] = if cfg!(target_os = "windows") {
+        &[
+            r"C:\KiCad\10.0\bin\kicad.exe",
+            r"C:\Program Files\KiCad\10.0\bin\kicad.exe",
+            r"C:\Program Files\KiCad\9.0\bin\kicad.exe",
+        ]
+    } else if cfg!(target_os = "macos") {
+        &["/Applications/KiCad/KiCad.app/Contents/MacOS/kicad"]
+    } else {
+        &["/usr/bin/kicad", "/usr/local/bin/kicad"]
+    };
+    for c in candidates {
+        if Path::new(c).exists() {
+            return c.to_string();
+        }
     }
-    "kicad-cli".to_string()
+    "kicad".to_string()
 }
 
 // ─── SVG Rendering ──────────────────────────────────────────────────────────
 
+/// Per-process temp dir so concurrent viewer instances don't clobber each
+/// other's rendered SVGs.
+fn render_temp_dir() -> PathBuf {
+    std::env::temp_dir().join(format!("konnect-viewer-{}", std::process::id()))
+}
+
 fn render_to_svg(cli: &str, schematic: &Path) -> Result<String, String> {
-    let temp_dir = std::env::temp_dir().join("konnect-viewer");
+    let temp_dir = render_temp_dir();
     std::fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
 
     let output = Command::new(cli)
-        .args([
-            "sch", "export", "svg",
-            "--output", temp_dir.to_str().unwrap(),
-            schematic.to_str().unwrap(),
-        ])
+        .args(["sch", "export", "svg", "--output"])
+        .arg(&temp_dir)
+        .arg(schematic)
         .output()
-        .map_err(|e| format!("Failed to run kicad-cli: {}", e))?;
+        .map_err(|e| format!("Failed to run kicad-cli ({}): {}", cli, e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -66,11 +112,17 @@ fn render_to_svg(cli: &str, schematic: &Path) -> Result<String, String> {
 
     let stem = schematic.file_stem().unwrap_or_default().to_string_lossy();
     let svg_path = temp_dir.join(format!("{}.svg", stem));
-    std::fs::read_to_string(&svg_path)
-        .map_err(|e| format!("Failed to read SVG: {}", e))
+    std::fs::read_to_string(&svg_path).map_err(|e| format!("Failed to read SVG: {}", e))
 }
 
 // ─── Tauri Commands ─────────────────────────────────────────────────────────
+
+/// The file passed on the command line, if any. The frontend calls this once
+/// its scripts are ready — no timing games with `window.eval`.
+#[tauri::command]
+fn get_startup_file(state: tauri::State<'_, ViewerState>) -> Option<String> {
+    state.startup_file.lock().unwrap().take()
+}
 
 #[tauri::command]
 fn open_schematic(
@@ -93,13 +145,10 @@ fn open_schematic(
         let _ = window.set_title(&format!("{} — Schematic Viewer", name));
     }
 
-    // Start file watcher
-    let app_handle = app.clone();
-    let cli_clone = cli.clone();
-    let path_clone = sch_path.clone();
-    std::thread::spawn(move || {
-        start_file_watcher(app_handle, cli_clone, path_clone);
-    });
+    // Replace the watcher. Assigning drops the previous one, which stops
+    // watching the old file — no stale renders overwriting the new view.
+    let watcher = build_watcher(app.clone(), cli, sch_path)?;
+    *state.watcher.lock().unwrap() = Some(watcher);
 
     Ok(svg)
 }
@@ -119,13 +168,10 @@ fn open_in_kicad(state: tauri::State<'_, ViewerState>) -> Result<(), String> {
     let path = state.schematic_path.lock().unwrap().clone();
     match path {
         Some(p) => {
-            let candidates = [
-                r"C:\KiCad\10.0\bin\kicad.exe",
-                r"C:\Program Files\KiCad\10.0\bin\kicad.exe",
-            ];
-            let kicad = candidates.iter().find(|c| Path::new(c).exists()).unwrap_or(&"kicad");
-            Command::new(kicad).arg(p.to_str().unwrap())
-                .spawn().map_err(|e| format!("Failed to launch KiCAD: {}", e))?;
+            Command::new(resolve_kicad_binary())
+                .arg(&p)
+                .spawn()
+                .map_err(|e| format!("Failed to launch KiCAD: {}", e))?;
             Ok(())
         }
         None => Err("No schematic loaded".to_string()),
@@ -134,78 +180,112 @@ fn open_in_kicad(state: tauri::State<'_, ViewerState>) -> Result<(), String> {
 
 // ─── File Watcher ───────────────────────────────────────────────────────────
 
-fn start_file_watcher(app: AppHandle, cli: String, schematic: PathBuf) {
-    let app_handle = Arc::new(app);
-    let last_event = Arc::new(Mutex::new(Instant::now()));
+/// Build a watcher on the schematic's parent directory. The returned watcher
+/// keeps its own background thread alive for as long as it is held; the
+/// caller stores it in `ViewerState` so it lives exactly as long as this
+/// schematic is the open one.
+fn build_watcher(
+    app: AppHandle,
+    cli: String,
+    schematic: PathBuf,
+) -> Result<notify::RecommendedWatcher, String> {
     let target_name = schematic.file_name().unwrap_or_default().to_os_string();
+    // Start "in the past" so the first save after opening triggers a refresh.
+    let last_event = Arc::new(Mutex::new(Instant::now() - Duration::from_secs(1)));
+    let watch_dir = schematic.parent().unwrap_or(Path::new(".")).to_path_buf();
 
-    let app_ref = app_handle.clone();
-    let cli_ref = cli.clone();
-    let sch_ref = schematic.clone();
-    let last_ref = last_event.clone();
+    let mut watcher =
+        notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
+            let Ok(event) = res else { return };
 
-    let mut watcher = notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
-        if let Ok(event) = res {
-            // Only trigger on file modifications
+            // Only file modifications / atomic-write renames
             match event.kind {
                 EventKind::Modify(_) | EventKind::Create(_) => {}
                 _ => return,
             }
 
-            // Only trigger for our target file
-            let is_our_file = event.paths.iter().any(|p| {
-                p.file_name().map(|n| n == target_name).unwrap_or(false)
-            });
-            if !is_our_file { return; }
-
-            // Debounce
-            let mut last = last_ref.lock().unwrap();
-            if last.elapsed() < Duration::from_millis(500) { return; }
-            *last = Instant::now();
-            drop(last);
-
-            // Re-render and emit event
-            match render_to_svg(&cli_ref, &sch_ref) {
-                Ok(svg) => { let _ = app_ref.emit("schematic-updated", svg); }
-                Err(e) => eprintln!("[Viewer] Render error: {}", e),
+            // Only our target file
+            let is_our_file = event
+                .paths
+                .iter()
+                .any(|p| p.file_name().map(|n| n == target_name).unwrap_or(false));
+            if !is_our_file {
+                return;
             }
-        }
-    }).expect("Failed to create file watcher");
 
-    let watch_dir = schematic.parent().unwrap_or(Path::new("."));
-    watcher.watch(watch_dir, RecursiveMode::NonRecursive)
-        .expect("Failed to start file watching");
+            // Debounce (editors and atomic writes fire bursts of events)
+            {
+                let mut last = last_event.lock().unwrap();
+                if last.elapsed() < Duration::from_millis(500) {
+                    return;
+                }
+                *last = Instant::now();
+            }
 
-    // Block this thread to keep watcher alive
-    loop { std::thread::sleep(Duration::from_secs(3600)); }
+            // Stale guard: if the user opened a different schematic while
+            // this event was in flight, drop it.
+            {
+                let state = app.state::<ViewerState>();
+                let current = state.schematic_path.lock().unwrap().clone();
+                if current.as_deref() != Some(schematic.as_path()) {
+                    return;
+                }
+            }
+
+            match render_to_svg(&cli, &schematic) {
+                Ok(svg) => {
+                    let _ = app.emit("schematic-updated", svg);
+                }
+                Err(e) => {
+                    let _ = app.emit("viewer-error", format!("Render failed: {}", e));
+                }
+            }
+        })
+        .map_err(|e| format!("Failed to create file watcher: {}", e))?;
+
+    watcher
+        .watch(&watch_dir, RecursiveMode::NonRecursive)
+        .map_err(|e| format!("Failed to watch {}: {}", watch_dir.display(), e))?;
+
+    Ok(watcher)
 }
 
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    let file_arg = args.get(1).cloned();
+    // Minimal arg parsing: [--kicad-cli <path>] [schematic-file]
+    let mut kicad_cli_override: Option<String> = None;
+    let mut file_arg: Option<String> = None;
+    let mut args = std::env::args().skip(1);
+    while let Some(a) = args.next() {
+        if a == "--kicad-cli" {
+            kicad_cli_override = args.next();
+        } else if !a.starts_with('-') {
+            file_arg = Some(a);
+        }
+    }
+
+    let state = ViewerState {
+        schematic_path: Mutex::new(None),
+        kicad_cli: Mutex::new(resolve_kicad_cli(kicad_cli_override)),
+        startup_file: Mutex::new(file_arg),
+        watcher: Mutex::new(None),
+    };
 
     tauri::Builder::default()
-        .manage(ViewerState::default())
-        .invoke_handler(tauri::generate_handler![open_schematic, refresh, open_in_kicad])
-        .setup(move |app| {
-            if let Some(ref path) = file_arg {
-                let path = path.clone();
-                let handle = app.handle().clone();
-                std::thread::spawn(move || {
-                    std::thread::sleep(Duration::from_millis(800));
-                    if let Some(window) = handle.get_webview_window("main") {
-                        let js = format!(
-                            "if(window.loadSchematic) window.loadSchematic({});",
-                            serde_json::to_string(&path).unwrap_or_default()
-                        );
-                        let _ = window.eval(&js);
-                    }
-                });
+        .manage(state)
+        .invoke_handler(tauri::generate_handler![
+            get_startup_file,
+            open_schematic,
+            refresh,
+            open_in_kicad
+        ])
+        .build(tauri::generate_context!())
+        .expect("error while building schematic viewer")
+        .run(|_app, event| {
+            if let tauri::RunEvent::Exit = event {
+                // Best-effort cleanup of this instance's rendered SVGs
+                let _ = std::fs::remove_dir_all(render_temp_dir());
             }
-            Ok(())
-        })
-        .run(tauri::generate_context!())
-        .expect("error while running schematic viewer");
+        });
 }

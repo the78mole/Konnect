@@ -22,6 +22,9 @@ Opening an issue is the best way to influence priority.
   just search and place existing ones.
 - **Eagle project import** — migrate legacy Eagle designs.
 - **Additional export formats** — IPC-2581, ODB++, GenCAD, DXF.
+- **Multi-sheet schematic viewer** — `kicad-cli sch export svg` emits one SVG
+  per sheet; the live viewer currently shows only the root sheet. Add a sheet
+  selector for hierarchical designs.
 
 ## Infrastructure
 

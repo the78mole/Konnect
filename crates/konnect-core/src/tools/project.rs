@@ -286,7 +286,7 @@ async fn handle_snapshot_project(
 
 async fn handle_open_viewer(
     args: &serde_json::Value,
-    _ctx: &ToolContext,
+    ctx: &ToolContext,
 ) -> anyhow::Result<CallToolResult> {
     let sch_path = get_path(args, "schematic")?;
 
@@ -308,10 +308,13 @@ async fn handle_open_viewer(
                 sch_path.display()
             );
 
-            // Spawn as detached process
-            let child = std::process::Command::new(&viewer_path)
-                .arg(sch_path.to_str().unwrap())
-                .spawn();
+            // Spawn as detached process, forwarding the configured kicad-cli
+            // path so the viewer renders with the same binary we use.
+            let mut cmd = std::process::Command::new(&viewer_path);
+            if !ctx.config.kicad_cli.is_empty() {
+                cmd.arg("--kicad-cli").arg(&ctx.config.kicad_cli);
+            }
+            let child = cmd.arg(&sch_path).spawn();
 
             match child {
                 Ok(_) => Ok(CallToolResult::text(
