@@ -1,3 +1,10 @@
+<a name="top"></a>
+
+<div align="center">
+
+<img src="../resources/images/KiCAD-MCP-Server_only_css.svg" alt="KiCAD-MCP-Server Logo" height="240" />
+
+
 # Konnect *BETA Release
 
 **AI-assisted PCB design for KiCAD 10.** Konnect is a native KiCAD plugin — a single
