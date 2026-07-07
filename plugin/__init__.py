@@ -52,7 +52,6 @@ def _run_server():
             )
             _server_process.wait()
         except Exception as e:
-            pcbnew.GetBoard()  # keeps the interpreter alive
             print(f"[Konnect] Server error (attempt {attempt + 1}): {e}", file=sys.stderr)
         finally:
             _server_process = None
