@@ -59,17 +59,6 @@ impl ToolRouter {
         }
     }
 
-    /// Load ALL toolsets (test / dev utility — do not use at server startup).
-    ///
-    /// Using this at startup defeats the whole point of the router. Baseline
-    /// `tools/list` balloons from ~2K tokens to ~23K. Keep startup on
-    /// `load_starter_kit()`.
-    pub async fn load_all_for_listing(&self) {
-        for ts in self.registry {
-            let _ = self.load(ts.name).await;
-        }
-    }
-
     /// Find which toolset a tool name belongs to, whether or not that toolset
     /// is currently loaded. Used to give the LLM an actionable error when it
     /// calls a tool whose toolset hasn't been loaded yet.
@@ -109,13 +98,6 @@ impl ToolRouter {
     /// Return all currently active ToolDefs for use in MCP tool listings.
     pub async fn active_tools(&self) -> Vec<ToolDef> {
         self.loaded_tools.read().await.values().cloned().collect()
-    }
-
-    /// Find which toolset a tool belongs to. Alias for `find_toolset_for_tool`
-    /// that returns an owned String (kept async for call-site symmetry with the
-    /// rest of the router API).
-    pub async fn toolset_for_tool(&self, tool_name: &str) -> Option<String> {
-        self.find_toolset_for_tool(tool_name).map(str::to_string)
     }
 }
 
