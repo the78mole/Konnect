@@ -16,9 +16,6 @@ use tokio::process::Command;
 use tokio::time::timeout;
 use tracing::{debug, info, warn};
 
-/// Default timeout for most CLI operations.
-#[allow(dead_code)]
-const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Extended timeout for long operations (export, ERC, DRC).
 const LONG_TIMEOUT: Duration = Duration::from_secs(600);
 
