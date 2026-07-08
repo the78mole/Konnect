@@ -77,7 +77,6 @@ Konnect/
 │   │       ├── gen.rs                # Generated protobuf Rust types
 │   │       ├── client.rs             # NNG req/rep client, all methods implemented
 │   │       ├── builders.rs           # Protobuf message construction helpers (mm→nm conversion)
-│   │       ├── board.rs              # Transaction helpers (with_commit)
 │   │       └── types.rs              # Public types (IpcFootprint, IpcTrack, etc.)
 │   │
 │   └── schematic-viewer/            # Tauri desktop app (separate from workspace)
@@ -147,10 +146,7 @@ Tool-call failures are typed via the `ToolErrorKind` enum in `crates/konnect-cor
 | `toolset_not_loaded` | Tool exists but its toolset isn't loaded yet |
 | `unknown_tool` | Tool name doesn't exist in any toolset |
 | `invalid_argument` | Required argument missing/malformed |
-| `ipc_unavailable` | KiCAD PCB editor not running / IPC socket missing |
 | `file_not_found` | Referenced file doesn't exist |
-| `kicad_cli_error` | `kicad-cli` subprocess failed |
-| `not_implemented` | Handler hit an explicit NotImplemented path |
 | `handler_error` | Catch-all for unmigrated `anyhow::Error` returns |
 
 ### Producing structured errors in a handler
@@ -166,7 +162,7 @@ if !path.exists() {
 
 Adding a new kind: edit `mcp/error.rs`, add the variant, add the match arm in `short_code()`, use it from the handler. The `short_code_matches_serialized_kind_field` test will fail loudly if they drift.
 
-The dispatch-level errors (not-loaded/unknown/handler-panic) are fully structured. So are **all missing-argument errors** across all 171 tools — `tools/mod.rs::require_str` / `require_f64` / `require_path` emit `ToolErrorKind::InvalidArgument { field, reason }` automatically. Most in-handler errors still use `CallToolResult::error("free text")` or bubble `anyhow::Error`; migrating them is incremental. `project.rs::handle_get_project_info` demonstrates the structured `FileNotFound` pattern.
+The dispatch-level errors (not-loaded/unknown/handler-panic) are fully structured. So are **all missing-argument errors** across all 171 tools — `tools/mod.rs::require_str` / `require_f64` emit `ToolErrorKind::InvalidArgument { field, reason }` automatically. Most in-handler errors still use `CallToolResult::error("free text")` or bubble `anyhow::Error`; migrating them is incremental. `project.rs::handle_get_project_info` demonstrates the structured `FileNotFound` pattern.
 
 ## Observability
 
