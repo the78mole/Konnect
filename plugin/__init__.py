@@ -12,8 +12,9 @@ Installation (KiCAD PCM):
 """
 
 import os
-import sys
+import shutil
 import subprocess
+import sys
 import threading
 
 import pcbnew  # Available inside KiCAD
@@ -34,27 +35,99 @@ SETTINGS_PATH = os.path.join(PLUGIN_DIR, "settings.json")
 _server_process = None
 _server_thread = None
 
+# Windows GUI parents (pcbnew) attach a new console to their subprocesses.
+# That console makes stdin look like a TTY, which triggers konnect's
+# double-click install wizard instead of MCP server mode. CREATE_NO_WINDOW
+# suppresses the console; stdin=PIPE stays intact.
+_POPEN_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+_CACHE_DIR = os.path.join(
+    os.environ.get("LOCALAPPDATA", os.path.expanduser("~/.cache")),
+    "konnect", "cache",
+)
+_PID_FILE = os.path.join(_CACHE_DIR, "server.pid")
+
+
+def _stage(source_path):
+    """Copy file to LOCALAPPDATA cache, return cached path.
+
+    OneDrive-redirected Documents (common in enterprise Windows) tag both
+    the plugin's konnect.exe AND settings.json with IO_REPARSE_TAG_CLOUD,
+    which trips ERROR_ACCESS_DENIED on execute and on serde config read.
+    Staging to %LOCALAPPDATA% (never OneDrive-synced) sidesteps it.
+    """
+    if sys.platform != "win32":
+        return source_path
+    os.makedirs(_CACHE_DIR, exist_ok=True)
+    dst = os.path.join(_CACHE_DIR, os.path.basename(source_path))
+    shutil.copy2(source_path, dst)
+    return dst
+
+
+def _kill_tracked():
+    """Terminate the PID recorded in the PID file (best-effort), clear the file.
+
+    os.kill(pid, 0) is unsafe on Windows -- it invokes TerminateProcess for any
+    signal value, so it would actually kill the process instead of probing.
+    Use taskkill/kill by PID; if the PID is stale, the kill is a harmless no-op.
+    """
+    try:
+        with open(_PID_FILE) as f:
+            pid = int(f.read().strip())
+    except (OSError, ValueError):
+        return
+    try:
+        if sys.platform == "win32":
+            subprocess.run(
+                ["taskkill", "/F", "/PID", str(pid)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=_POPEN_FLAGS,
+            )
+        else:
+            os.kill(pid, 9)
+    except OSError:
+        pass
+    try:
+        os.remove(_PID_FILE)
+    except OSError:
+        pass
+
 
 def _run_server():
-    """Run the MCP server subprocess. Restarts on crash (max 3 times)."""
-    global _server_process
-    for attempt in range(3):
-        try:
-            args = [BINARY_PATH]
-            if os.path.exists(SETTINGS_PATH):
-                args += ["--config", SETTINGS_PATH]
+    """Run the MCP server subprocess. Exit means exit -- no retry loop.
 
-            _server_process = subprocess.Popen(
-                args,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=None,  # inherit stderr so KiCAD scripting console shows logs
-            )
-            _server_process.wait()
-        except Exception as e:
-            print(f"[Konnect] Server error (attempt {attempt + 1}): {e}", file=sys.stderr)
-        finally:
-            _server_process = None
+    A retry loop respawns konnect after Stop Server kills it (wait() returns
+    normally on external kill, so nothing distinguishes "crashed" from
+    "stopped"). If konnect crashes on startup, the user clicks Start again.
+    """
+    global _server_process
+    try:
+        args = [_stage(BINARY_PATH)]
+        if os.path.exists(SETTINGS_PATH):
+            args += ["--config", _stage(SETTINGS_PATH)]
+        # pcbnew has no valid stderr; inheriting gives konnect a broken
+        # handle and tracing_subscriber errors on init. DEVNULL is a
+        # valid sink.
+        _server_process = subprocess.Popen(
+            args,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            creationflags=_POPEN_FLAGS,
+        )
+        os.makedirs(_CACHE_DIR, exist_ok=True)
+        with open(_PID_FILE, "w") as f:
+            f.write(str(_server_process.pid))
+        _server_process.wait()
+    except Exception as e:
+        print(f"[Konnect] Server error: {e}", file=sys.stderr)
+    finally:
+        _server_process = None
+        try:
+            os.remove(_PID_FILE)
+        except OSError:
+            pass
 
 
 def start_server():
@@ -62,37 +135,37 @@ def start_server():
     global _server_thread
 
     if not os.path.exists(BINARY_PATH):
-        pcbnew.ShowInfoBarError(
-            f"Konnect binary not found at:\n{BINARY_PATH}\n"
+        wx.MessageBox(
+            f"Konnect binary not found at:\n{BINARY_PATH}\n\n"
             "Please reinstall the plugin.",
-            True,
+            "Konnect",
+            wx.OK | wx.ICON_ERROR,
         )
         return False
 
+    # Orphan from a previous KiCAD session may still be holding the port.
+    _kill_tracked()
+
     if _server_thread and _server_thread.is_alive():
-        pcbnew.ShowInfoBarMsg("Konnect is already running.", True)
         return True
 
     _server_thread = threading.Thread(target=_run_server, daemon=True)
     _server_thread.start()
-    pcbnew.ShowInfoBarMsg("Konnect started.", True)
     return True
 
 
 def stop_server():
     """Stop the MCP server subprocess."""
-    global _server_process
-    if _server_process:
-        _server_process.terminate()
-        _server_process = None
-        pcbnew.ShowInfoBarMsg("Konnect stopped.", True)
-    else:
-        pcbnew.ShowInfoBarMsg("Konnect is not running.", True)
+    _kill_tracked()
 
 
 def is_server_running():
-    """Check if the server subprocess is alive."""
-    return _server_process is not None and _server_process.poll() is None
+    """Report whether we've launched a server we haven't stopped.
+
+    PID file existence as a proxy -- survives module re-imports. If the
+    server crashed on its own, the next start_server preflight cleans up.
+    """
+    return os.path.exists(_PID_FILE)
 
 
 # ─── KiCAD Action Plugin entry point ─────────────────────────────────────────
