@@ -389,3 +389,140 @@ fn blank_kicad_sch() -> &'static str {
 fn blank_kicad_pcb() -> &'static str {
     "(kicad_pcb\n\t(version 20250610)\n\t(generator \"konnect\")\n\t(generator_version \"10.0\")\n\t(general\n\t\t(thickness 1.6)\n\t)\n\t(paper \"A4\")\n\t(layers\n\t\t(0 \"F.Cu\" signal)\n\t\t(31 \"B.Cu\" signal)\n\t\t(32 \"B.Adhes\" user \"B.Adhesive\")\n\t\t(33 \"F.Adhes\" user \"F.Adhesive\")\n\t\t(34 \"B.Paste\" user)\n\t\t(35 \"F.Paste\" user)\n\t\t(36 \"B.SilkS\" user \"B.Silkscreen\")\n\t\t(37 \"F.SilkS\" user \"F.Silkscreen\")\n\t\t(38 \"B.Mask\" user)\n\t\t(39 \"F.Mask\" user)\n\t\t(40 \"Dwgs.User\" user \"User.Drawings\")\n\t\t(41 \"Cmts.User\" user \"User.Comments\")\n\t\t(44 \"Edge.Cuts\" user)\n\t\t(45 \"Margin\" user)\n\t\t(46 \"B.CrtYd\" user \"B.Courtyard\")\n\t\t(47 \"F.CrtYd\" user \"F.Courtyard\")\n\t\t(48 \"B.Fab\" user)\n\t\t(49 \"F.Fab\" user)\n\t)\n\t(setup\n\t\t(pad_to_mask_clearance 0.05)\n\t)\n\t(net 0 \"\")\n)\n"
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mcp::error::extract_error_kind;
+    use crate::router::ToolRouter;
+    use crate::tools::ServerConfig;
+    use std::sync::Arc;
+
+    fn test_ctx() -> ToolContext {
+        ToolContext::new(
+            ServerConfig {
+                kicad_cli: String::new(),
+                kicad_binary: String::new(),
+                ipc_address: String::new(),
+                project_dir: None,
+                jlcpcb_db_path: None,
+            },
+            Arc::new(ToolRouter::new()),
+        )
+    }
+
+    // ─── Blank file templates ─────────────────────────────────────────────
+
+    #[test]
+    fn blank_kicad_pro_is_valid_json_with_name() {
+        let content = blank_kicad_pro("my_board");
+        let parsed: serde_json::Value = serde_json::from_str(&content).expect("valid JSON");
+        assert_eq!(parsed["meta"]["filename"], "my_board.kicad_pro");
+    }
+
+    #[test]
+    fn blank_kicad_sch_has_expected_header() {
+        let content = blank_kicad_sch();
+        assert!(content.starts_with("(kicad_sch"));
+        assert!(content.contains("(lib_symbols"));
+    }
+
+    #[test]
+    fn blank_kicad_pcb_declares_core_layers() {
+        let content = blank_kicad_pcb();
+        assert!(content.contains("\"F.Cu\""));
+        assert!(content.contains("\"B.Cu\""));
+        assert!(content.contains("\"Edge.Cuts\""));
+    }
+
+    // ─── handle_create_project ─────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn create_project_writes_all_three_files() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let ctx = test_ctx();
+        let args = json!({
+            "path": dir.path().to_str().unwrap(),
+            "name": "widget"
+        });
+
+        let result = handle_create_project(&args, &ctx)
+            .await
+            .expect("handler should succeed");
+        assert!(!result.is_error);
+
+        assert!(dir.path().join("widget.kicad_pro").exists());
+        assert!(dir.path().join("widget.kicad_sch").exists());
+        assert!(dir.path().join("widget.kicad_pcb").exists());
+
+        let pro_content = tokio::fs::read_to_string(dir.path().join("widget.kicad_pro"))
+            .await
+            .unwrap();
+        let pro: serde_json::Value = serde_json::from_str(&pro_content).unwrap();
+        assert_eq!(pro["meta"]["filename"], "widget.kicad_pro");
+    }
+
+    #[tokio::test]
+    async fn create_project_missing_name_returns_structured_error() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let ctx = test_ctx();
+        let args = json!({ "path": dir.path().to_str().unwrap() });
+
+        let result = handle_create_project(&args, &ctx)
+            .await
+            .expect("handler should return Ok even on validation failure");
+        assert!(result.is_error);
+        assert_eq!(
+            extract_error_kind(&result).as_deref(),
+            Some("invalid_argument")
+        );
+    }
+
+    // ─── handle_get_project_info ───────────────────────────────────────────
+
+    #[tokio::test]
+    async fn get_project_info_reports_existing_sibling_files() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let ctx = test_ctx();
+        let create_args = json!({
+            "path": dir.path().to_str().unwrap(),
+            "name": "widget"
+        });
+        handle_create_project(&create_args, &ctx)
+            .await
+            .expect("setup: create_project should succeed");
+
+        let pro_path = dir.path().join("widget.kicad_pro");
+        let info_args = json!({ "path": pro_path.to_str().unwrap() });
+        let result = handle_get_project_info(&info_args, &ctx)
+            .await
+            .expect("handler should succeed");
+        assert!(!result.is_error);
+
+        let body = match &result.content[0] {
+            crate::mcp::protocol::ToolContent::Text { text } => text.clone(),
+            _ => panic!("expected text content"),
+        };
+        let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(parsed["name"], "widget");
+        assert_eq!(parsed["schematic_exists"], true);
+        assert_eq!(parsed["pcb_exists"], true);
+    }
+
+    #[tokio::test]
+    async fn get_project_info_missing_file_returns_file_not_found() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let ctx = test_ctx();
+        let missing = dir.path().join("does_not_exist.kicad_pro");
+        let args = json!({ "path": missing.to_str().unwrap() });
+
+        let result = handle_get_project_info(&args, &ctx)
+            .await
+            .expect("handler should return Ok with a structured error body");
+        assert!(result.is_error);
+        assert_eq!(
+            extract_error_kind(&result).as_deref(),
+            Some("file_not_found")
+        );
+    }
+}
