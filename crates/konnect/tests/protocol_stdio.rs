@@ -78,6 +78,40 @@ impl McpProcess {
         resp["result"].clone()
     }
 
+    /// Send a `tools/call`, then a fencing `ping`, and return every line the
+    /// server emits up to and including the ping response. The fence
+    /// guarantees the read loop terminates even when the tool call emits no
+    /// notification (as in bug #19), so a test can assert on side-effect
+    /// notifications without risking a hang.
+    fn call_tool_then_fence(&mut self, name: &str, args: Value) -> Vec<Value> {
+        let call_id = self.next_id;
+        self.next_id += 1;
+        let call = json!({
+            "jsonrpc": "2.0", "id": call_id, "method": "tools/call",
+            "params": {"name": name, "arguments": args}
+        });
+        writeln!(self.stdin, "{}", call).unwrap();
+        let fence_id = self.next_id;
+        self.next_id += 1;
+        let fence = json!({"jsonrpc": "2.0", "id": fence_id, "method": "ping", "params": {}});
+        writeln!(self.stdin, "{}", fence).unwrap();
+        self.stdin.flush().unwrap();
+
+        let mut lines = Vec::new();
+        loop {
+            let mut line = String::new();
+            let n = self.reader.read_line(&mut line).unwrap();
+            assert!(n > 0, "server closed stdout before fence response");
+            let v: Value = serde_json::from_str(line.trim()).unwrap();
+            let is_fence = v.get("id").and_then(Value::as_i64) == Some(fence_id);
+            lines.push(v);
+            if is_fence {
+                break;
+            }
+        }
+        lines
+    }
+
     /// Parse the JSON body of a tool result's first text content.
     fn tool_body(result: &Value) -> Value {
         let text = result["content"][0]["text"].as_str().unwrap_or("{}");
@@ -197,4 +231,39 @@ fn unknown_method_is_json_rpc_error_not_crash() {
     // Server must still be alive afterwards.
     let ping = p.request("ping", json!({}));
     assert!(ping.get("result").is_some());
+}
+
+/// Regression test for issue #19. After `load_toolset`, the server must emit
+/// `notifications/tools/list_changed` **over stdio** — not only over HTTP/SSE.
+/// Without it, stdio clients (Claude Code) never re-fetch `tools/list`, so
+/// every tool added by `load_toolset` stays uncallable for the session.
+#[test]
+fn load_toolset_emits_list_changed_over_stdio() {
+    let mut p = McpProcess::spawn();
+    let lines = p.call_tool_then_fence("load_toolset", json!({"name": "sch_components"}));
+    let saw_notification = lines.iter().any(|v| {
+        v.get("method").and_then(Value::as_str) == Some("notifications/tools/list_changed")
+            && v.get("id").is_none()
+    });
+    assert!(
+        saw_notification,
+        "expected notifications/tools/list_changed after load_toolset (issue #19); saw: {lines:#?}"
+    );
+}
+
+/// The same guarantee for `unload_toolset` — removing tools must also tell the
+/// client to refresh its tool list.
+#[test]
+fn unload_toolset_emits_list_changed_over_stdio() {
+    let mut p = McpProcess::spawn();
+    let _ = p.call_tool_then_fence("load_toolset", json!({"name": "sch_components"}));
+    let lines = p.call_tool_then_fence("unload_toolset", json!({"name": "sch_components"}));
+    let saw_notification = lines.iter().any(|v| {
+        v.get("method").and_then(Value::as_str) == Some("notifications/tools/list_changed")
+            && v.get("id").is_none()
+    });
+    assert!(
+        saw_notification,
+        "expected notifications/tools/list_changed after unload_toolset; saw: {lines:#?}"
+    );
 }

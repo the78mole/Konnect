@@ -21,6 +21,12 @@ use tracing::{debug, info, warn};
 pub struct McpHandler {
     ctx: Arc<crate::tools::ToolContext>,
     sse_senders: Arc<RwLock<Vec<mpsc::Sender<Event>>>>,
+    /// Raw-JSON-line notification sinks for non-SSE transports (stdio). A
+    /// server-initiated notification (e.g. tools/list_changed) must reach the
+    /// active transport; SSE senders only cover HTTP, so stdio registers here
+    /// to receive the same notifications. Without this, notifications are
+    /// silently dropped on stdio — the cause of issue #19.
+    notif_sinks: Arc<RwLock<Vec<mpsc::Sender<String>>>>,
     observer: CallObserver,
 }
 
@@ -42,6 +48,7 @@ impl McpHandler {
         Ok(McpHandler {
             ctx,
             sse_senders: Arc::new(RwLock::new(Vec::new())),
+            notif_sinks: Arc::new(RwLock::new(Vec::new())),
             observer,
         })
     }
@@ -54,6 +61,13 @@ impl McpHandler {
 
     pub async fn register_sse_sender(&self, tx: mpsc::Sender<Event>) {
         self.sse_senders.write().await.push(tx);
+    }
+
+    /// Register a raw-JSON-line notification sink (used by the stdio transport).
+    /// Each server-initiated notification is delivered here as a serialized
+    /// JSON-RPC string, which the transport writes to its output stream.
+    pub async fn register_notification_sink(&self, tx: mpsc::Sender<String>) {
+        self.notif_sinks.write().await.push(tx);
     }
 
     /// Process one JSON-RPC message and return an optional response.
@@ -276,10 +290,24 @@ impl McpHandler {
 
     async fn notify_tools_list_changed(&self) {
         let notification = JsonRpcNotification::new(TOOLS_LIST_CHANGED, None);
-        if let Ok(event_json) = serde_json::to_string(&notification) {
-            let event = Event::default().data(event_json);
+        let Ok(json) = serde_json::to_string(&notification) else {
+            return;
+        };
+
+        // HTTP/SSE clients: wrap the JSON in an SSE event. (Unchanged path.)
+        {
+            let event = Event::default().data(json.clone());
             let mut senders = self.sse_senders.write().await;
             senders.retain(|tx| tx.try_send(event.clone()).is_ok());
+        }
+
+        // stdio (and any other raw-line transport): deliver the JSON directly.
+        // try_send is non-blocking, so emitting a notification from inside
+        // request handling can never block on a full channel and deadlock the
+        // request that triggered it; a dropped sink is pruned like the SSE case.
+        {
+            let mut sinks = self.notif_sinks.write().await;
+            sinks.retain(|tx| tx.try_send(json.clone()).is_ok());
         }
     }
 }
