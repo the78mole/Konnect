@@ -45,6 +45,7 @@ Konnect/
 │   │       └── tools/
 │   │           ├── mod.rs            # ToolDef, ToolContext, tool! macro, helpers, kicad_config_dir(), resolve_lib_symbol()
 │   │           ├── cli.rs            # kicad-cli v10 subprocess wrapper (verified against actual binary)
+│   │           ├── svg_import.rs     # SVG parsing + Bezier flattening for import_svg_logo (usvg-backed)
 │   │           ├── project.rs        # 6 tools (incl. open_schematic_viewer)
 │   │           ├── sch_components.rs # 17 tools (component placement with lib_symbols embedding)
 │   │           ├── sch_wiring.rs     # 19 tools (incl. connect_pins, power symbol embedding)
@@ -52,10 +53,10 @@ Konnect/
 │   │           ├── sch_batch.rs      # 10 tools (single-read/single-write atomic operations)
 │   │           ├── sch_export.rs     # 7 tools (SVG/PDF/netlist/ERC)
 │   │           ├── sch_hierarchy.rs  # 12 tools (typed Sheet model, sheet CRUD + hierarchy/page queries + pin lifecycle)
-│   │           ├── pcb_board.rs      # 10 tools (S-expr file editing, IPC fallback)
+│   │           ├── pcb_board.rs      # 11 tools (S-expr file editing, IPC fallback, SVG logo import)
 │   │           ├── pcb_components.rs # 13 tools (IPC real-time via NNG+protobuf)
 │   │           ├── pcb_routing.rs    # 12 tools (traces, vias, nets, netclasses)
-│   │           ├── pcb_export.rs     # 9 tools (Gerber, PDF, 3D, DRC)
+│   │           ├── pcb_export.rs     # 13 tools (Gerber, PDF, 3D, DRC, DXF/GenCAD/IPC-2581/ODB++)
 │   │           ├── library.rs        # 14 tools (symbol/footprint library management)
 │   │           ├── integration.rs    # 11 tools (JLCPCB SQLite, Freerouting, datasheets)
 │   │           ├── verification.rs   # 8 tools (DRC, design rules, KiCAD UI)
@@ -222,9 +223,9 @@ Run all: `PROTOC=<path> cargo test --workspace --lib --tests`
 
 ## Current Stats
 
-- **18 toolsets, 187 tools** + 6 meta-tools (4 routing + 2 observability — see `tool-directory.md`)
+- **18 toolsets, 185 tools** + 6 meta-tools (4 routing + 2 observability — see `tool-directory.md`)
 - Baseline `tools/list`: ~19 tools / ~2K tokens (starter kit + meta-tools)
-- Full-catalog `tools/list` (all loaded): ~193 tools / ~25K tokens
+- Full-catalog `tools/list` (all loaded): ~191 tools / ~25K tokens
 - **0 IPC stubs** (all protobuf methods implemented)
 - **0 unimplemented tools**
 - **3 CLI commands removed in KiCAD v10** (specctra DSN/SES, pcb sync — return clear errors)

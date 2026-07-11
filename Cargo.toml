@@ -63,6 +63,9 @@ base64 = "0.22"
 # Platform directories (home dir, config dir)
 dirs = "5"
 
+# SVG parsing (import_svg_logo)
+usvg = "0.44"
+
 # Internal crates
 konnect-sexp = { path = "crates/konnect-sexp" }
 konnect-ipc = { path = "crates/konnect-ipc" }
