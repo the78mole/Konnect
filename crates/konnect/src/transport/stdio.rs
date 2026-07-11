@@ -2,6 +2,7 @@ use anyhow::Result;
 use konnect_core::mcp::{handler::McpHandler, protocol::*};
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
 /// Run the MCP server over STDIO (stdin/stdout).
@@ -14,6 +15,18 @@ pub async fn run_stdio(handler: McpHandler) -> Result<()> {
     let mut reader = BufReader::new(stdin);
     let mut stdout = stdout;
     let mut line = String::new();
+
+    // Server-initiated notifications (e.g. tools/list_changed after
+    // load_toolset / unload_toolset) are queued here by the handler and
+    // flushed to stdout after the triggering message is handled. Without this
+    // sink, the handler's notification reached only the HTTP/SSE transport and
+    // was silently dropped on stdio, so stdio clients (Claude Code) never
+    // re-fetched tools/list and tools added mid-session stayed uncallable
+    // (issue #19). Notifications are only ever generated synchronously while
+    // handling a request, so draining right after each message catches them —
+    // no separate task or cancellation-prone select! over read_line is needed.
+    let (notif_tx, mut notif_rx) = mpsc::channel::<String>(16);
+    handler.register_notification_sink(notif_tx).await;
 
     loop {
         line.clear();
@@ -50,6 +63,16 @@ pub async fn run_stdio(handler: McpHandler) -> Result<()> {
             let mut json = serde_json::to_string(&resp)?;
             json.push('\n');
             debug!("STDIO send: {}", json.trim());
+            stdout.write_all(json.as_bytes()).await?;
+            stdout.flush().await?;
+        }
+
+        // Flush any notifications the handler queued while processing this
+        // message, after the response so the client sees the response first.
+        while let Ok(notif) = notif_rx.try_recv() {
+            let mut json = notif;
+            json.push('\n');
+            debug!("STDIO send notification: {}", json.trim());
             stdout.write_all(json.as_bytes()).await?;
             stdout.flush().await?;
         }
