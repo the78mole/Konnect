@@ -89,9 +89,15 @@ impl KiCadIpcClient {
     ) -> Result<Option<prost_types::Any>> {
         if self.socket_path.is_empty() {
             anyhow::bail!(
-                "KiCAD IPC socket path not configured. \
-                 Either launch this plugin from KiCAD (sets KICAD_API_SOCKET), \
-                 or set the ipc_socket_path in settings."
+                "KiCAD IPC socket path not configured. To fix: \
+                 (1) in KiCAD, enable Edit > Preferences > Plugins > 'Enable KiCad API' \
+                 and copy the listed ipc:// address; \
+                 (2) paste it into the 'IPC Socket' field of the Konnect settings dialog \
+                 (Tools > External Plugins > Konnect) and save; \
+                 (3) restart the AI client so the server rereads settings. \
+                 Alternatively set ipc_socket_path in konnect-settings.json or launch \
+                 via KiCAD (which sets KICAD_API_SOCKET). \
+                 Full guide: https://github.com/mixelpixx/Konnect/blob/main/docs/TROUBLESHOOTING.md"
             );
         }
 
