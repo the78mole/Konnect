@@ -115,6 +115,44 @@ Verify: open the **PCB Editor** → **Tools → External Plugins** → you shoul
 cargo build --release -p konnect
 ```
 
+### With Docker
+
+Runs the server with all build dependencies included -- nothing to install but Docker.
+Good for sending to a coworker or letting IT host it centrally.
+
+```bash
+docker build -t konnect .
+```
+
+**As a stdio MCP server** (like markitdown -- one container per session). Mount the
+KiCAD project you want to work on at `/work`:
+
+```json
+{
+  "mcpServers": {
+    "konnect": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i",
+               "-v", "/path/to/your/project:/work",
+               "konnect"]
+    }
+  }
+}
+```
+
+**As a hosted HTTP server** (one long-running instance, many clients). Point MCP
+clients at `http://<host>:3000/mcp`:
+
+```bash
+docker compose up -d      # uses docker/konnect.toml (HTTP, binds 0.0.0.0:3000)
+```
+
+The schematic-edit tools work on file paths, so mount your projects (compose maps
+`./projects`). PCB/IPC and `kicad-cli` export tools need a running KiCAD, which is
+not in the image -- use those against a local install.
+
+Verify a build end to end (stdio + HTTP handshake) with `docker/smoke-test.sh`.
+
 ## Setup with Claude Desktop
 
 After a PCM install, the server binary lives in your KiCAD documents folder:
