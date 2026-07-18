@@ -133,7 +133,11 @@ python3 - "$repo_root/packaging/metadata.json" "$staging/metadata.json" "$versio
 import json, sys
 src, dst, version, install_size, platform = sys.argv[1:6]
 m = json.load(open(src))
+# The repo metadata.json may carry one stamped entry per released platform
+# package; the metadata INSIDE a zip must describe only the package being
+# built, so keep just the first entry as the template.
 v = m["versions"][0]
+m["versions"] = [v]
 v["version"] = version
 v["install_size"] = int(install_size)
 # This package carries one platform's native binary — say so, or PCM offers a

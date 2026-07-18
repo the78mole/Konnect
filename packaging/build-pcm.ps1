@@ -71,6 +71,10 @@ Copy-Item "$repoRoot/packaging/resources/icon.png" "$staging/plugins/resources/i
 # empty string violates the sha256 pattern and placeholder values are lies.
 # The real values (printed below) go into the kicad-addons repo submission.
 $metadata = Get-Content "$repoRoot/packaging/metadata.json" -Raw | ConvertFrom-Json
+# The repo metadata.json may carry one stamped entry per released platform
+# package; the metadata INSIDE a zip must describe only the package being
+# built, so keep just the first entry as the template.
+$metadata.versions = @($metadata.versions[0])
 $metadata.versions[0].version = $Version
 $installSize = (Get-ChildItem $staging -Recurse -File | Measure-Object Length -Sum).Sum
 $metadata.versions[0] | Add-Member -NotePropertyName install_size -NotePropertyValue ([long]$installSize) -Force
