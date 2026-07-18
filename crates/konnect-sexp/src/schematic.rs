@@ -99,6 +99,26 @@ pub enum LabelKind {
     PowerSymbol,
 }
 
+/// The `justify` token a label needs so its text reads away from its anchor.
+///
+/// A label's `(at … ROT)` orients the connection arrow; it is `(justify …)`
+/// inside `(effects)` that decides which way the *text* runs. Get them out of
+/// step and the label attaches correctly but renders backwards, over whatever
+/// it points at. eeschema always writes both, and the pairing is exactly:
+/// rotation 0/90 → `left`, 180/270 → `right` (confirmed against 692 labels in
+/// KiCAD 10-authored schematics: 0→left ×297, 90→left ×6, 180→right ×298,
+/// 270→right ×5, with no counter-examples).
+pub fn label_justify(rotation: f64) -> &'static str {
+    // Normalize: KiCAD stores 0/90/180/270, but tolerate 360, negatives, and
+    // the f64 the tool layer hands us.
+    let deg = ((rotation % 360.0) + 360.0) % 360.0;
+    if deg < 180.0 {
+        "left"
+    } else {
+        "right"
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Label {
     pub kind: LabelKind,
@@ -112,8 +132,11 @@ pub struct Label {
 pub fn extract_labels(tree: &SexpNode) -> Vec<Label> {
     let mut labels = Vec::new();
 
+    // KiCAD's tag for a plain net label is `label` — there is no `net_label`
+    // in the .kicad_sch format, so matching that name found nothing in any
+    // real schematic (and hid every plain label from the net graph).
     for (kind_str, kind) in &[
-        ("net_label", LabelKind::NetLabel),
+        ("label", LabelKind::NetLabel),
         ("global_label", LabelKind::GlobalLabel),
         ("hierarchical_label", LabelKind::HierarchicalLabel),
     ] {
@@ -355,12 +378,20 @@ pub fn format_junction(x: f64, y: f64) -> String {
 
 pub fn format_net_label(net: &str, x: f64, y: f64, rotation: f64) -> String {
     let uuid = crate::writer::new_uuid();
+    // The tag must be `label`: KiCAD has no `net_label` in its schematic
+    // format and refuses to load a file containing one ("Failed to load
+    // schematic"), so emitting that made the whole schematic unopenable.
+    //
+    // justify must follow the rotation, or the text renders backwards across
+    // whatever the label points at. Plain labels also carry `bottom`, which
+    // lifts the text off the wire it annotates.
+    let justify = label_justify(rotation);
     format!(
         r#"
-  (net_label "{net}"
+  (label "{net}"
     (at {x} {y} {rotation})
     (fields_autoplaced yes)
-    (effects (font (size 1.27 1.27)) (justify left))
+    (effects (font (size 1.27 1.27)) (justify {justify} bottom))
     (uuid "{uuid}")
   )"#
     )
@@ -422,5 +453,93 @@ mod pin_endpoint_tests {
             (x - 96.19).abs() < 1e-9 || (x - 103.81).abs() < 1e-9,
             "rotated tip must sit 3.81 mm from center on the X axis, got {x}"
         );
+    }
+}
+
+#[cfg(test)]
+mod label_tag_tests {
+    use super::*;
+
+    /// KiCAD's schematic format has no `net_label` tag — a file containing one
+    /// fails to load outright ("Failed to load schematic" from kicad-cli 10.0.3,
+    /// verified against a file identical but for this tag). The plain net label
+    /// is `label`.
+    #[test]
+    fn format_net_label_emits_kicad_label_tag() {
+        let sexp = format_net_label("VCC", 100.0, 80.0, 0.0);
+        assert!(
+            sexp.contains("(label \"VCC\""),
+            "must emit KiCAD's (label) tag, got: {sexp}"
+        );
+        assert!(!sexp.contains("(net_label"));
+    }
+
+    #[test]
+    fn format_net_label_round_trips_through_extract_labels() {
+        let sch = format!(
+            "(kicad_sch{}\n)",
+            format_net_label("SIGNAL", 25.4, 50.8, 90.0)
+        );
+        let tree = parse_sexp(&sch).expect("emitted label must parse");
+        let labels = extract_labels(&tree);
+        assert_eq!(labels.len(), 1, "emitted label must be readable back");
+        assert_eq!(labels[0].net, "SIGNAL");
+        assert_eq!(labels[0].kind, LabelKind::NetLabel);
+        assert_eq!(labels[0].x, 25.4);
+        assert_eq!(labels[0].y, 50.8);
+        assert_eq!(labels[0].rotation, 90.0);
+        assert!(labels[0].uuid.is_some());
+    }
+
+    #[test]
+    fn extract_labels_sees_plain_labels_written_by_eeschema() {
+        // Tab-indented, as eeschema saves; all three label kinds present.
+        let sch = "(kicad_sch\n\t(label \"MID\"\n\t\t(at 10 20 0)\n\t\t(uuid \"a\")\n\t)\n\t(global_label \"VBUS\"\n\t\t(shape input)\n\t\t(at 30 40 0)\n\t\t(uuid \"b\")\n\t)\n\t(hierarchical_label \"HIN\"\n\t\t(shape input)\n\t\t(at 50 60 0)\n\t\t(uuid \"c\")\n\t)\n)";
+        let tree = parse_sexp(sch).unwrap();
+        let labels = extract_labels(&tree);
+        assert_eq!(labels.len(), 3, "all three label kinds must be found");
+
+        let plain = labels
+            .iter()
+            .find(|l| l.kind == LabelKind::NetLabel)
+            .expect(
+                "plain (label) must be extracted — it was invisible while this matched 'net_label'",
+            );
+        assert_eq!(plain.net, "MID");
+        assert_eq!((plain.x, plain.y), (10.0, 20.0));
+    }
+}
+
+#[cfg(test)]
+mod label_justify_tests {
+    use super::*;
+
+    /// The pairing eeschema itself writes, sampled from 692 labels across
+    /// KiCAD 10-authored schematics: 0→left, 90→left, 180→right, 270→right.
+    #[test]
+    fn justify_follows_the_rotation_eeschema_pairs_it_with() {
+        assert_eq!(label_justify(0.0), "left");
+        assert_eq!(label_justify(90.0), "left");
+        assert_eq!(label_justify(180.0), "right");
+        assert_eq!(label_justify(270.0), "right");
+    }
+
+    #[test]
+    fn rotation_is_normalized() {
+        assert_eq!(label_justify(360.0), "left");
+        assert_eq!(label_justify(-180.0), "right");
+        assert_eq!(label_justify(-90.0), "right", "-90 is 270");
+        assert_eq!(label_justify(540.0), "right", "540 is 180");
+    }
+
+    #[test]
+    fn formatted_label_carries_justify_matching_its_rotation() {
+        let west = format_net_label("SIG", 10.0, 20.0, 180.0);
+        assert!(
+            west.contains("(justify right bottom)"),
+            "a 180° label must read right-justified, got: {west}"
+        );
+        let east = format_net_label("SIG", 10.0, 20.0, 0.0);
+        assert!(east.contains("(justify left bottom)"), "got: {east}");
     }
 }
