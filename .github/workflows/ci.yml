@@ -2,9 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main]
+
+# A new push to the same branch/PR supersedes the previous run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -13,40 +18,128 @@ jobs:
   check:
     name: Check & Test
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - uses: arduino/setup-protoc@v3
+      - uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          tool: protoc@3.23.4
+          fallback: none
       - uses: Swatinem/rust-cache@v2
       - name: Check
-        run: cargo check --workspace
+        run: cargo check --workspace --locked
+      # Fast, named contract gate for the adopted outcome catalogue and the
+      # reviewed legacy-debt ratchet. The full test step below remains the
+      # regression gate; this makes contract drift immediately identifiable.
+      - name: Reliability contract
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo test -p konnect-core --locked reliability_contract -- --nocapture
+      - name: Test (unit + integration)
+        run: cargo test --workspace --locked --lib --tests
+      # --doc cannot be combined with --lib/--tests; doctests broke silently
+      # once (PR #49) because they were never run in CI.
+      - name: Doctests
+        run: cargo test --workspace --locked --doc
+
+  # The KiCAD action plugin is Python, so cargo never sees it. Its only real
+  # logic is the server-PID bookkeeping (#103), where an unconditional
+  # os.remove let one KiCAD session delete another's record and leak an
+  # unreapable server. The tests stub pcbnew/wx, so no KiCAD is needed.
+  plugin:
+    name: Plugin (Python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
       - name: Test
-        run: cargo test --workspace --lib
+        run: python -m unittest discover -s plugin/tests -v
+
+  # flake.nix pins its own toolchain, dependency set and build flags, so
+  # nothing else in CI would notice it going stale — and it names things
+  # that move: `-p konnect --bin konnect`, rust-toolchain.toml, and a
+  # preCheck that supplies KONNECT_STATE_DIR for the tests that need a
+  # writable state dir. Without this job it is broken-on-arrival the first
+  # time any of those changes, and only Nix users find out.
+  nix:
+    name: Nix flake
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: "experimental-features = nix-command flakes"
+      - name: Check flake metadata
+        run: nix flake check --no-build
+      - name: Build the package
+        run: nix build .#konnect --print-build-logs
+
+  # schematic-viewer is intentionally outside the workspace (Tauri app), so
+  # --workspace never touches it. Without this job a viewer break ships
+  # silently: release builds it with continue-on-error and the PCM scripts
+  # omit a missing viewer binary without failing.
+  viewer:
+    name: Schematic viewer
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: viewer
+          workspaces: crates/schematic-viewer
+      - name: Check
+        run: cargo check --locked --manifest-path crates/schematic-viewer/Cargo.toml
+      - name: Test
+        run: cargo test --locked --manifest-path crates/schematic-viewer/Cargo.toml
 
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: arduino/setup-protoc@v3
+      - uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          tool: protoc@3.23.4
+          fallback: none
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --workspace -- -D warnings
+      # --all-targets so tests, benches and examples are linted too. Without it
+      # test code is never checked, and it had accumulated real findings: eight
+      # `MutexGuard` held across an await, a dropped coordinate that left half
+      # of a transform assertion unwritten, and a handful of style lints (#121).
+      - run: cargo clippy --workspace --locked --all-targets -- -D warnings
+
+  # Dependency license gate (deny.toml). Dual licensing (AGPL + commercial)
+  # means every dependency must be acceptable under BOTH — this job stops an
+  # incompatible license entering via an innocuous-looking dependency bump.
+  licenses:
+    name: Dependency licenses
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check licenses
 
   fmt:
     name: Format
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -55,12 +148,13 @@ jobs:
   packaging:
     name: PCM packaging validation
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: pip install jsonschema
+      - run: python -m pip install jsonschema
       - name: Validate repository metadata
         run: python packaging/validate-pcm.py --metadata packaging/metadata.json
 

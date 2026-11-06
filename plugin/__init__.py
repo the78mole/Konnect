@@ -11,6 +11,7 @@ Installation (KiCAD PCM):
   KiCAD loads this __init__.py automatically.
 """
 
+import atexit
 import os
 import shutil
 import subprocess
@@ -25,6 +26,7 @@ if _plugin_dir not in sys.path:
     sys.path.insert(0, _plugin_dir)
 
 from settings_dialog import KonnectSettingsDialog, load_settings
+from native_bridge import NativeSpecctraBridge
 import wx
 
 PLUGIN_DIR = _plugin_dir
@@ -46,6 +48,23 @@ _CACHE_DIR = os.path.join(
     "konnect", "cache",
 )
 _PID_FILE = os.path.join(_CACHE_DIR, "server.pid")
+_native_bridge = NativeSpecctraBridge(pcbnew, wx)
+
+
+def _sync_native_bridge():
+    """Apply the persisted KiCad-10 bridge setting without exposing internals."""
+    enabled = bool(load_settings(SETTINGS_PATH).get("native_specctra_bridge", False))
+    if enabled:
+        try:
+            _native_bridge.start()
+        except Exception as error:
+            print(f"[Konnect] Native Specctra bridge failed to start: {error}", file=sys.stderr)
+    else:
+        _native_bridge.stop()
+
+
+def _stop_native_bridge():
+    _native_bridge.stop()
 
 
 def _stage(source_path):
@@ -62,6 +81,63 @@ def _stage(source_path):
     dst = os.path.join(_CACHE_DIR, os.path.basename(source_path))
     shutil.copy2(source_path, dst)
     return dst
+
+
+def _write_pid_file(pid):
+    """Record the PID of the server this session just spawned."""
+    os.makedirs(_CACHE_DIR, exist_ok=True)
+    with open(_PID_FILE, "w") as f:
+        f.write(str(pid))
+
+
+def _clear_pid_file(pid):
+    """Remove the PID file only while it still records ``pid``.
+
+    Every KiCAD session writes the same file. Removing it unconditionally
+    lets the session whose server exits last delete a record written by a
+    session whose server is still running: the survivor becomes untracked,
+    so no later start_server preflight can ever reap it (#103).
+    """
+    try:
+        with open(_PID_FILE) as f:
+            recorded = int(f.read().strip())
+    except (OSError, ValueError):
+        return
+    if recorded != pid:
+        return
+    try:
+        os.remove(_PID_FILE)
+    except OSError:
+        pass
+
+
+def _terminate_owned_server():
+    """Kill the server this session spawned, on KiCAD exit.
+
+    _run_server sits on a daemon thread, so interpreter shutdown drops the
+    thread without touching the child. The server then outlives KiCAD,
+    holding the HTTP port and serving from a possibly pre-update binary --
+    an http-transport server never reads stdin, so parent death is invisible
+    to it and nothing else ends it.
+
+    Best-effort by nature: a hard kill of KiCAD runs no atexit handler, which
+    is why the preflight reap stays.
+    """
+    process = _server_process
+    if process is None or process.poll() is not None:
+        return
+    try:
+        process.terminate()
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+    except OSError:
+        return
+    _clear_pid_file(process.pid)
+
+
+atexit.register(_terminate_owned_server)
+atexit.register(_stop_native_bridge)
 
 
 def _kill_tracked():
@@ -102,6 +178,7 @@ def _run_server():
     "stopped"). If konnect crashes on startup, the user clicks Start again.
     """
     global _server_process
+    pid = None
     try:
         args = [_stage(BINARY_PATH)]
         if os.path.exists(SETTINGS_PATH):
@@ -116,18 +193,15 @@ def _run_server():
             stderr=subprocess.DEVNULL,
             creationflags=_POPEN_FLAGS,
         )
-        os.makedirs(_CACHE_DIR, exist_ok=True)
-        with open(_PID_FILE, "w") as f:
-            f.write(str(_server_process.pid))
+        pid = _server_process.pid
+        _write_pid_file(pid)
         _server_process.wait()
     except Exception as e:
         print(f"[Konnect] Server error: {e}", file=sys.stderr)
     finally:
         _server_process = None
-        try:
-            os.remove(_PID_FILE)
-        except OSError:
-            pass
+        if pid is not None:
+            _clear_pid_file(pid)
 
 
 def start_server():
@@ -191,6 +265,8 @@ class KonnectPlugin(pcbnew.ActionPlugin):
             plugin_dir=PLUGIN_DIR,
             binary_path=BINARY_PATH,
             server_running=is_server_running(),
+            native_bridge_available=_native_bridge.available(),
+            native_bridge_running=_native_bridge.running(),
         )
 
         result = dlg.ShowModal()
@@ -203,7 +279,9 @@ class KonnectPlugin(pcbnew.ActionPlugin):
             stop_server()
 
         dlg.Destroy()
+        _sync_native_bridge()
 
 
 # Register the plugin with KiCAD
+_sync_native_bridge()
 KonnectPlugin().register()

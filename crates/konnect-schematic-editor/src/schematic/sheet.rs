@@ -22,7 +22,9 @@ impl SheetPin {
         SheetPin {
             name: name.into(),
             pin_type: pin_type.into(),
-            at: At::new(x, y),
+            // A sheet pin's `at` must carry all three values — KiCAD refuses
+            // to load the whole schematic when the rotation is absent.
+            at: At::with_rotation(x, y, 0.0),
             uuid: uuid::Uuid::new_v4().to_string(),
             effects: None,
         }
@@ -170,6 +172,15 @@ fn default_stroke_fill() -> Vec<SexpNode> {
     ]
 }
 
+fn property_at(x: f64, y: f64) -> SexpNode {
+    SexpNode::List(vec![
+        atom("at"),
+        atom(fmt_f64(x)),
+        atom(fmt_f64(y)),
+        atom("0"),
+    ])
+}
+
 impl Sheet {
     pub fn new(
         name: impl Into<String>,
@@ -179,16 +190,22 @@ impl Sheet {
         width: f64,
         height: f64,
     ) -> Self {
+        // Property (at …) is absolute sheet coords. Bare Property::new writes
+        // no (at); KiCad then defaults to (0,0) and Sheetname/Sheetfile pile
+        // up in the top-left. Offsets match what eeschema writes for a new
+        // hierarchical sheet (name just above the box, file just below).
+        let mut sheetname = Property::new("Sheetname", name);
+        sheetname.sub_nodes.push(property_at(x, y - 0.8));
+        let mut sheetfile = Property::new("Sheetfile", file);
+        sheetfile.sub_nodes.push(property_at(x, y + height + 0.4));
+
         Sheet {
             at: At::new(x, y),
             width,
             height,
             uuid: uuid::Uuid::new_v4().to_string(),
             fields_autoplaced: true,
-            properties: vec![
-                Property::new("Sheetname", name),
-                Property::new("Sheetfile", file),
-            ],
+            properties: vec![sheetname, sheetfile],
             pins: vec![],
             instances: vec![],
             raw_sub_nodes: default_stroke_fill(),
@@ -233,13 +250,19 @@ impl Sheet {
             })
             .unwrap_or_default();
 
-        const PRESERVE: &[&str] = &["stroke", "fill"];
-        let raw_sub_nodes = node
-            .args()
-            .iter()
-            .filter(|n| n.tag().map(|t| PRESERVE.contains(&t)).unwrap_or(false))
-            .cloned()
-            .collect();
+        // Deny-list, matching `Symbol::from_sexp`: anything `to_sexp` does not
+        // rebuild from a typed field — `stroke`, `fill`, and unmodelled tokens
+        // such as `exclude_from_sim` — round-trips verbatim (#143).
+        const MODELLED: &[&str] = &[
+            "at",
+            "size",
+            "fields_autoplaced",
+            "uuid",
+            "property",
+            "pin",
+            "instances",
+        ];
+        let raw_sub_nodes = super::unmodelled_children(node, MODELLED);
 
         Ok(Sheet {
             at,
@@ -314,8 +337,32 @@ impl Sheet {
         (self.at.x, self.at.y)
     }
     pub fn move_to(&mut self, x: f64, y: f64) {
-        self.at.x = x;
-        self.at.y = y;
+        self.translate(x - self.at.x, y - self.at.y);
+    }
+
+    /// Move the box and everything positioned against it.
+    ///
+    /// Sheet properties and sheet pins carry absolute `(at ...)` coordinates in
+    /// `.kicad_sch`, exactly as symbol properties do, so moving only `self.at`
+    /// leaves the `Sheetname` and `Sheetfile` captions and every pin behind at
+    /// the old spot. This mirrors [`Symbol::translate`].
+    pub fn translate(&mut self, dx: f64, dy: f64) {
+        self.at.x += dx;
+        self.at.y += dy;
+        for prop in &mut self.properties {
+            for node in &mut prop.sub_nodes {
+                if node.tag() == Some("at") {
+                    if let Some(mut at) = At::from_sexp(node) {
+                        at.translate(dx, dy);
+                        *node = at.to_sexp();
+                    }
+                }
+            }
+        }
+        // Pins sit on the box edge; KiCad stores them in sheet coordinates too.
+        for pin in &mut self.pins {
+            pin.at.translate(dx, dy);
+        }
     }
     pub fn set_size(&mut self, width: f64, height: f64) {
         self.width = width;
@@ -503,6 +550,23 @@ mod tests {
     }
 
     #[test]
+    fn new_sheet_places_name_and_file_near_the_box() {
+        // Bare properties with no (at) default to sheet origin in KiCad — the
+        // same class of bug as power-symbol #PWR stacking in the top-left.
+        let sheet = Sheet::new("Storage", "storage.kicad_sch", 100.0, 50.0, 40.0, 30.0);
+        let name = crate::sexp::writer::write(&sheet.properties[0].to_sexp());
+        let file = crate::sexp::writer::write(&sheet.properties[1].to_sexp());
+        assert!(
+            name.contains("(at 100") && name.contains("49.2"),
+            "Sheetname must sit just above the box, got: {name}"
+        );
+        assert!(
+            file.contains("(at 100") && file.contains("80.4"),
+            "Sheetfile must sit just below the box, got: {file}"
+        );
+    }
+
+    #[test]
     fn pin_lifecycle() {
         let mut sheet = Sheet::new("A", "a.kicad_sch", 0.0, 0.0, 10.0, 10.0);
         sheet.add_pin(SheetPin::new("VCC", "input", 0.0, 2.0));
@@ -510,6 +574,17 @@ mod tests {
         assert!(sheet.remove_pin("VCC"));
         assert!(sheet.pin_by_name("VCC").is_none());
         assert!(!sheet.remove_pin("VCC")); // already gone
+    }
+
+    #[test]
+    fn new_pin_serializes_with_rotation() {
+        // KiCAD requires `(at x y rotation)` on a sheet pin — a two-value `at`
+        // makes it refuse to load the whole schematic (#303).
+        let out = crate::sexp::writer::write(&SheetPin::new("VCC", "input", 90.0, 55.0).to_sexp());
+        assert!(
+            out.contains("(at 90 55 0)"),
+            "sheet pin must serialize a rotation, got: {out}"
+        );
     }
 
     #[test]
@@ -521,6 +596,108 @@ mod tests {
         sheet.set_page("", "/", "3");
         assert_eq!(sheet.page(""), Some("3"));
         assert_eq!(sheet.instances.len(), 1);
+    }
+
+    /// A sheet as KiCad writes one: the captions and the pins all carry
+    /// absolute coordinates, offset from the box.
+    fn placed_sheet() -> Sheet {
+        let src = concat!(
+            "(sheet (at 100 50) (size 40 30) ",
+            "(uuid \"5c2a1e3f-0000-0000-0000-000000000000\") ",
+            "(property \"Sheetname\" \"Power\" (at 100 49.2 0)) ",
+            "(property \"Sheetfile\" \"power.kicad_sch\" (at 100 80.4 0)) ",
+            "(pin \"VIN\" input (at 140 60 0) ",
+            "(uuid \"8b1f0000-0000-0000-0000-000000000000\")))"
+        );
+        Sheet::from_sexp(&parse_one(src)).unwrap()
+    }
+
+    fn property_position(sheet: &Sheet, name: &str) -> (f64, f64) {
+        let prop = sheet
+            .properties
+            .iter()
+            .find(|p| p.name == name)
+            .expect("property present");
+        let node = prop
+            .sub_nodes
+            .iter()
+            .find(|n| n.tag() == Some("at"))
+            .expect("property carries an (at ...)");
+        let at = At::from_sexp(node).expect("(at ...) parses");
+        (at.x, at.y)
+    }
+
+    /// The reported defect: `move_to` set only `self.at`, so the box separated
+    /// from its captions and both stayed at the old spot.
+    #[test]
+    fn move_to_carries_the_captions_along() {
+        let mut sheet = placed_sheet();
+        sheet.move_to(200.0, 90.0);
+
+        assert_eq!(sheet.position(), (200.0, 90.0));
+        // Name sits 0.8 above the box, file 0.4 below its bottom edge.
+        assert_eq!(property_position(&sheet, "Sheetname"), (200.0, 89.2));
+        assert_eq!(property_position(&sheet, "Sheetfile"), (200.0, 120.4));
+    }
+
+    /// Not in the report, but the same cause: sheet pins sit on the box edge in
+    /// absolute coordinates, so they were left behind too — a moved sheet
+    /// arrived without its pins.
+    #[test]
+    fn move_to_carries_the_pins_along() {
+        let mut sheet = placed_sheet();
+        // The pin is on the right edge: 100 + 40.
+        assert_eq!((sheet.pins[0].at.x, sheet.pins[0].at.y), (140.0, 60.0));
+
+        sheet.move_to(200.0, 90.0);
+
+        assert_eq!(
+            (sheet.pins[0].at.x, sheet.pins[0].at.y),
+            (240.0, 100.0),
+            "pin must stay on the box edge"
+        );
+    }
+
+    #[test]
+    fn a_move_of_zero_changes_nothing() {
+        let mut sheet = placed_sheet();
+        let before = sheet.to_sexp();
+        sheet.move_to(100.0, 50.0);
+        assert_eq!(sheet.to_sexp(), before);
+    }
+
+    /// The offsets `Sheet::new` establishes must survive a move, or the
+    /// delete-and-recreate workaround would be the only way to place a sheet.
+    #[test]
+    fn a_constructed_sheet_keeps_its_offsets_across_a_move() {
+        let mut sheet = Sheet::new("Power", "power.kicad_sch", 10.0, 20.0, 40.0, 30.0);
+        let name_before = property_position(&sheet, "Sheetname");
+        let file_before = property_position(&sheet, "Sheetfile");
+
+        sheet.translate(7.0, -3.0);
+
+        assert_eq!(sheet.position(), (17.0, 17.0));
+        assert_eq!(
+            property_position(&sheet, "Sheetname"),
+            (name_before.0 + 7.0, name_before.1 - 3.0)
+        );
+        assert_eq!(
+            property_position(&sheet, "Sheetfile"),
+            (file_before.0 + 7.0, file_before.1 - 3.0)
+        );
+    }
+
+    /// The move must reach the file, not just the in-memory struct.
+    #[test]
+    fn a_move_reaches_the_serialised_form() {
+        let mut sheet = placed_sheet();
+        sheet.move_to(200.0, 90.0);
+        let out = format!("{:?}", sheet.to_sexp());
+        assert!(
+            !out.contains("49.2"),
+            "old caption position survived: {out}"
+        );
+        assert!(out.contains("89.2"), "new caption position missing: {out}");
     }
 
     #[test]

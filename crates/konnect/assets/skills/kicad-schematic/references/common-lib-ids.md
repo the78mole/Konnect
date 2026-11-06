@@ -1,5 +1,17 @@
 # Common KiCAD Library Identifiers
 
+This is a non-exhaustive shortcut for common generic symbols, **not an allowlist**
+and not evidence that a symbol matches a manufacturer package. Verify every ID
+against the active KiCad libraries with `search_symbols` and inspect pins with
+`get_symbol_info`. If the required part is absent or uncertain, search rather
+than choosing the nearest name.
+
+Keep personal or project favorites in the user's/project's preference overlay,
+not in this shared upstream cache. For manufacturer-specific ICs, discrete
+semiconductors, connectors, displays, tubes, sockets, and other
+package-sensitive parts, the exact MPN/package datasheet and the
+`kicad-library` physical pin-map acceptance contract outrank this list.
+
 ## Passive Components (Device library)
 | lib_id | Description | Reference prefix |
 |--------|-------------|-----------------|
@@ -16,14 +28,14 @@
 | `Device:D_TVS` | TVS protection diode | D |
 | `Device:LED` | Light-emitting diode | D |
 | `Device:LED_Small` | LED (compact) | D |
-| `Device:Q_NPN_BEC` | NPN transistor (B-E-C pinout) | Q |
-| `Device:Q_PNP_BEC` | PNP transistor (B-E-C pinout) | Q |
-| `Device:Q_NMOS_GDS` | N-channel MOSFET (G-D-S) | Q |
-| `Device:Q_PMOS_GDS` | P-channel MOSFET (G-D-S) | Q |
+| `Transistor_BJT:Q_NPN_BEC` | NPN transistor (B-E-C pinout) | Q |
+| `Transistor_BJT:Q_PNP_BEC` | PNP transistor (B-E-C pinout) | Q |
+| `Transistor_FET:Q_NMOS_GDS` | N-channel MOSFET (G-D-S) | Q |
+| `Transistor_FET:Q_PMOS_GDS` | P-channel MOSFET (G-D-S) | Q |
 | `Device:Crystal` | Crystal oscillator (2-pin) | Y |
 | `Device:Crystal_GND24` | Crystal with ground pins 2,4 | Y |
 | `Device:Fuse` | Fuse | F |
-| `Device:Ferrite_Bead` | Ferrite bead | FB |
+| `Device:FerriteBead` | Ferrite bead | FB |
 | `Device:Thermistor_NTC` | NTC thermistor | TH |
 
 ## Connectors (Connector_Generic library)
@@ -59,14 +71,14 @@
 |--------|-------------|
 | `Regulator_Linear:AMS1117-3.3` | 3.3V LDO, 1A |
 | `Regulator_Linear:AP2112K-3.3` | 3.3V LDO, 600mA |
-| `Regulator_Linear:MCP1700-3302E_SOT23` | 3.3V LDO, 250mA, low Iq |
+| `Regulator_Linear:MCP1700x-330xxTT` | 3.3V LDO, 250mA, low Iq |
 | `Regulator_Linear:LP5907MFX-3.3` | 3.3V LDO, ultra-low noise |
 
 ## Interface ICs (Interface library)
 | lib_id | Description |
 |--------|-------------|
 | `Interface_USB:CH340G` | USB-UART bridge |
-| `Interface_USB:CP2102N-A02-GQFN24` | USB-UART bridge |
+| `Interface_USB:CP2102N-Axx-xQFN24` | USB-UART bridge |
 | `Interface_CAN_LIN:MCP2551-I-SN` | CAN transceiver |
 
 ## Common MCUs (MCU_ST library)

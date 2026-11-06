@@ -5,8 +5,9 @@ pub mod symbol;
 pub mod wire;
 
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::sexp::{atom, parser, qstr, tagged, writer, SexpNode};
 use crate::types::{At, ChangeSet};
 
@@ -18,6 +19,28 @@ use misc::{Junction, NoConnect, Text};
 use sheet::{Sheet, SheetCollection};
 use symbol::{Symbol, SymbolCollection};
 use wire::{Wire, WireCollection};
+
+// ---- raw child preservation -------------------------------------------------
+
+/// Collect the children of `node` that `to_sexp` does *not* reconstruct from
+/// typed fields, so they survive a load/save round-trip verbatim.
+///
+/// This is a deny-list on purpose. It used to be an allow-list naming the two
+/// or three sub-nodes we happened to care about, which silently deleted every
+/// other token KiCAD writes — most damagingly `(lib_name …)`, whose loss
+/// re-points a symbol at the wrong `lib_symbols` entry and rewires the
+/// netlist without any error from KiCAD or from us (#143).
+pub(crate) fn unmodelled_children(node: &SexpNode, modelled: &[&str]) -> Vec<SexpNode> {
+    node.args()
+        .iter()
+        .filter(|n| match n.tag() {
+            Some(tag) => !modelled.contains(&tag),
+            // Bare atoms (e.g. a lone flag token) are unmodelled by definition.
+            None => true,
+        })
+        .cloned()
+        .collect()
+}
 
 // ---- LocatedElement ---------------------------------------------------------
 
@@ -67,12 +90,28 @@ impl<'a> LocatedElement<'a> {
 /// ```
 pub struct Schematic {
     filepath: PathBuf,
+    original_source: Mutex<String>,
+    /// The indentation unit the loaded file used, so a targeted edit does not
+    /// come back as a whole-file reindent (#210). KiCAD writes tabs; this
+    /// crate used to emit two spaces unconditionally.
+    indent: String,
 
     pub version: Option<u32>,
     pub generator: Option<String>,
     pub generator_version: Option<String>,
     pub uuid: Option<String>,
+    /// Page size name only — `A4`, `USLetter`, `User`, …
     pub paper: Option<String>,
+    /// Tokens that follow the page size name inside `(paper …)`, preserved
+    /// verbatim.
+    ///
+    /// KiCAD writes `(paper "User" 292.1 205.105)` for a custom page — the two
+    /// dimensions are REQUIRED there — and `(paper "A4" portrait)` for a
+    /// portrait named page. Both were dropped when only `paper` was
+    /// round-tripped, and a `(paper "User")` with no dimensions makes KiCAD
+    /// refuse to load the schematic at all ("Failed to load schematic", no
+    /// further diagnostic).
+    pub paper_args: Vec<SexpNode>,
 
     pub symbols: SymbolCollection,
     pub wires: WireCollection,
@@ -94,21 +133,54 @@ impl Schematic {
 
     pub fn load(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
-        let content = std::fs::read_to_string(path).map_err(Error::Io)?;
-        let root = parser::parse(&content)?;
-        Self::from_sexp(root, path.to_path_buf())
+        let content = konnect_sexp::read_consistent(path).map_err(map_sexp_error)?;
+        Self::from_source(path, content)
     }
 
-    /// Save to a new file path using atomic write (write to .tmp → fsync → rename).
-    /// This is safe with the Tauri schematic viewer's file-watcher.
+    /// Parse schematic source without reading or writing its path.
+    ///
+    /// The path remains part of the model's identity and is used by later
+    /// revision-checked saves. Callers can therefore validate a prospective
+    /// document with the same parser and semantic model as a committed file,
+    /// before allowing that document to reach disk.
+    pub fn from_source(path: impl AsRef<Path>, content: impl Into<String>) -> Result<Self> {
+        let path = path.as_ref();
+        let content = content.into();
+        let root = parser::parse(&content)?;
+        Self::from_sexp(root, path.to_path_buf(), content)
+    }
+
+    /// Save to a new file path atomically, refusing to replace an existing file.
+    /// Saving to the loaded path instead performs a revision-checked commit.
     pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
-        let text = writer::write(&self.to_sexp());
-        atomic_write(path.as_ref(), &text)
+        let path = path.as_ref();
+        let text = writer::write_with_indent(&self.to_sexp(), &self.indent);
+        if path == self.filepath {
+            let mut original_source = self.original_source.lock().map_err(|_| {
+                crate::error::Error::Io(std::io::Error::other(
+                    "schematic revision state is unavailable after a panic",
+                ))
+            })?;
+            atomic_write_revision(path, &original_source, &text)?;
+            *original_source = text;
+            Ok(())
+        } else {
+            atomic_create(path, &text)
+        }
     }
 
     /// Save back to the original file (atomic write).
     pub fn overwrite(&self) -> Result<()> {
         self.save(&self.filepath)
+    }
+
+    /// Serialize the current in-memory schematic without writing it.
+    ///
+    /// This is intended for revision-aware callers that prepare UUID-targeted
+    /// commands from an edited candidate and commit through `konnect-sexp`.
+    #[must_use]
+    pub fn to_source(&self) -> String {
+        writer::write_with_indent(&self.to_sexp(), &self.indent)
     }
 
     pub fn filepath(&self) -> &Path {
@@ -161,6 +233,8 @@ impl Schematic {
             at: At::new(x, y),
             uuid: uuid::Uuid::new_v4().to_string(),
             effects: None,
+            fields_autoplaced: None,
+            raw_sub_nodes: vec![],
         };
         self.hierarchical_labels.push(hl);
     }
@@ -335,12 +409,13 @@ impl Schematic {
 
     // ---- internal -----------------------------------------------------------
 
-    fn from_sexp(root: SexpNode, filepath: PathBuf) -> Result<Self> {
+    fn from_sexp(root: SexpNode, filepath: PathBuf, original_source: String) -> Result<Self> {
         let mut version = None;
         let mut generator = None;
         let mut generator_version = None;
         let mut uuid = None;
         let mut paper = None;
+        let mut paper_args: Vec<SexpNode> = vec![];
 
         let mut symbols: Vec<Symbol> = vec![];
         let mut wires: Vec<Wire> = vec![];
@@ -369,6 +444,9 @@ impl Schematic {
                 }
                 Some("paper") => {
                     paper = child.value().map(str::to_owned);
+                    // Everything after the size name: `292.1 205.105` for a
+                    // custom page, `portrait` for a portrait named page.
+                    paper_args = child.args().iter().skip(1).cloned().collect();
                 }
                 Some("symbol") => match Symbol::from_sexp(child) {
                     Ok(s) => symbols.push(s),
@@ -416,11 +494,14 @@ impl Schematic {
 
         Ok(Schematic {
             filepath,
+            indent: crate::sexp::writer::detect_indent(&original_source),
+            original_source: Mutex::new(original_source),
             version,
             generator,
             generator_version,
             uuid,
             paper,
+            paper_args,
             symbols: SymbolCollection::new(symbols),
             wires: WireCollection::new(wires),
             labels: LabelCollection::new(labels),
@@ -453,8 +534,15 @@ impl Schematic {
         if let Some(u) = &self.uuid {
             c.push(tagged("uuid", vec![qstr(u.clone())]));
         }
+        // The page size name alone is not always a complete `(paper …)` node:
+        // `User` requires its width and height, and a portrait named size
+        // carries a `portrait` token. KiCAD rejects the whole file if either is
+        // missing, so re-emit whatever followed the name.
         if let Some(p) = &self.paper {
-            c.push(tagged("paper", vec![qstr(p.clone())]));
+            let mut args = Vec::with_capacity(1 + self.paper_args.len());
+            args.push(qstr(p.clone()));
+            args.extend(self.paper_args.iter().cloned());
+            c.push(tagged("paper", args));
         }
 
         // Preserved nodes — emit in order:
@@ -536,16 +624,22 @@ fn dist(ax: f64, ay: f64, bx: f64, by: f64) -> f64 {
     (dx * dx + dy * dy).sqrt()
 }
 
-/// Write content to file atomically: write to .tmp → fsync → rename.
-/// This ensures the schematic viewer's file-watcher sees a complete file.
-fn atomic_write(path: &Path, content: &str) -> crate::error::Result<()> {
-    use std::io::Write;
-    let tmp_path = path.with_extension("kicad_sch.tmp");
-    let mut f = std::fs::File::create(&tmp_path).map_err(crate::error::Error::Io)?;
-    f.write_all(content.as_bytes())
-        .map_err(crate::error::Error::Io)?;
-    f.sync_all().map_err(crate::error::Error::Io)?;
-    drop(f);
-    std::fs::rename(&tmp_path, path).map_err(crate::error::Error::Io)?;
-    Ok(())
+/// Create a save-as target atomically without replacing another document.
+fn atomic_create(path: &Path, content: &str) -> crate::error::Result<()> {
+    konnect_sexp::writer::write_new_atomic(path, content).map_err(map_sexp_error)
+}
+
+fn atomic_write_revision(path: &Path, expected: &str, content: &str) -> crate::error::Result<()> {
+    konnect_sexp::writer::write_atomic_if_unchanged(path, expected, content).map_err(map_sexp_error)
+}
+
+fn map_sexp_error(error: konnect_sexp::SexpError) -> crate::error::Error {
+    match error {
+        konnect_sexp::SexpError::Io(error) => crate::error::Error::Io(error),
+        konnect_sexp::SexpError::Conflict { path } => crate::error::Error::Conflict(path),
+        konnect_sexp::SexpError::KiCadEditorLocked {
+            path, lock_path, ..
+        } => crate::error::Error::KiCadEditorLocked { path, lock_path },
+        error => crate::error::Error::Io(std::io::Error::other(error)),
+    }
 }

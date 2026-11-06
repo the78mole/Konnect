@@ -23,6 +23,7 @@ DEFAULT_SETTINGS = {
     "jlcpcb_db_path": "",
     "log_level": "info",
     "transport": "stdio",
+    "native_specctra_bridge": False,
 }
 
 LOG_LEVELS = ["error", "warn", "info", "debug", "trace"]
@@ -58,28 +59,50 @@ def detect_kicad_cli():
     binary = "kicad-cli.exe" if sys.platform == "win32" else "kicad-cli"
 
     if sys.platform == "win32":
-        # Check Windows registry for KiCAD install path
+        # Check both per-user and machine-wide uninstall records. Current-user
+        # installs are KiCad's normal result when machine-wide installation is
+        # declined, and are recorded under HKCU rather than HKLM.
         try:
             import winreg
-            for key_path in [
-                r"SOFTWARE\KiCad\KiCad",
-                r"SOFTWARE\WOW6432Node\KiCad\KiCad",
-            ]:
-                try:
-                    key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path)
-                    install_dir, _ = winreg.QueryValueEx(key, "InstallDir")
-                    winreg.CloseKey(key)
-                    cli = os.path.join(install_dir, "bin", "kicad-cli.exe")
-                    if os.path.isfile(cli):
-                        return cli
-                except (FileNotFoundError, OSError):
-                    pass
+            uninstall = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
+            for version in ["10.0", "9.0", "8.0"]:
+                for hive in [winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE]:
+                    for view in [winreg.KEY_WOW64_64KEY, winreg.KEY_WOW64_32KEY]:
+                        try:
+                            with winreg.OpenKey(
+                                    hive, uninstall, 0, winreg.KEY_READ | view) as parent:
+                                for index in range(winreg.QueryInfoKey(parent)[0]):
+                                    with winreg.OpenKey(
+                                            parent, winreg.EnumKey(parent, index)) as child:
+                                        try:
+                                            display_name = winreg.QueryValueEx(
+                                                child, "DisplayName")[0]
+                                            display_version = winreg.QueryValueEx(
+                                                child, "DisplayVersion")[0]
+                                            install_dir = winreg.QueryValueEx(
+                                                child, "InstallLocation")[0]
+                                        except (FileNotFoundError, OSError):
+                                            continue
+                                        if (display_name.lower().startswith("kicad ") and
+                                                (display_version.startswith(version) or
+                                                 version in display_name)):
+                                            cli = os.path.join(
+                                                install_dir, "bin", "kicad-cli.exe")
+                                            if os.path.isfile(cli):
+                                                return cli
+                        except (FileNotFoundError, OSError):
+                            pass
         except ImportError:
             pass
 
         # Scan common root directories for KiCad installations
         versions = ["10.0", "9.0", "8.0"]
-        roots = ["C:\\Program Files", "C:\\", "D:\\", "D:\\Program Files"]
+        roots = [
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs"),
+            os.environ.get("ProgramFiles", "C:\\Program Files"),
+            os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)"),
+            "C:\\", "D:\\", "D:\\Program Files",
+        ]
         for root in roots:
             for ver in versions:
                 cli = os.path.join(root, "KiCad", ver, "bin", "kicad-cli.exe")
@@ -127,7 +150,15 @@ def detect_kicad_cli():
 class KonnectSettingsDialog(wx.Dialog):
     """Settings dialog for the Konnect plugin."""
 
-    def __init__(self, parent, plugin_dir, binary_path, server_running=False):
+    def __init__(
+        self,
+        parent,
+        plugin_dir,
+        binary_path,
+        server_running=False,
+        native_bridge_available=False,
+        native_bridge_running=False,
+    ):
         # No fixed pixel size: on high-DPI/scaled Windows displays a fixed
         # (520, 480) clipped the Save/Close buttons off-screen (issue #18).
         # The dialog is sized to fit its content after _build_ui instead.
@@ -141,6 +172,8 @@ class KonnectSettingsDialog(wx.Dialog):
         self.settings_path = os.path.join(plugin_dir, "settings.json")
         self.settings = load_settings(self.settings_path)
         self._server_running = server_running
+        self._native_bridge_available = native_bridge_available
+        self._native_bridge_running = native_bridge_running
 
         self._build_ui()
         self._populate_fields()
@@ -195,6 +228,21 @@ class KonnectSettingsDialog(wx.Dialog):
         agrid.Add(self.transport_ctrl, 1, wx.EXPAND)
 
         adv_box.Add(agrid, 0, wx.EXPAND | wx.ALL, 5)
+
+        self.native_bridge_ctrl = wx.CheckBox(
+            panel,
+            label="Enable KiCad 10 native Specctra bridge",
+        )
+        self.native_bridge_ctrl.Enable(self._native_bridge_available)
+        adv_box.Add(self.native_bridge_ctrl, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+        bridge_state = "Running" if self._native_bridge_running else (
+            "Available after Save/Close" if self._native_bridge_available else "Unavailable"
+        )
+        self.native_bridge_status = wx.StaticText(
+            panel,
+            label=f"Native bridge: {bridge_state}",
+        )
+        adv_box.Add(self.native_bridge_status, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
         main_sizer.Add(adv_box, 0, wx.EXPAND | wx.ALL, 8)
 
         # ── Server status section ────────────────────────────────────
@@ -253,6 +301,11 @@ class KonnectSettingsDialog(wx.Dialog):
         else:
             self.transport_ctrl.SetSelection(0)  # "stdio"
 
+        self.native_bridge_ctrl.SetValue(
+            self._native_bridge_available
+            and bool(self.settings.get("native_specctra_bridge", False))
+        )
+
     def _collect_settings(self):
         """Read current field values into a settings dict."""
         return {
@@ -261,6 +314,7 @@ class KonnectSettingsDialog(wx.Dialog):
             "jlcpcb_db_path": self.jlcpcb_ctrl.GetValue().strip(),
             "log_level": LOG_LEVELS[self.log_level_ctrl.GetSelection()],
             "transport": TRANSPORTS[self.transport_ctrl.GetSelection()],
+            "native_specctra_bridge": self.native_bridge_ctrl.GetValue(),
         }
 
     def _update_server_status(self):

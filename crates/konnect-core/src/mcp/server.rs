@@ -13,9 +13,9 @@ impl McpServerState {
         McpServerState { router }
     }
 
-    pub fn build_initialize_result() -> InitializeResult {
+    pub fn build_initialize_result(instructions: Option<String>) -> InitializeResult {
         InitializeResult {
-            protocol_version: "2024-11-05".to_string(),
+            protocol_version: "2025-06-18".to_string(),
             capabilities: ServerCapabilities {
                 tools: Some(ToolsCapability {
                     list_changed: Some(true),
@@ -26,6 +26,7 @@ impl McpServerState {
                 name: "konnect".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_string(),
             },
+            instructions,
         }
     }
 }

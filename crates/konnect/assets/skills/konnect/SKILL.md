@@ -38,6 +38,12 @@ Only to answer questions not available through exports (sheet hierarchy, title b
 
 ## Standard Workflow
 
+Before a mutation, a dependent check, a retry, or a completion claim, read
+[the reliability contract](references/reliability-contract.md), starting with
+"For callers: establish what happened". Apply its outcome, source, coverage and
+recovery rules to the fields this installed server actually returns. Guidance
+does not establish that a missing server-side check ran.
+
 1. **Identify the project** — locate the `.kicad_pro` file
 2. **Classify the task** — read-only (Channel 2 or 3) or write (Channel 1)
 3. **Verify MCP is connected** — call `list_toolboxes` to confirm tools are available
@@ -50,12 +56,13 @@ Only to answer questions not available through exports (sheet hierarchy, title b
 | User Request | Channel | Tool / Action |
 |---|---|---|
 | "Review my schematic" | 2 | Load `sch_analysis` toolset, use analysis tools |
-| "Change R5 from 10k to 4.7k" | 1 | `load_toolset("sch_components")` then `edit_component` |
+| "Change R5 from 10k to 4.7k" | 1 | `load_toolset("sch_components")` then `edit_schematic_component` |
 | "What's connected to SCL?" | 2 | `load_toolset("sch_analysis")` then `get_net_connections` |
 | "Add a 100nF cap to U3 VCC" | 1 | `load_toolset("sch_components")` + `load_toolset("sch_wiring")` |
 | "Rename net /CLK to /SYS_CLK" | 1 | Warn about downstream effects, then MCP tools |
-| "Run DRC" | 1 | `load_toolset("verification")` then `run_drc` |
-| "Export Gerbers" | 1 | `load_toolset("export")` then export tools |
+| "Run DRC" | 1 | `load_toolset("verification")` then `run_drc` — read each item's `owner`/`ownership_status` before advising a fix (board geometry vs. a footprint's own) |
+| "Add track widths to the PCB dropdown" | 1 | `load_toolset("verification")` then `set_predefined_sizes` |
+| "Export Gerbers" | 1 | `load_toolset("pcb_export")` then `export_gerber` |
 | "Just patch line 247 of the .kicad_sch" | REFUSE | Explain risks, offer MCP alternative |
 | "Add ESD protection to USB lines" | 1 | `load_toolset("sch_components")` + `load_toolset("sch_wiring")` |
 | "Check if board is ready for fab" | 2 | Load `verification` + `design_review` toolsets |
@@ -72,7 +79,7 @@ Only to answer questions not available through exports (sheet hierarchy, title b
 
 ## Discovery — Finding Available Tools
 
-Konnect uses a meta-tool router pattern with 177 tools across 17 toolsets. Tools are loaded on demand to keep the context focused.
+Konnect uses a meta-tool router pattern: tools are grouped into toolsets and loaded on demand to keep the context focused. Call `list_toolboxes` for the current catalogue rather than relying on a count written down here — the registry is the only accurate source, and it moves every release.
 
 ```
 list_toolboxes          → See all available toolsets with descriptions
@@ -81,17 +88,38 @@ get_active_toolsets     → See what's currently loaded
 unload_toolset("name")  → Remove a toolset when done
 ```
 
+`load_toolset` also accepts an array of names to load several toolsets in one call, with a single context refresh.
+
 ### Available Toolsets
 
 | Category | Toolsets |
 |----------|----------|
-| Schematic | sch_components, sch_wiring, sch_batch, sch_analysis, sch_hierarchy |
-| PCB | pcb_layout, pcb_routing, pcb_zones, pcb_components |
-| Verification | verification, design_review |
-| Libraries | libraries, templates |
-| Project | project, config |
-| Export | export |
-| Advanced | advanced |
+| Project | project |
+| Schematic | sch_components, sch_wiring, sch_bus, sch_analysis, sch_batch, sch_export, sch_hierarchy |
+| PCB | pcb_board, pcb_components, pcb_routing, pcb_export, placement |
+| Library | library |
+| Integration | integration (JLCPCB parts, Freerouting installation checks, datasheets) |
+| Verification & Review | verification, design_review |
+| Config | config |
+| Templates | templates |
+| Manufacturing | manufacturing |
+
+## Agent Routing and Mutation Ownership
+
+Use one design owner at a time. Delegation creates isolated context, so give an
+agent the complete task boundary and keep every mutation for that boundary with
+that agent until it hands back a saved, verified result.
+
+- Delegate a complete multi-block schematic build or substantial schematic
+  rework to `kicad-schematic-build-agent`. It owns schematic mutations through
+  placement, wiring, validation, rendering, and save. The caller does not make
+  concurrent schematic edits.
+- Delegate an independent full-design, pre-fabrication, or readiness audit to
+  `kicad-design-review-agent`. It gathers and reports evidence without mutating
+  the design. Return fixes to the current design owner, then run a fresh review.
+- Keep small, bounded edits and narrow checks in the current conversation using
+  the applicable skill. Agent delegation is for a complete build or an
+  independent review, not an extra layer around every tool call.
 
 ## Design Rules Quick Reference
 
@@ -121,8 +149,8 @@ unload_toolset("name")  → Remove a toolset when done
 2. load_toolset("sch_components")          → activate component tools
 3. add_schematic_component (repeat)        → place parts
 4. load_toolset("sch_wiring")              → activate wiring tools
-5. connect_pins / add_wire / add_net_label → wire the circuit
-6. load_toolset("verification")            → activate checks
+5. connect_pins / add_wire / add_schematic_net_label → wire the circuit
+6. load_toolset(["sch_export", "design_review"]) → activate checks
 7. run_erc / run_design_review             → validate the design
 ```
 

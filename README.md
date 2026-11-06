@@ -5,20 +5,56 @@
 <img src="resources/images/KiCAD-MCP-Server-rust.svg" alt="KiCAD-MCP-Server Logo" height="240" />
 
 
-# Konnect *BETA Release
+# Konnect has moved to Konnect-EDA
+
+## [Go to Konnect-EDA →](https://github.com/Orchis-ai-LLC/Konnect-EDA)
+
+</div>
+
+This repository is being archived, which makes it read-only. Development continues
+at Konnect-EDA, from Orchis.ai LLC.
+
+## It stays free, unless you're a business
+
+Konnect-EDA is now commercial and closed source. Here's what that means for you:
+
+- **Everyone, businesses included:** free until version 1.0.
+- **Personal, hobby, student and open-hardware work:** still free after 1.0. You'll
+  need a license key, and that key is free too.
+- **Businesses:** a paid license from 1.0.
+
+Business licenses pay for the work, and that's what lets us keep it free for
+everyone else.
+
+**Nothing here is being taken away.** The code and releases in this repository stay
+available under the AGPL-3.0. The original
+[KiCAD MCP Server](https://github.com/mixelpixx/KiCAD-MCP-Server) stays open source
+under the MIT license and is still maintained. The boards you design are always yours.
+
+## Where to go now
+
+- **Downloads:** the [Konnect-EDA releases page](https://github.com/Orchis-ai-LLC/Konnect-EDA/releases).
+  The first release is coming soon.
+- **Bugs and feature requests:** the
+  [Konnect-EDA issue tracker](https://github.com/Orchis-ai-LLC/Konnect-EDA/issues).
+- **Want to help build it?** [Sign up to contribute](https://orchis.ai/konnect/join).
+- **Contributed to Konnect?** Please [complete your sign-off](https://orchis.ai/konnect/sign-off)
+  by November 20.
+- **Using it at a company?** See [licensing](https://konnect-eda.orchis.ai/licensing/).
+
+Thank you to everyone who built Konnect with us.
+
+---
 
 **AI-assisted PCB design for KiCAD 10.** Konnect is a native KiCAD plugin — a single
 Rust binary — that lets Claude and other AI assistants design schematics and PCBs
 through the [Model Context Protocol](https://modelcontextprotocol.io) (MCP).
 
-**185 tools across 18 on-demand toolsets.** Schematic capture, PCB layout and
-routing, ERC/DRC, design-review audits, JLCPCB part search, Freerouting, reference
+**228 tools across 21 on-demand toolsets.** Schematic capture, PCB layout and
+routing, ERC/DRC, design-review audits, JLCPCB part search, reference
 circuits, and a full manufacturing export pipeline — with bundled skills and agents
 that teach Claude KiCAD conventions out of the box.
 
-> **Status: beta.** The core toolchain is tested and working, but this is a young
-> release and it wants real-world mileage and review. Issues and PRs are welcome —
-> see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Why Konnect exists
 
@@ -38,8 +74,9 @@ Konnect, a tool call is a function call. One process, one language, no plumbing.
 **The dependency surface was enormous.** Running the original means carrying Node.js
 and its npm tree, Python and its pip packages, wxPython, kicad-skip, and KiCAD's
 SWIG bindings — two package ecosystems plus a binding layer, every one of them a
-moving target that can break an install. Konnect is a single static binary, about
-5 MB. There is nothing to install alongside it and nothing to version-match.
+moving target that can break an install. Konnect is a single static binary —
+20–25 MB depending on platform, a ~9 MB download. There is nothing to install
+alongside it and nothing to version-match.
 
 **SWIG is a dead end.** The original's PCB backend depends on KiCAD's SWIG Python
 bindings, which KiCAD is deprecating in favor of its IPC API. SWIG also carried
@@ -54,7 +91,7 @@ through its own S-expression engine with atomic writes (write, fsync, rename), U
 preservation, and round-trip tests — no third-party schematic library with known
 gaps, no text-manipulation workarounds.
 
-**Context economy is a feature.** Exposing ~180 tools to an LLM costs roughly 23K
+**Context economy is a feature.** Exposing all 228 tools to an LLM costs roughly 23K
 tokens of context on every listing. Konnect's router loads a starter kit (~2K
 tokens) and lets the model pull in toolsets on demand — plus built-in observability
 (`get_recent_calls`, `server_stats`, JSONL call logs) so the model can diagnose its
@@ -89,9 +126,15 @@ The full tool catalog is documented in [tool-directory.md](tool-directory.md).
 | Layer | Mechanism |
 |-------|-----------|
 | Schematic editing | Direct `.kicad_sch` S-expression editing with atomic writes (no KiCAD required) |
-| PCB editing | KiCAD 10 IPC API (NNG + protobuf) — real-time, undo-aware, requires KiCAD running |
+| PCB editing | KiCad 10 IPC API (NNG + protobuf) — real-time and undo-aware; single-footprint placement has a safe headless fallback |
+| Specctra routing | Revision-bound Rust DSN export, local Freerouting MCP routing, and strict one-transaction SES import; an authenticated KiCad 10 native-export bridge is explicit opt-in |
 | Exports & checks | `kicad-cli` subprocess (Gerber, PDF, ERC, DRC, …) |
 | Transport | MCP JSON-RPC over stdio (default), or Streamable HTTP (`transport = "http"` / `"both"`) |
+
+Explore the request path and safety boundaries in the
+[interactive architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md). They are
+published from a standalone documentation repository and add no dependencies to
+Konnect.
 
 ## Installation
 
@@ -110,6 +153,24 @@ The full tool catalog is documented in [tool-directory.md](tool-directory.md).
 Verify: open the **PCB Editor** → **Tools → External Plugins** → you should see
 **Konnect**.
 
+For KiCad 10, the Konnect settings dialog also offers an optional **native
+Specctra bridge**. When enabled, `export_specctra_dsn` can ask the active PCB
+Editor to generate its native DSN while Konnect still binds the export to the
+exact IPC snapshot and creates the strict reverse manifest used during SES
+import. The bridge is local-only, authenticated, disabled by default, and not
+the KiCad 11 integration path. Konnect uses its Rust exporter by default;
+`native_bridge_mode: "prefer"` enables fallback to Rust when the bridge is
+unavailable, while `"require"` refuses instead.
+
+For end-to-end autorouting, run `check_freerouting`, then
+`export_specctra_dsn` → `route_specctra_dsn` →
+`plan_specctra_ses_import` / `apply_specctra_ses`. Readiness reports engine
+discovery, native-MCP compatibility, and complete bridge availability
+separately. The owned Java child is loopback-only and is reaped on success,
+failure, timeout, or cancellation. The first supported profile preserves fixed
+straight tracks and through vias; unlocked routing, arcs, zones, and unsupported
+geometry are rejected before mutation.
+
 ### Build from source
 
 ```bash
@@ -120,6 +181,59 @@ Verify: open the **PCB Editor** → **Tools → External Plugins** → you shoul
 # Linux:   apt install protobuf-compiler cmake
 cargo build --release -p konnect
 ```
+
+### Install guidance for your AI client
+
+Konnect bundles shared KiCad skills for Claude and Codex. Select the client when
+installing, checking, or removing that guidance:
+
+```bash
+# Existing behavior remains the default: Claude skills, agents, and hooks
+konnect init
+
+# Codex installs only the shared skills under ~/.agents/skills
+konnect init --client codex
+konnect status --client codex
+konnect uninstall --client codex
+```
+
+MCP server startup never installs or restores guidance. Run `konnect init`
+explicitly when you want those files installed; after `konnect uninstall`,
+starting the server leaves them removed.
+
+Guidance written by an older `konnect init` is not updated by upgrading the
+binary. `konnect status` compares every installed skill, agent, and hook with
+the bundle in the binary you run and marks each `current`, `different`, or
+`missing`. The server makes the same check once for each installed version:
+the first start after `konnect init` compares the files, records
+the result in `~/.konnect`, and adds a one-line notice to its `initialize`
+instructions if guidance is out of sync. Later starts reuse that record, so
+guidance you chose to keep is not reported again. `get_installation_info`
+shows the result. Re-run `konnect init` to update it.
+It overwrites differing files, so keep a copy of any file you edited. `--client` remains accepted in server
+commands for compatibility. For example, register a standalone binary with the
+Codex CLI using:
+
+```bash
+codex mcp add konnect -- /path/to/konnect --client codex
+```
+
+Claude remains the default when `--client` is omitted. The installer tracks the
+two clients independently, and a Codex install does not create or modify
+`~/.claude`.
+
+`--help` on any subcommand prints that subcommand's usage and writes nothing —
+`konnect init --help` describes the installer rather than running it. An
+argument Konnect does not recognise is an error rather than being ignored, so a
+typo such as `--cleint codex` stops instead of quietly installing for the
+default client.
+
+To verify which Konnect process an MCP client is actually using, call the
+always-visible `get_installation_info` tool. It reports the serving build,
+executable path, verified installation source when one can be proven, KiCad
+CLI and IPC detection, and restart guidance. A missing build commit or an
+`unknown` installation source means the available evidence was insufficient;
+it is not silently guessed from a directory name.
 
 ### macOS
 
@@ -163,9 +277,8 @@ Claude Desktop's config lives at
 
 For Claude Code, put the same snippet in a `.mcp.json` in your project root.
 
-Starting with the next release, the PCM package for macOS
-(`konnect-pcm-v<version>-macos.zip`) bundles a universal server binary; for
-v0.1.3 and earlier, install via a release tarball or a source build. The schematic
+The macOS PCM package (`konnect-pcm-v<version>-macos.zip`) bundles a universal
+server binary, so one download covers Apple Silicon and Intel. The schematic
 viewer compiles and launches on macOS (Tauri 2 uses the system WKWebView —
 WebView2 is only a Windows requirement) but hasn't had the same mileage as
 the Windows build yet.
@@ -220,7 +333,12 @@ the main workspace — see [DEV.md](DEV.md) for build steps.
   compiles and passes tests in CI but hasn't had per-platform QA yet; both are
   tracked on the [roadmap](ROADMAP.md))
 - `kicad-cli` (ships with KiCAD — used for exports, ERC, DRC)
-- For PCB tools: KiCAD running with the target board open (IPC API)
+- For most PCB tools: KiCAD running with the target board open (IPC API).
+  `place_component`, `move_component`, `rotate_component`, and (on KiCAD
+  10.0.6+) `flip_component` can safely fall back to a closed board file when
+  IPC is unreachable. An older reachable KiCAD makes `flip_component` fail
+  closed with `unsupported_capability`; it never edits the file underneath a
+  live editor that cannot perform the native flip.
 
 ## License: free for the little guys
 
@@ -242,7 +360,7 @@ the architecture it proved, rebuilt for production:
 
 | | KiCAD-MCP-Server | Konnect |
 |---|---|---|
-| Runtime | Node.js + Python + SWIG bindings | Single static binary (~5 MB) |
+| Runtime | Node.js + Python + SWIG bindings | Single static binary (20–25 MB) |
 | Tool call path | TS → subprocess → Python → SWIG C++ | Direct function call |
 | PCB backend | SWIG (deprecated by KiCAD) + experimental IPC | KiCAD 10 IPC API |
 | Schematic backend | kicad-skip + custom loaders | Native S-expression engine, atomic writes |
@@ -255,15 +373,28 @@ the architecture it proved, rebuilt for production:
 **Plugin doesn't appear in KiCAD** — install via the Plugin and Content Manager (not
 manual copy), then restart KiCAD.
 
-**PCB tools return "IPC connect failed"** — open KiCAD with your board file first;
-PCB tools talk to the running PCB editor.
+**PCB tools return "KiCAD must be running with the board loaded"** — open KiCAD
+with that board first; most PCB tools talk to the running PCB editor. Only an
+unreachable KiCAD produces that message: if KiCAD is running and the tool
+refuses anyway, the error is the tool's own reason for refusing.
+`place_component`, `move_component`, `rotate_component`, and (on KiCAD
+10.0.6+) `flip_component` can fall back to a closed board file when no KiCAD
+process is reachable. An older, reachable KiCAD makes `flip_component` refuse
+rather than silently editing the file underneath it.
+
+See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for socket setup, tools
+that don't appear after `load_toolset`, and transaction recovery.
 
 **"kicad-cli not found"** — common install paths are auto-detected; set the path
-explicitly in the plugin settings dialog or your `konnect-settings.json` if yours
-is elsewhere.
+explicitly in the plugin settings dialog, in a `settings.json` beside the binary,
+or in a `konnect.toml` in the working directory. (A file under any other name
+works only when passed with `--config`.)
 
 ## Support
 
+- Community Discord: [join the Konnect community](https://discord.gg/NVp9RGMmDu)
+  for installation help, AI-client setup, design-workflow discussion,
+  contributor coordination, and live project-status updates
 - Issues & feature requests: [GitHub Issues](https://github.com/mixelpixx/Konnect/issues)
 - Roadmap: [ROADMAP.md](ROADMAP.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)

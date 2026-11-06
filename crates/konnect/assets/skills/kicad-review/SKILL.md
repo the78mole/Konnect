@@ -20,18 +20,52 @@ Load the required toolsets for design review:
 
 ```
 load_toolset('sch_analysis')     # find_orphan_items, find_shorted_nets, find_single_pin_nets
-load_toolset('verification')     # run_erc, get_drc_violations, validate_for_manufacturing
+load_toolset('verification')     # run_drc; check_clearance anchor/courtyard spacing; rules
+load_toolset('sch_export')       # run_erc
+load_toolset('pcb_export')       # get_drc_violations
+load_toolset('manufacturing')    # validate_for_manufacturing
 load_toolset('design_review')    # audit_decoupling, audit_connections, audit_power_rails, etc.
 ```
 
 Optional (for deeper analysis):
 
 ```
-load_toolset('sch_query')        # get net info, trace connections, inspect components
-load_toolset('pcb_query')        # check routing, zone fills, stackup
+load_toolset('sch_analysis')     # get net info, trace connections, inspect components
+load_toolset('pcb_routing')      # query_traces, get_nets_list
 ```
 
 Always call `get_active_toolsets()` first to see what is already loaded.
+
+## Evidence hierarchy
+
+Judge findings in this order:
+
+1. Exact design requirements and manufacturer datasheets.
+2. Direct KiCad ERC/DRC and saved or exported connectivity.
+3. Direct Konnect net, short, pad, trace, via, unrouted, and inventory evidence.
+4. Aggregate review and manufacturing summaries.
+5. Heuristic orphan, single-pin, decoupling, protection, and best-practice findings.
+
+A weaker finding may ask a question; it does not override stronger contradictory
+evidence. Any required check that did not run, returned impossible coverage, or
+remains inconsistent with stronger evidence makes the verdict `INCOMPLETE`.
+
+DRC violation items carry `owner` and `ownership_status`. That is direct
+evidence, not a heuristic: `owner.kind: "footprint"` means the offending
+geometry belongs to `owner.reference`'s own artwork, so the remedy is a
+footprint or rule change rather than a placement change — the finding itself
+stands either way. When `ownership_status` is not `"resolved"`, ownership is
+unknown and `owner` is `null`; corroborate with
+`list_board_footprint_graphics` rather than assuming the board owns it.
+
+## References by review branch
+
+- Read [`references/design-checklist.md`](references/design-checklist.md) for a
+  comprehensive or pre-fabrication review. Mark an item only from evidence
+  collected in this run.
+- Read [`references/error-taxonomy.md`](references/error-taxonomy.md) when
+  classifying a finding or assigning the final verdict. Direct ERC, DRC, and
+  connectivity evidence outrank heuristic classifications.
 
 ---
 
@@ -45,8 +79,9 @@ Run these first — they are fast and catch the most critical issues.
 find_orphan_items()
 ```
 
-Finds floating wires, labels, and symbols not connected to anything.
-These are almost always bugs (leftover from edits or incomplete wiring).
+Finds floating wires, labels, and symbols not connected to anything. Treat the
+result as a heuristic candidate list and corroborate it with direct connectivity
+or ERC before calling an item a defect.
 
 ### Level 2: Critical Net Issues
 
@@ -59,7 +94,8 @@ Detects nets that are connected together but should not be. A shorted net means:
 - Power rails bridged unintentionally
 - Signal nets merged by accident
 
-**This is always a critical error. Fix before proceeding.**
+A confirmed unintended short is critical. Resolve disagreement with requirements
+or direct ERC/connectivity evidence before assigning severity.
 
 ### Level 3: Suspicious Connections
 
@@ -67,7 +103,7 @@ Detects nets that are connected together but should not be. A shorted net means:
 find_single_pin_nets()
 ```
 
-A net with only one pin connected is almost always a mistake:
+A one-pin net is a heuristic review candidate:
 - Incomplete wiring (forgot to connect the other end)
 - Orphan net labels (typo in name, so it does not match)
 - Leftover stubs from deleted components
@@ -113,10 +149,18 @@ Checks PCB-level rules:
 
 These go beyond rule checking — they evaluate design quality and best practices.
 
+The standalone schematic audits and `check_bom_health` default to the supplied
+file only. When the supplied file is a hierarchy root, pass
+`schematic_scope: "hierarchy"` to cover every reachable sheet instance. Read
+`status`, `coverage`, and `diagnostics` before interpreting a hierarchy result;
+missing or cyclic child references make the result incomplete. Reused child
+files have one result per KiCad sheet instance, identified by the
+`sheet_instance_path` response field.
+
 ### Decoupling Audit
 
 ```
-audit_decoupling()
+audit_decoupling(schematic, schematic_scope="hierarchy")
 ```
 
 Checks:
@@ -128,7 +172,7 @@ Checks:
 ### Connection Audit
 
 ```
-audit_connections()
+audit_connections(schematic, schematic_scope="hierarchy")
 ```
 
 Checks:
@@ -140,7 +184,7 @@ Checks:
 ### Power Rail Audit
 
 ```
-audit_power_rails()
+audit_power_rails(schematic, schematic_scope="hierarchy")
 ```
 
 Checks:
@@ -149,17 +193,6 @@ Checks:
 - Voltage levels are consistent (no 3.3V device on 5V rail)
 - Power sequencing considered for multi-rail designs
 - Power flags present (avoids ERC false positives)
-
-### ESD Protection Audit
-
-```
-audit_esd_protection()
-```
-
-Checks:
-- External connectors have ESD protection (TVS diodes, clamps)
-- USB, Ethernet, antenna ports have proper protection
-- Current limiting on exposed signal lines
 
 ### Manufacturing Audit
 
@@ -183,20 +216,20 @@ Checks:
 run_design_review()
 ```
 
-Runs ALL audits and checks in sequence, producing a consolidated report.
-Use this for a comprehensive pre-manufacturing review.
+Runs the aggregate design audits and produces a consolidated report. Use it to
+organize findings, not as a substitute for the direct ERC, DRC, and connectivity
+checks above.
 
-Equivalent to running:
-1. find_orphan_items
-2. find_shorted_nets
-3. find_single_pin_nets
-4. run_erc
-5. get_drc_violations
-6. audit_decoupling
-7. audit_connections
-8. audit_power_rails
-9. audit_esd_protection
-10. audit_manufacturing
+Read `status`, `coverage`, and `diagnostics` before interpreting the findings.
+If `status` is `partial` or `failed`, the verdict is `INCOMPLETE — review could
+not evaluate the full design`. Report that verdict verbatim, explain the
+diagnostics and unevaluated coverage, and do not describe the design as ready,
+passing, clean, or looking good. Findings gathered before the coverage gap are
+still valid and should still be reported.
+
+Collect direct `run_erc`, `get_drc_violations`, short, and connectivity evidence
+separately. Then compare the aggregate findings with that stronger evidence and
+report any disagreement.
 
 ---
 
@@ -269,7 +302,9 @@ Present findings grouped by severity with actionable fix suggestions:
 - Critical: X (must resolve)
 - Warnings: X (recommended)
 - Suggestions: X (optional)
-- Verdict: [PASS / FAIL / PASS WITH WARNINGS]
+- Verdict: [LOOKS GOOD / NEEDS ATTENTION / NOT READY / INCOMPLETE]
+- Coverage status: [complete / partial / failed]
+- Coverage diagnostics: [none, or each unevaluated sheet/object/audit]
 ```
 
 ---
@@ -286,15 +321,20 @@ Present findings grouped by severity with actionable fix suggestions:
 ### Full Review (comprehensive)
 
 1. Load all review toolsets
-2. `run_design_review()` — full audit suite
-3. Classify all findings by severity
-4. Present report with fix suggestions
-5. Offer to fix CRITICAL issues immediately
+2. Run direct short/connectivity checks, `run_erc`, and `get_drc_violations`
+3. `run_design_review()` — aggregate audit suite
+4. Check `status`, `coverage`, and `diagnostics`; never approve an incomplete review
+5. Reconcile aggregate or heuristic findings with stronger direct evidence
+6. Classify all gathered findings by severity
+7. Present report with fix suggestions
+8. Offer to fix CRITICAL issues immediately
 
 ### Pre-Manufacturing Review
 
 1. Full review (above)
-2. `validate_for_manufacturing()` — fab-specific checks
+2. Run `validate_for_manufacturing()`, then inspect `verdict`, `issues`, and
+   `drc` against the handler's limited contract; it does not replace outline,
+   drill, silkscreen, artifact, BOM/CPL, or order-preview acceptance
 3. Verify BOM completeness
 4. Check part availability (if targeting specific fab house)
 5. Final verdict: ready to manufacture or not
@@ -313,3 +353,4 @@ Present findings grouped by severity with actionable fix suggestions:
 8. **Offer to fix** — after reporting, offer to use MCP tools to resolve issues
 9. **Re-run after fixes** — always verify fixes resolved the issue and created no new ones
 10. **Document waivers** — if user explicitly waives a warning, note it in the report
+11. **Never soften `INCOMPLETE`** — partial or failed coverage is not a passing review

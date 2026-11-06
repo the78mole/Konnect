@@ -23,7 +23,7 @@
      |
     IC pin
 ```
-**Tools**: `add_schematic_component` (R, value 4.7k) → `add_power_symbol` (+3V3) → `connect_to_net` (resistor pin 2, net "SDA", direction down)
+**Tools**: `add_schematic_component` (R, value 4.7k) → `add_power_symbol` (+3V3) → `connect_to_net` (resistor pin 2, net "SDA")
 
 ## Pattern 3: Voltage Divider
 ```
@@ -37,7 +37,13 @@
 ```
     GPIO_OUT ──── R1 330Ω ──── D1 LED ──── GND
 ```
-**Tools**: Place R1 (330) and D1 (LED) → `connect_pins` (R1 pin 2 to D1 anode/pin 1) → `connect_to_net` (R1 pin 1, net "GPIO_OUT") → `add_power_symbol` (GND on D1 cathode/pin 2)
+**Tools**: Place R1 (330) and D1 (LED) → `connect_pins` (R1 pin 2 to D1 anode, **pin 2**) → `connect_to_net` (R1 pin 1, net "GPIO_OUT") → `add_power_symbol` (GND on D1 cathode, **pin 1**)
+
+> In KiCad's `Device:LED` the pins are **1 = K (cathode), 2 = A (anode)** — the
+> cathode is pin 1, not pin 2. Current flows anode → cathode, so the resistor
+> feeds pin 2 and pin 1 goes to ground. Confirm pin names with
+> `get_symbol_info` before wiring any polarised part rather than assuming an
+> order; diode and transistor numbering varies by symbol and by manufacturer.
 
 ## Pattern 5: Crystal Oscillator
 ```
@@ -79,6 +85,12 @@
 | Global label (`global_label`) | All sheets | Signals shared across hierarchical sheets |
 | Hierarchical label (`hierarchical_label`) | Sheet boundary | Interface pins on hierarchical sheet symbols |
 | Power symbol | Global | Power rails (+3V3, GND, VCC) |
+
+In a sheet placed more than once, a net label is a separate net in each
+instance, while a global label or power symbol is one net across every sheet
+and instance. A rail shared by all instances therefore needs a power symbol or
+global label; a rail private to each instance needs a net label — `power:+5V`
+inside a repeated sheet ties every instance's 5V together.
 
 ## Spacing Guidelines
 

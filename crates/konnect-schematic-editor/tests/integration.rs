@@ -1,6 +1,6 @@
 use konnect_schematic_editor::{
     sexp::{parser, writer},
-    Schematic,
+    Error, Schematic,
 };
 
 // ---- S-expression parser round-trip ----------------------------------------
@@ -203,9 +203,9 @@ fn symbol_position() {
 fn symbol_booleans() {
     let sch = load_minimal();
     let r1 = sch.symbols.by_reference("R1").unwrap();
-    assert_eq!(r1.in_bom, true);
-    assert_eq!(r1.on_board, true);
-    assert_eq!(r1.dnp, false);
+    assert!(r1.in_bom);
+    assert!(r1.on_board);
+    assert!(!r1.dnp);
 }
 
 #[test]
@@ -223,7 +223,7 @@ fn mutate_property_round_trips() {
     let sch2 = Schematic::load(tmp.path()).unwrap();
     let r1 = sch2.symbols.by_reference("R1").unwrap();
     assert_eq!(r1.value_str(), Some("4.7k"));
-    assert_eq!(r1.dnp, true);
+    assert!(r1.dnp);
 }
 
 #[test]
@@ -233,7 +233,7 @@ fn set_all_dnp() {
     let mut sch = Schematic::load(tmp.path()).unwrap();
     sch.symbols.set_all_dnp(true);
     for sym in &sch.symbols {
-        assert_eq!(sym.dnp, true);
+        assert!(sym.dnp);
     }
 }
 
@@ -323,7 +323,102 @@ fn add_label_and_save() {
     }
 
     let sch2 = Schematic::load(tmp.path()).unwrap();
-    assert!(sch2.labels.value_contains("GND").len() > 0);
+    assert!(!sch2.labels.value_contains("GND").is_empty());
+}
+
+#[test]
+fn overwrite_rejects_a_stale_loaded_revision() {
+    let tmp = fresh_minimal_file();
+    let mut schematic = Schematic::load(tmp.path()).unwrap();
+    let external_revision = minimal_sch().replace("10k", "22k");
+    std::fs::write(tmp.path(), &external_revision).unwrap();
+    schematic
+        .symbols
+        .by_reference_mut("R1")
+        .unwrap()
+        .set_value_str("4.7k");
+
+    let error = schematic.overwrite().unwrap_err();
+
+    assert!(matches!(error, Error::Conflict(_)));
+    assert_eq!(
+        std::fs::read_to_string(tmp.path()).unwrap(),
+        external_revision
+    );
+}
+
+#[test]
+fn repeated_overwrites_advance_the_owned_revision_baseline() {
+    let tmp = fresh_minimal_file();
+    let mut schematic = Schematic::load(tmp.path()).unwrap();
+    schematic
+        .symbols
+        .by_reference_mut("R1")
+        .unwrap()
+        .set_value_str("4.7k");
+    schematic.overwrite().unwrap();
+
+    schematic
+        .symbols
+        .by_reference_mut("R1")
+        .unwrap()
+        .set_value_str("1k");
+    schematic.overwrite().unwrap();
+
+    let reloaded = Schematic::load(tmp.path()).unwrap();
+    assert_eq!(
+        reloaded.symbols.by_reference("R1").unwrap().value_str(),
+        Some("1k")
+    );
+}
+
+#[test]
+fn overwrite_still_rejects_an_external_change_after_a_successful_save() {
+    let tmp = fresh_minimal_file();
+    let mut schematic = Schematic::load(tmp.path()).unwrap();
+    schematic
+        .symbols
+        .by_reference_mut("R1")
+        .unwrap()
+        .set_value_str("4.7k");
+    schematic.overwrite().unwrap();
+
+    let external_revision = std::fs::read_to_string(tmp.path())
+        .unwrap()
+        .replace("4.7k", "22k");
+    std::fs::write(tmp.path(), &external_revision).unwrap();
+    schematic
+        .symbols
+        .by_reference_mut("R1")
+        .unwrap()
+        .set_value_str("1k");
+
+    let error = schematic.overwrite().unwrap_err();
+
+    assert!(matches!(error, Error::Conflict(_)));
+    assert_eq!(
+        std::fs::read_to_string(tmp.path()).unwrap(),
+        external_revision
+    );
+}
+
+#[test]
+fn save_as_refuses_to_replace_an_existing_document() {
+    let source = fresh_minimal_file();
+    let destination = tempfile::Builder::new()
+        .suffix(".kicad_sch")
+        .tempfile()
+        .expect("create destination");
+    std::fs::write(destination.path(), "keep this document").unwrap();
+    let schematic = Schematic::load(source.path()).unwrap();
+
+    let error = schematic.save(destination.path()).unwrap_err();
+
+    assert!(matches!(error, Error::Io(_)));
+    assert_eq!(
+        std::fs::read_to_string(destination.path()).unwrap(),
+        "keep this document"
+    );
 }
 
 #[test]
@@ -351,4 +446,401 @@ fn changeset_display() {
     cs.record("R1: dnp false → true");
     assert_eq!(cs.len(), 2);
     assert!(cs.summary().contains("R1.Value"));
+}
+
+// ---- unmodelled-token preservation (#143) -----------------------------------
+
+/// A symbol block in the shape eeschema writes for a locally edited library
+/// symbol: `lib_name` ahead of `lib_id`, plus tokens the typed model does not
+/// reconstruct field-by-field.
+fn derived_symbol_sch() -> &'static str {
+    r#"(kicad_sch
+  (version 20250114)
+  (generator "eeschema")
+  (uuid "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+  (paper "A4")
+  (lib_symbols
+    (symbol "Device:R"
+      (property "Reference" "R" (at 2.032 0 90))
+    )
+    (symbol "R_1"
+      (property "Reference" "R" (at 2.032 0 90))
+    )
+  )
+  (symbol
+    (lib_name "R_1")
+    (lib_id "Device:R")
+    (at 88.9 63.5 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "44444444-0002-4111-8111-111111111111")
+    (property "Reference" "R2" (at 91.44 62.23 0))
+    (property "Value" "22k" (at 91.44 64.77 0))
+    (convert 2)
+    (default_instance
+      (reference "R")
+      (unit 1)
+    )
+    (pin "1" (uuid "55555555-0003-4111-8111-111111111111"))
+    (instances
+      (project "derived"
+        (path "/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" (reference "R2") (unit 1))
+      )
+    )
+  )
+)"#
+}
+
+fn load_derived() -> Schematic {
+    let tmp = tempfile::Builder::new()
+        .suffix(".kicad_sch")
+        .tempfile()
+        .expect("create tempfile");
+    std::fs::write(tmp.path(), derived_symbol_sch()).unwrap();
+    Schematic::load(tmp.path()).unwrap()
+}
+
+#[test]
+fn lib_name_is_parsed_into_its_own_field() {
+    let sch = load_derived();
+    let r2 = sch.symbols.by_reference("R2").unwrap();
+    assert_eq!(r2.lib_name.as_deref(), Some("R_1"));
+    assert_eq!(r2.lib_id, "Device:R");
+}
+
+#[test]
+fn lib_symbol_name_prefers_lib_name_over_lib_id() {
+    let sch = load_derived();
+    // The derived entry is what KiCAD resolves through; lib_id is provenance.
+    assert_eq!(
+        sch.symbols.by_reference("R2").unwrap().lib_symbol_name(),
+        "R_1"
+    );
+    // A symbol with no lib_name falls back to lib_id.
+    let plain = load_minimal();
+    assert_eq!(
+        plain.symbols.by_reference("R1").unwrap().lib_symbol_name(),
+        "Device:R"
+    );
+}
+
+#[test]
+fn lib_name_survives_a_load_and_save_round_trip() {
+    // The whole point of #143: dropping this silently re-points the symbol at
+    // the base definition and rewires the netlist.
+    let out = load_derived().to_source();
+    assert!(
+        out.contains(r#"(lib_name "R_1")"#),
+        "lib_name must survive the round-trip:\n{out}"
+    );
+}
+
+#[test]
+fn lib_name_is_written_before_lib_id_like_eeschema() {
+    let out = load_derived().to_source();
+    let lib_name = out.find(r#"(lib_name "R_1")"#).expect("lib_name emitted");
+    let lib_id = out.find(r#"(lib_id "Device:R")"#).expect("lib_id emitted");
+    assert!(
+        lib_name < lib_id,
+        "eeschema writes lib_name ahead of lib_id:\n{out}"
+    );
+}
+
+#[test]
+fn unmodelled_symbol_children_survive_a_round_trip() {
+    let out = load_derived().to_source();
+    for token in ["(exclude_from_sim no)", "(convert 2)", "(default_instance"] {
+        assert!(out.contains(token), "{token} was dropped:\n{out}");
+    }
+}
+
+#[test]
+fn exclude_from_sim_keeps_its_eeschema_position() {
+    let out = load_derived().to_source();
+    let unit = out.find("(unit 1)").expect("unit emitted");
+    let excl = out
+        .find("(exclude_from_sim no)")
+        .expect("exclude_from_sim emitted");
+    let in_bom = out.find("(in_bom yes)").expect("in_bom emitted");
+    assert!(unit < excl && excl < in_bom, "wrong ordering:\n{out}");
+}
+
+#[test]
+fn a_symbol_without_exclude_from_sim_does_not_gain_one() {
+    // Older files omit the token; inventing it on save would be a silent
+    // format upgrade.
+    let out = load_minimal().to_source();
+    assert!(!out.contains("exclude_from_sim"), "{out}");
+}
+
+#[test]
+fn editing_one_symbol_does_not_corrupt_the_others() {
+    // The reported failure mode: a single add/edit re-serializes every symbol
+    // in the file, so untouched symbols lost their lib_name too.
+    let mut sch = load_derived();
+    sch.symbols.by_reference_mut("R2").unwrap().dnp = true;
+    let out = sch.to_source();
+    assert!(out.contains(r#"(lib_name "R_1")"#), "{out}");
+    assert!(out.contains("(dnp yes)"), "{out}");
+}
+
+/// A symbol whose unmodelled tokens are scattered *between* the modelled ones,
+/// which is how KiCad may write them: `pin` ahead of `at`, `convert` before
+/// `uuid`, `default_instance` between two properties.
+fn interleaved_symbol_sch() -> &'static str {
+    r#"(kicad_sch
+  (version 20250114)
+  (generator "eeschema")
+  (uuid "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+  (paper "A4")
+  (lib_symbols
+    (symbol "Device:R"
+      (property "Reference" "R" (at 2.032 0 90))
+    )
+  )
+  (symbol
+    (pin "1" (uuid "55555555-0003-4111-8111-111111111111"))
+    (lib_id "Device:R")
+    (at 88.9 63.5 0)
+    (convert 2)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "44444444-0002-4111-8111-111111111111")
+    (property "Reference" "R2" (at 91.44 62.23 0))
+    (default_instance
+      (reference "R")
+      (unit 1)
+    )
+    (property "Value" "22k" (at 91.44 64.77 0))
+    (instances
+      (project "interleaved"
+        (path "/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" (reference "R2") (unit 1))
+      )
+    )
+  )
+)"#
+}
+
+#[test]
+fn raw_and_typed_symbol_children_survive_interleaving() {
+    // Contract asserted here is *survival and uniqueness*, not byte-identity:
+    // `to_sexp` emits the preserved raw children after the typed fields, so a
+    // symbol whose unmodelled tokens were interleaved comes back with them
+    // grouped at the end. KiCad's parser is order-insensitive for these, so
+    // this is valid — but it does mean a round-trip is not byte-faithful for
+    // such files. Re-interleaving to the original positions is deliberately
+    // left as follow-up; this test pins today's behaviour so that change is a
+    // conscious one.
+    let tmp = tempfile::Builder::new()
+        .suffix(".kicad_sch")
+        .tempfile()
+        .expect("create tempfile");
+    std::fs::write(tmp.path(), interleaved_symbol_sch()).unwrap();
+    let out = Schematic::load(tmp.path()).unwrap().to_source();
+
+    for token in [
+        "(lib_id \"Device:R\")",
+        "(convert 2)",
+        "(exclude_from_sim no)",
+        "(default_instance",
+        "(pin \"1\"",
+        "(instances",
+        "(property \"Reference\" \"R2\"",
+        "(property \"Value\" \"22k\"",
+    ] {
+        assert_eq!(
+            out.matches(token).count(),
+            1,
+            "{token} must appear exactly once — not dropped, not duplicated by \
+             both the typed path and raw_sub_nodes:\n{out}"
+        );
+    }
+
+    // Re-parsing the output must yield the same field values.
+    let reparsed = tempfile::Builder::new()
+        .suffix(".kicad_sch")
+        .tempfile()
+        .expect("create tempfile");
+    std::fs::write(reparsed.path(), &out).unwrap();
+    let sch = Schematic::load(reparsed.path()).unwrap();
+    let r2 = sch.symbols.by_reference("R2").unwrap();
+    assert_eq!(r2.lib_id, "Device:R");
+    assert_eq!(r2.lib_name, None);
+    assert_eq!(r2.exclude_from_sim, Some(false));
+    assert_eq!(r2.unit, 1);
+    assert_eq!(r2.value_str(), Some("22k"));
+}
+
+// ---- (paper …) round-trip ---------------------------------------------------
+
+/// Load a one-off schematic whose only interesting content is its paper node.
+fn sch_with_paper(paper_line: &str) -> Schematic {
+    let src = format!(
+        "(kicad_sch\n  (version 20250114)\n  (generator \"eeschema\")\n  \
+         (generator_version \"10.0\")\n  \
+         (uuid \"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\")\n  {paper_line}\n  \
+         (lib_symbols\n  )\n)"
+    );
+    let tmp = tempfile::Builder::new()
+        .suffix(".kicad_sch")
+        .tempfile()
+        .expect("create tempfile");
+    std::fs::write(tmp.path(), src).unwrap();
+    Schematic::load(tmp.path()).unwrap()
+}
+
+#[test]
+fn custom_paper_keeps_its_dimensions() {
+    // `User` is the one page size whose width and height are mandatory. Writing
+    // a bare `(paper "User")` produces a file KiCAD refuses to load, with no
+    // diagnostic beyond "Failed to load schematic" — and KiCAD's own EasyEDA
+    // importer lands every imported sheet on `User`.
+    let sch = sch_with_paper(r#"(paper "User" 292.1 205.105)"#);
+    assert_eq!(sch.paper.as_deref(), Some("User"));
+
+    let out = sch.to_source();
+    assert!(
+        out.contains(r#"(paper "User" 292.1 205.105)"#),
+        "custom page dimensions must survive a parse -> write cycle:\n{out}"
+    );
+}
+
+#[test]
+fn custom_paper_survives_repeated_round_trips() {
+    let mut sch = sch_with_paper(r#"(paper "User" 292.1 205.105)"#);
+    for _ in 0..3 {
+        let tmp = tempfile::Builder::new()
+            .suffix(".kicad_sch")
+            .tempfile()
+            .expect("create tempfile");
+        std::fs::write(tmp.path(), sch.to_source()).unwrap();
+        sch = Schematic::load(tmp.path()).unwrap();
+    }
+    assert!(
+        sch.to_source().contains(r#"(paper "User" 292.1 205.105)"#),
+        "dimensions must not erode across successive edits"
+    );
+}
+
+#[test]
+fn portrait_paper_keeps_its_orientation() {
+    let sch = sch_with_paper(r#"(paper "A4" portrait)"#);
+    assert_eq!(sch.paper.as_deref(), Some("A4"));
+
+    let out = sch.to_source();
+    assert!(
+        out.contains(r#"(paper "A4" portrait)"#),
+        "the portrait flag must survive a parse -> write cycle:\n{out}"
+    );
+}
+
+#[test]
+fn named_paper_gains_no_extra_tokens() {
+    let out = sch_with_paper(r#"(paper "A4")"#).to_source();
+    assert!(
+        out.contains(r#"(paper "A4")"#),
+        "a plain named page must round-trip unchanged:\n{out}"
+    );
+}
+
+/// #210: every typed-model write reindented the whole sheet, because the
+/// writer emitted two spaces unconditionally while KiCAD writes tabs. A
+/// one-symbol edit came back as a whole-file diff, which makes the change
+/// unreviewable and the history useless.
+#[test]
+fn a_tab_indented_sheet_stays_tab_indented() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("tabs.kicad_sch");
+    // As eeschema writes it.
+    let source = "(kicad_sch\n\t(version 20250610)\n\t(generator \"eeschema\")\n\t(uuid \"root\")\n\t(paper \"A4\")\n\t(lib_symbols)\n\n\t(junction\n\t\t(at 100 100)\n\t\t(diameter 0)\n\t\t(uuid \"j1\")\n\t)\n\n\t(sheet_instances\n\t\t(path \"/\"\n\t\t\t(page \"1\")\n\t\t)\n\t)\n)\n";
+    std::fs::write(&path, source).unwrap();
+
+    let sch = konnect_schematic_editor::Schematic::load(&path).unwrap();
+    let out = sch.to_source();
+
+    assert!(
+        !out.lines().any(|l| l.starts_with("  ")),
+        "no line may be space-indented after a round trip:\n{out}"
+    );
+    assert!(
+        out.lines().filter(|l| l.starts_with('\t')).count() > 3,
+        "the sheet must still be tab-indented:\n{out}"
+    );
+}
+
+/// The converse: a two-space file keeps two spaces, so this crate's own
+/// output round-trips without churn either.
+#[test]
+fn a_space_indented_sheet_stays_space_indented() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("spaces.kicad_sch");
+    let source = "(kicad_sch\n  (version 20250610)\n  (generator \"konnect\")\n  (uuid \"root\")\n  (paper \"A4\")\n  (lib_symbols)\n\n  (junction\n    (at 100 100)\n    (diameter 0)\n    (uuid \"j1\")\n  )\n)\n";
+    std::fs::write(&path, source).unwrap();
+
+    let sch = konnect_schematic_editor::Schematic::load(&path).unwrap();
+    let out = sch.to_source();
+    assert!(
+        !out.contains('\t'),
+        "a space-indented sheet must not gain tabs:\n{out}"
+    );
+    assert!(out.contains("\n  (version"), "{out}");
+}
+
+/// Indentation must stop being a source of diff. Two other sources remain
+/// (#210): this crate collapses a node's closing paren onto the last child's
+/// line, and inserts blank lines KiCad never writes -- a real KiCad sheet of
+/// 3713 lines contains exactly one. Both would change the output of every
+/// file this crate writes, so they are a deliberate decision rather than part
+/// of the indent fix; this test pins the part that is fixed.
+#[test]
+fn editing_a_tab_indented_sheet_reindents_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("edit.kicad_sch");
+    let source = "(kicad_sch
+	(version 20250610)
+	(generator \"eeschema\")
+	(uuid \"root\")
+	(paper \"A4\")
+	(lib_symbols)
+	(junction
+		(at 10 10)
+		(diameter 0)
+		(uuid \"j1\")
+	)
+)
+";
+    std::fs::write(&path, source).unwrap();
+
+    let mut sch = konnect_schematic_editor::Schematic::load(&path).unwrap();
+    sch.add_junction(30.0, 30.0);
+    sch.overwrite().unwrap();
+    let after = std::fs::read_to_string(&path).unwrap();
+
+    assert!(
+        !after.lines().any(|l| l.starts_with("  ")),
+        "the edit must not convert the sheet to space indentation:
+{after}"
+    );
+    // Every surviving line keeps the tab depth it had.
+    for (line, depth) in [("(version 20250610)", 1), ("(at 10 10)", 2)] {
+        let found = after.lines().find(|l| l.trim() == line).unwrap_or_else(|| {
+            panic!(
+                "{line} missing from:
+{after}"
+            )
+        });
+        assert_eq!(
+            found.len() - found.trim_start().len(),
+            depth,
+            "{line} changed indentation depth:
+{after}"
+        );
+    }
+    assert!(after.contains("(at 30 30)"), "{after}");
 }
