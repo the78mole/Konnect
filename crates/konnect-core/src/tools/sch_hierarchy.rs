@@ -1606,6 +1606,56 @@ async fn handle_get_sheet_hierarchy(
     Ok(CallToolResult::json(&tree))
 }
 
+/// Collect every schematic file reachable from `root` (root included),
+/// depth-first, each file visited at most once — used by callers that just
+/// need "every sheet in this project" rather than a nested tree (e.g. the
+/// `sch_sourcing` toolset scanning for components across all sheets).
+///
+/// Unlike `build_hierarchy_node`'s ancestor-only `visited` set (which allows
+/// revisiting a diamond-shared sheet from a second parent, removing it from
+/// `visited` on backtrack so only true cycles up the current path are
+/// rejected), this uses a single global `visited` set that is never cleared:
+/// a diamond-shared sheet is collected once, not once per parent, since
+/// callers here want a flat, deduplicated file list, not a tree.
+pub(crate) fn walk_schematic_files(root: &Path) -> Vec<PathBuf> {
+    let mut visited = HashSet::new();
+    let mut files = Vec::new();
+    walk_schematic_files_inner(root, 0, &mut visited, &mut files);
+    files
+}
+
+fn walk_schematic_files_inner(
+    path: &Path,
+    depth: usize,
+    visited: &mut HashSet<PathBuf>,
+    files: &mut Vec<PathBuf>,
+) {
+    if depth > MAX_HIERARCHY_DEPTH {
+        return;
+    }
+    let canon = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    if !visited.insert(canon) {
+        return;
+    }
+
+    // Only count a file as "reachable" once it has actually been loaded —
+    // a missing or corrupt file contributes nothing (and no further
+    // recursion), rather than showing up as an unreadable stub entry.
+    let sch = match cse::Schematic::load(path) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    files.push(path.to_path_buf());
+
+    let dir = parent_dir(path);
+    for sheet in sch.sheets.iter() {
+        let child_path = dir.join(sheet.file());
+        if child_path.exists() {
+            walk_schematic_files_inner(&child_path, depth + 1, visited, files);
+        }
+    }
+}
+
 pub(crate) fn build_hierarchy_node(
     path: &Path,
     project_name: &str,
@@ -5030,6 +5080,41 @@ mod tests {
             before,
             "delete_sheet must leave the real KiCad file byte-identical"
         );
+    }
+    #[tokio::test]
+    async fn walk_schematic_files_finds_every_sheet_in_a_hierarchy() {
+        let tmp = TempDir::new().unwrap();
+        let root = blank_schematic(tmp.path(), "root.kicad_sch");
+        let ctx = test_ctx();
+
+        handle_add_hierarchical_sheet(
+            &json!({ "schematic": root.display().to_string(), "sheet_file": "power.kicad_sch", "sheet_name": "Power" }),
+            &ctx,
+        )
+        .await
+        .unwrap();
+        handle_add_hierarchical_sheet(
+            &json!({ "schematic": tmp.path().join("power.kicad_sch").display().to_string(), "sheet_file": "regulator.kicad_sch", "sheet_name": "Regulator" }),
+            &ctx,
+        )
+        .await
+        .unwrap();
+
+        let files = walk_schematic_files(&root);
+        let names: HashSet<String> = files
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(files.len(), 3, "expected root + power + regulator");
+        assert!(names.contains("root.kicad_sch"));
+        assert!(names.contains("power.kicad_sch"));
+        assert!(names.contains("regulator.kicad_sch"));
+    }
+
+    #[test]
+    fn walk_schematic_files_handles_missing_root_gracefully() {
+        let files = walk_schematic_files(Path::new("/nonexistent/does-not-exist.kicad_sch"));
+        assert!(files.is_empty());
     }
 }
 

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LCSC Sourcing — Konnect</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --toolbar-bg: #16213e;
+    --toolbar-border: #0f3460;
+    --row-alt: #1f1f38;
+    --btn-bg: #0f3460;
+    --btn-border: #533483;
+    --btn-hover: #533483;
+    --text: #e0e0e0;
+    --text-dim: #888;
+    --accent: #e94560;
+    --ok: #4caf78;
+    --input-bg: #12122060;
+    --input-border: #3a3a5a;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f5f5f5;
+      --toolbar-bg: #e8e8ee;
+      --toolbar-border: #c5c5d5;
+      --row-alt: #eeeef4;
+      --btn-bg: #dcdce6;
+      --btn-border: #9a8fc0;
+      --btn-hover: #c9bfe4;
+      --text: #24243a;
+      --text-dim: #667;
+      --accent: #c22b47;
+      --ok: #2f8a55;
+      --input-bg: #ffffff;
+      --input-border: #c5c5d5;
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--toolbar-bg);
+    border-bottom: 1px solid var(--toolbar-border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .toolbar h1 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .toolbar .spacer { flex: 1; }
+  .toolbar .status {
+    font-size: 12px;
+    color: var(--text-dim);
+    max-width: 40vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  button {
+    background: var(--btn-bg);
+    border: 1px solid var(--btn-border);
+    color: var(--text);
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  button:hover { background: var(--btn-hover); }
+  button:disabled { opacity: 0.5; cursor: default; }
+
+  .table-wrap { overflow-x: auto; padding: 8px 16px 32px; }
+  table { border-collapse: collapse; width: 100%; min-width: 960px; }
+  thead th {
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--toolbar-border);
+    white-space: nowrap;
+  }
+  tbody tr:nth-child(odd) { background: var(--row-alt); }
+  tbody td {
+    padding: 6px 10px;
+    font-size: 13px;
+    vertical-align: middle;
+  }
+  td.refs {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-dim);
+  }
+  td.readonly { color: var(--text-dim); white-space: nowrap; }
+  input[type="text"] {
+    width: 100%;
+    min-width: 110px;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--text);
+    padding: 5px 7px;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+  input.lcscx { min-width: 180px; }
+  .save-cell { white-space: nowrap; }
+  .save-cell .saved-flash {
+    color: var(--ok);
+    font-size: 12px;
+    margin-left: 6px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .save-cell .saved-flash.show { opacity: 1; }
+  .empty, .error {
+    padding: 24px 16px;
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  .error { color: var(--accent); }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>LCSC Sourcing</h1>
+    <div class="spacer"></div>
+    <span class="status" id="status"></span>
+    <button id="refresh-all-btn">Refresh all stock/prices</button>
+    <button id="reload-btn">Reload</button>
+  </div>
+  <div class="table-wrap">
+    <table id="groups-table" hidden>
+      <thead>
+        <tr>
+          <th>Value</th>
+          <th>Footprint</th>
+          <th>Qty</th>
+          <th>References</th>
+          <th>LCSC</th>
+          <th>LCSC2</th>
+          <th>LCSCX (alternatives)</th>
+          <th>Stock</th>
+          <th>Price</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="groups-body"></tbody>
+    </table>
+    <div class="empty" id="empty-msg" hidden>No BOM components found in this project.</div>
+    <div class="error" id="error-msg" hidden></div>
+  </div>
+
+<script>
+  const statusEl = document.getElementById('status');
+  const tableEl = document.getElementById('groups-table');
+  const bodyEl = document.getElementById('groups-body');
+  const emptyEl = document.getElementById('empty-msg');
+  const errorEl = document.getElementById('error-msg');
+
+  function setStatus(text) {
+    statusEl.textContent = text;
+  }
+
+  function showError(text) {
+    errorEl.textContent = text;
+    errorEl.hidden = false;
+    tableEl.hidden = true;
+    emptyEl.hidden = true;
+  }
+
+  function alternativesFor(row) {
+    return (row.lcscx || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+  }
+
+  function rowNode(row, idx) {
+    const tr = document.createElement('tr');
+    const alts = alternativesFor(row);
+    const datalistId = `alts-${idx}`;
+
+    const lcscOptions = new Set(alts);
+    if (row.lcsc) lcscOptions.add(row.lcsc);
+    if (row.lcsc2) lcscOptions.add(row.lcsc2);
+
+    tr.innerHTML = `
+      <td>${escapeHtml(row.value)}</td>
+      <td>${escapeHtml(row.footprint)}</td>
+      <td>${row.quantity}</td>
+      <td class="refs" title="${escapeHtml((row.references || []).join(', '))}">${escapeHtml((row.references || []).join(', '))}</td>
+      <td><input type="text" class="field-lcsc" list="${datalistId}" value="${escapeHtml(row.lcsc || '')}"></td>
+      <td><input type="text" class="field-lcsc2" list="${datalistId}" value="${escapeHtml(row.lcsc2 || '')}"></td>
+      <td><input type="text" class="field-lcscx" value="${escapeHtml(row.lcscx || '')}" placeholder="C123, C456, ..."></td>
+      <td class="readonly field-stock">${escapeHtml(row.lcsc_stock || '')}</td>
+      <td class="readonly field-price">${escapeHtml(row.lcsc_price || '')}</td>
+      <td class="save-cell">
+        <button class="save-btn">Save</button>
+        <span class="saved-flash">Saved</span>
+      </td>
+      <datalist id="${datalistId}">
+        ${[...lcscOptions].map(v => `<option value="${escapeHtml(v)}">`).join('')}
+      </datalist>
+    `;
+
+    tr.querySelector('.save-btn').addEventListener('click', () => saveRow(tr, row));
+    return tr;
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  async function saveRow(tr, row) {
+    const btn = tr.querySelector('.save-btn');
+    const flash = tr.querySelector('.saved-flash');
+    const lcsc = tr.querySelector('.field-lcsc').value.trim();
+    const lcsc2 = tr.querySelector('.field-lcsc2').value.trim();
+    const lcscx = tr.querySelector('.field-lcscx').value.trim();
+
+    btn.disabled = true;
+    flash.classList.remove('show');
+    try {
+      const resp = await fetch('/api/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          value: row.value,
+          footprint: row.footprint,
+          lcsc, lcsc2, lcscx
+        })
+      });
+      const body = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        throw new Error(body.error || `HTTP ${resp.status}`);
+      }
+      if (body.lcsc_stock !== undefined) {
+        tr.querySelector('.field-stock').textContent = body.lcsc_stock;
+      }
+      if (body.lcsc_price !== undefined) {
+        tr.querySelector('.field-price').textContent = body.lcsc_price;
+      }
+      row.lcsc = lcsc; row.lcsc2 = lcsc2; row.lcscx = lcscx;
+      flash.classList.add('show');
+      setTimeout(() => flash.classList.remove('show'), 1500);
+    } catch (e) {
+      setStatus(`Save failed: ${e.message}`);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function loadGroups() {
+    setStatus('Loading…');
+    errorEl.hidden = true;
+    try {
+      const resp = await fetch('/api/groups');
+      const body = await resp.json();
+      if (!resp.ok) {
+        throw new Error(body.error || `HTTP ${resp.status}`);
+      }
+      const groups = body.groups || [];
+      bodyEl.innerHTML = '';
+      groups.forEach((row, idx) => bodyEl.appendChild(rowNode(row, idx)));
+      tableEl.hidden = groups.length === 0;
+      emptyEl.hidden = groups.length !== 0;
+      setStatus(`${groups.length} component group${groups.length === 1 ? '' : 's'} — ${body.schematic || ''}`);
+    } catch (e) {
+      showError(`Failed to load: ${e.message}`);
+      setStatus('');
+    }
+  }
+
+  document.getElementById('reload-btn').addEventListener('click', loadGroups);
+  document.getElementById('refresh-all-btn').addEventListener('click', async () => {
+    setStatus('Refreshing stock/prices…');
+    try {
+      const resp = await fetch('/api/refresh_all', { method: 'POST' });
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${resp.status}`);
+      }
+      await loadGroups();
+    } catch (e) {
+      setStatus(`Refresh failed: ${e.message}`);
+    }
+  });
+
+  loadGroups();
+</script>
+</body>
+</html>

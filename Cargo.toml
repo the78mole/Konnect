@@ -95,6 +95,9 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 # gix-hash's backend selection).
 gix = { version = "0.87", features = ["status", "worktree-mutation"] }
 
+# Cross-platform "open URL/file in default app" (sourcing UI browser launch)
+open = "5"
+
 # Internal crates
 konnect-sexp = { path = "crates/konnect-sexp" }
 konnect-ipc = { path = "crates/konnect-ipc" }

@@ -43,10 +43,12 @@ pub mod sch_components;
 pub(crate) mod sch_connectivity;
 pub mod sch_export;
 pub mod sch_hierarchy;
+pub mod sch_sourcing;
 pub mod sch_wiring;
 pub mod schematic_builder;
 #[cfg(test)]
 mod schematic_placement_tests;
+pub(crate) mod sourcing_ui_server;
 pub mod svg_import;
 pub mod templates;
 pub mod verification;

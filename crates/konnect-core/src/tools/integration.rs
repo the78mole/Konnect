@@ -170,7 +170,7 @@ pub fn tools() -> Vec<ToolDef> {
 
 // ─── JLCPCB database path helper ─────────────────────────────────────────────
 
-fn default_jlcpcb_db_path() -> PathBuf {
+pub(crate) fn default_jlcpcb_db_path() -> PathBuf {
     #[cfg(target_os = "windows")]
     {
         let appdata = std::env::var("APPDATA").unwrap_or_default();
@@ -786,6 +786,28 @@ fn row_to_part_json(row: &rusqlite::Row) -> rusqlite::Result<serde_json::Value> 
     }))
 }
 
+/// Look up a single part by LCSC id in the local JLCPCB SQLite cache.
+/// Shared by `handle_get_jlcpcb_part` (which layers `ctx.jlcpcb_cache` TTL
+/// caching around this) and the `sch_sourcing` toolset's stock/price refresh,
+/// which always wants a fresh (uncached) lookup.
+pub(crate) async fn fetch_jlcpcb_part(
+    db_path: &std::path::Path,
+    lcsc_id: &str,
+) -> anyhow::Result<Option<serde_json::Value>> {
+    let db_path = db_path.to_path_buf();
+    let lcsc_id = lcsc_id.to_string();
+    tokio::task::spawn_blocking(move || -> anyhow::Result<Option<serde_json::Value>> {
+        let conn = rusqlite::Connection::open(&db_path)?;
+        let mut stmt = conn.prepare(
+            "SELECT LCSC, MFR_Part, Package, Manufacturer, Library_Type, Description, Datasheet, Price, Stock \
+             FROM components WHERE LCSC = ?1 LIMIT 1"
+        )?;
+        let mut rows = stmt.query_map(rusqlite::params![lcsc_id], row_to_part_json)?;
+        Ok(rows.next().and_then(|r| r.ok()))
+    })
+    .await?
+}
+
 async fn handle_get_jlcpcb_part(
     args: &serde_json::Value,
     ctx: &ToolContext,
@@ -808,17 +830,7 @@ async fn handle_get_jlcpcb_part(
         ));
     }
 
-    let result =
-        tokio::task::spawn_blocking(move || -> anyhow::Result<Option<serde_json::Value>> {
-            let conn = rusqlite::Connection::open(&db_path)?;
-            let mut stmt = conn.prepare(
-            "SELECT LCSC, MFR_Part, Package, Manufacturer, Library_Type, Description, Datasheet, Price, Stock \
-             FROM components WHERE LCSC = ?1 LIMIT 1"
-        )?;
-            let mut rows = stmt.query_map(rusqlite::params![lcsc_id], row_to_part_json)?;
-            Ok(rows.next().and_then(|r| r.ok()))
-        })
-        .await??;
+    let result = fetch_jlcpcb_part(&db_path, &lcsc_id).await?;
 
     match result {
         Some(part) => {

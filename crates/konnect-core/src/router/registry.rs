@@ -146,6 +146,12 @@ pub static ALL_TOOLSETS: &[ToolsetMeta] = &[
         category: "manufacturing",
         tool_count: 3,
     },
+    ToolsetMeta {
+        name: "sch_sourcing",
+        description: "Group identical components across the project and manage LCSC/LCSC2/LCSCX sourcing + stock/price, including a web UI",
+        category: "integration",
+        tool_count: 4,
+    },
 ];
 
 static TOOL_CATALOGUE: OnceLock<HashMap<&'static str, Vec<ToolDef>>> = OnceLock::new();
@@ -193,6 +199,7 @@ fn build_tools_for(name: &str) -> Option<Vec<ToolDef>> {
         "design_review" => Some(design_review::tools()),
         "templates" => Some(templates::tools()),
         "manufacturing" => Some(manufacturing::tools()),
+        "sch_sourcing" => Some(sch_sourcing::tools()),
         _ => None,
     }
 }
