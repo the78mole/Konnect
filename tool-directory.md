@@ -12,8 +12,8 @@ Compatibility notes for removed or narrowed arguments are recorded in
 
 ## Overview
 
-- **21 toolsets** organized into 10 categories
-- **228 registered tools** + **7 always-visible meta-tools** = **235 total**
+- **22 toolsets** organized into 10 categories
+- **232 registered tools** + **7 always-visible meta-tools** = **239 total**
 - **Discovery pattern**: the server pre-loads only the **starter kit** (`project`, `config`) so baseline `tools/list` costs ~2K tokens instead of ~23K. The LLM reads `list_toolboxes` → calls `load_toolset(name)` to expose additional tools on demand; `unload_toolset(name)` prunes them. `tools/list_changed` is notified on every mutation. If the LLM calls a tool whose toolset isn't loaded, the error names the owning toolset so recovery is a single `load_toolset` hop. `load_toolset` also accepts an array of names to load several toolsets with a single `tools/list` refresh.
 - **Observability**: every `tools/call` is recorded — ring buffer of the last 100 calls + per-tool counters + JSONL at `<konnect dir>/logs/calls.jsonl`. The LLM self-diagnoses via `get_recent_calls` and `server_stats`.
 
@@ -28,7 +28,7 @@ and Windows servers do not.
 
 | Tool | Purpose |
 |------|---------|
-| `list_toolboxes` | List all 21 toolsets with category, tool count, and whether each is currently loaded. The LLM's starting point. |
+| `list_toolboxes` | List all 22 toolsets with category, tool count, and whether each is currently loaded. The LLM's starting point. |
 | `load_toolset` | Load a toolset by name to expose its tools in `tools/list`. Returns the list of tools added. |
 | `unload_toolset` | Unload a toolset to prune its tools from `tools/list`. Use when switching tasks to keep context small. |
 | `get_active_toolsets` | Return the currently loaded toolsets and how many tools each provides. |
@@ -388,6 +388,17 @@ Migration from the former `autoroute` tool: use `export_specctra_dsn`,
 `route_specctra_dsn`, then `plan_specctra_ses_import` / `apply_specctra_ses`.
 Konnect delegates routing to Freerouting's native MCP server instead of duplicating
 the router or relying on the KiCad ActionPlugin workflow.
+
+### `sch_sourcing` · 4 tools
+**Purpose:** Group identical components across the project and manage LCSC/LCSC2/LCSCX sourcing plus stock/price, including a local web UI.
+**Source:** [`crates/konnect-core/src/tools/sch_sourcing.rs`](crates/konnect-core/src/tools/sch_sourcing.rs)
+
+| Tool | Description |
+|------|-------------|
+| `list_sourcing_groups` | List every component in the project grouped by identical (Value, Footprint) pair across the whole hierarchy, with references, quantity, current LCSC/LCSC2/LCSCX fields and the last-known LCSCstock/LCSCprice of the primary part. Missing fields read as empty strings. |
+| `set_sourcing_fields` | Bulk-write LCSC/LCSC2/LCSCX on every symbol instance whose Value and Footprint exactly match. Omitted fields stay untouched; new fields are written hidden. With `lcsc` set, LCSCstock/LCSCprice are refreshed best-effort from the local JLCPCB database. |
+| `refresh_sourcing_stock_price` | Re-sync LCSCstock/LCSCprice for every group with a non-empty LCSC field from the local JLCPCB cache, without touching LCSC/LCSC2/LCSCX. Run `download_jlcpcb_database` first if the cache is stale. |
+| `open_sourcing_ui` | Start an on-demand local web server (fresh port on 127.0.0.1) with a table UI for linking components to LCSC/JLCPCB part numbers, and open it in the default browser. Independent of the MCP transport mode. |
 
 ---
 
