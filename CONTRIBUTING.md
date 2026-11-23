@@ -225,7 +225,10 @@ not a failure on your part.
 
 This fork is licensed under the AGPL-3.0 only, and so are contributions to it
 ("inbound = outbound"). There is no Contributor License Agreement and no
-relicensing grant: you keep the copyright in your contribution.
+relicensing grant: you keep the copyright in your contribution. This is also
+what guarantees that KopperDigger stays open source forever (see the
+[README](README.md#open-source-forever)): your code can never be taken
+proprietary.
 
 By submitting a contribution, you confirm that you have the right to submit the
 work under the AGPL-3.0. Please do not copy code from the closed-source

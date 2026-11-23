@@ -319,6 +319,14 @@ The workflow enforces timing only. It never chooses the disposition.
 
 ## Licensing
 
+**Open source, forever.** This is a fixed principle of the project, not a
+policy the maintainers can change: KopperDigger stays free and open source
+under the AGPL-3.0, is never turned into a paid or commercial product, is never
+relicensed under proprietary or source-available terms, and its source code is
+never closed. No CLA or other relicensing grant may ever be introduced, so the
+rights needed to break this commitment never come together in one hand. See the
+[README](README.md#open-source-forever).
+
 KopperDigger is licensed under the AGPL-3.0 only, with no commercial licences
 and no CLA. Contributions are accepted under the same license ("inbound =
 outbound") and contributors keep their copyright; see

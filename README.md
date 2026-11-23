@@ -32,6 +32,27 @@ code and data are listed in [THIRD_PARTY.md](THIRD_PARTY.md), and the changes
 made in this fork, including the rename from Konnect to KopperDigger, are
 described in [NOTICE.md](NOTICE.md).
 
+## Open source, forever
+
+**KopperDigger is and will always remain free and open source software.** This
+repository will never be turned into a paid or commercial product, will never be
+relicensed under a proprietary or "source-available" license, and its source
+code will never be closed. Every version, now and in the future, is published
+here under the GNU AGPL-3.0.
+
+This is not just a promise. It is built into how the project is set up:
+
+- **No CLA, no relicensing rights.** Contributors keep the copyright in their
+  work and license it only under the AGPL-3.0 (see
+  [CONTRIBUTING.md](CONTRIBUTING.md#licensing-of-contributions)). No single
+  person or company, including the maintainer, holds the rights needed to take
+  the code proprietary.
+- **The AGPL cannot be revoked.** Everything already published stays available
+  under the AGPL-3.0, and anyone may keep developing it.
+- **No feature paywall, no license keys.** There will be no "open core" with
+  paid extras, no license key requirement, and no different terms for
+  businesses.
+
 ---
 
 **AI-assisted PCB design for KiCAD 10.** KopperDigger is a native KiCAD plugin — a single

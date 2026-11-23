@@ -2,6 +2,15 @@
 
 KopperDigger is free software, licensed under the [GNU AGPL-3.0](LICENSE).
 
+## Commitment: open source, forever
+
+KopperDigger will always remain free and open source software under the
+AGPL-3.0. It will never be turned into a paid product, relicensed under a
+proprietary or source-available license, or have its source code closed. Because
+contributions are accepted under the AGPL-3.0 only and without a CLA, nobody
+holds the rights that would be needed to do so. See the
+[README](README.md#open-source-forever) for details.
+
 ## What that means in practice
 
 **Internal use is free. Always.** Running KopperDigger inside your company — on any
