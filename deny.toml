@@ -39,7 +39,7 @@ ignore = true
 [advisories]
 # Advisory auditing is a separate concern from license gating; keep the gate
 # focused so a new RUSTSEC entry cannot block an unrelated license check.
-# Dependabot covers version currency.
+# Renovate (renovate.json) covers version currency.
 version = 2
 yanked = "warn"
 

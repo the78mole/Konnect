@@ -1,0 +1,51 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    ":semanticCommitTypeAll(chore)"
+  ],
+  "timezone": "Europe/Berlin",
+  "schedule": ["before 6am on monday"],
+  "prConcurrentLimit": 8,
+  "prHourlyLimit": 4,
+  "dependencyDashboard": true,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"],
+    "schedule": ["at any time"]
+  },
+  "osvVulnerabilityAlerts": true,
+  "packageRules": [
+    {
+      "description": "Cargo: bundle minor/patch updates of the workspace into one PR.",
+      "matchManagers": ["cargo"],
+      "matchFileNames": ["Cargo.toml", "crates/konnect*/Cargo.toml", "xtask/Cargo.toml"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "cargo workspace (minor/patch)"
+    },
+    {
+      "description": "The Tauri viewer is excluded from the workspace and has its own Cargo.lock. Keep its updates separate so its lockfile is regenerated on its own.",
+      "matchManagers": ["cargo"],
+      "matchFileNames": ["crates/schematic-viewer/**"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "schematic-viewer (minor/patch)"
+    },
+    {
+      "description": "Tauri crates move in lock-step.",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["tauri", "tauri-build", "/^tauri-/"],
+      "groupName": "tauri"
+    },
+    {
+      "description": "GitHub Actions: pin to commit SHA (with version comment), group non-major bumps.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest"],
+      "groupName": "github actions"
+    }
+  ]
+}
