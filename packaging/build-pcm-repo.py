@@ -66,10 +66,18 @@ def main() -> int:
                       "download_size", "install_size"):
             if field not in entry:
                 sys.exit(f"{f}: missing {field}")
-        # KiCad's PCM finds versions by their version string, so a duplicate
-        # would make it install whichever entry it happens to see first.
-        if entry["version"] in versions:
-            sys.exit(f"{f}: duplicate version {entry['version']}")
+        # KiCad's PCM finds versions by their version string, so the list
+        # must not hold one twice. A pre-release (v0.14.0-rc.1) is packaged
+        # as 0.14.0 "testing" because the PCM accepts only digits; once the
+        # stable 0.14.0 is out it replaces the test build.
+        prev = versions.get(entry["version"])
+        if prev is not None:
+            rank = {"stable": 2, "testing": 1}
+            if rank.get(prev.get("status"), 0) == rank.get(entry.get("status"), 0):
+                sys.exit(f"{f}: version {entry['version']} is published twice "
+                         f"with status {entry.get('status')}")
+            if rank.get(prev.get("status"), 0) > rank.get(entry.get("status"), 0):
+                continue
         versions[entry["version"]] = entry
     if not versions:
         sys.exit(f"no *.pcm-version.json in {args.versions}")

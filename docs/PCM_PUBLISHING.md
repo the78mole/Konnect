@@ -21,8 +21,11 @@ Pushing a tag `vX.Y.Z` (or `vX.Y.Z-rc1` for a pre-release) runs `release.yml`:
    `install_size`).
    One zip per version is required: KiCad's official repository rejects
    duplicate version numbers, and the PCM client looks versions up by string.
-3. `release` attaches all of it to the GitHub release (tags with `-` become
-   pre-releases, and their PCM status is `testing`).
+3. `release` attaches all of it to the GitHub release. Tags with `-` become
+   pre-releases. KiCad's PCM accepts only digits in a version, so
+   `v0.14.0-rc.1` is packaged as `0.14.0` with status `testing`; the stable
+   `v0.14.0` replaces it in the self-hosted repository, and pre-releases are
+   never submitted to KiCad's.
 4. `pcm-repository` collects the `.pcm-version.json` of every release, runs
    `packaging/build-pcm-repo.py` and deploys `repository.json`,
    `packages.json`, `resources.zip` and `index.html` to GitHub Pages. The same

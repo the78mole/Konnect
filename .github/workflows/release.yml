@@ -207,7 +207,7 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          $version = "${{ env.RELEASE_VERSION }}".TrimStart('v')
+          $version = "${{ env.RELEASE_VERSION }}".TrimStart('v') -replace '-.*$', ''  # PCM: digits only
           ./packaging/build-pcm.ps1 -Version $version `
             -BinaryPath target/release/kidig-mcp.exe `
             -ViewerPath crates/schematic-viewer/target/release/schematic-viewer.exe `
@@ -217,7 +217,7 @@ jobs:
       - name: Assemble PCM package (macOS)
         if: matrix.platform == 'macos'
         run: |
-          version="${RELEASE_VERSION#v}"
+          version="${RELEASE_VERSION#v}"; version="${version%%-*}"  # PCM: digits only
           ./packaging/build-pcm.sh --version "$version" \
             --binary dist/universal/kidig-mcp \
             --viewer dist/universal/schematic-viewer \
@@ -226,7 +226,7 @@ jobs:
       - name: Assemble PCM package (Linux)
         if: matrix.platform == 'linux'
         run: |
-          version="${RELEASE_VERSION#v}"
+          version="${RELEASE_VERSION#v}"; version="${version%%-*}"  # PCM: digits only
           ./packaging/build-pcm.sh --version "$version" \
             --binary target/release/kidig-mcp \
             --viewer crates/schematic-viewer/target/release/schematic-viewer \
@@ -243,7 +243,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install jsonschema
-          version="${RELEASE_VERSION#v}"
+          version="${RELEASE_VERSION#v}"; version="${version%%-*}"  # PCM: digits only
           python packaging/validate-pcm.py \
             --zip "dist/kidig-mcp-pcm-v$version-${{ matrix.platform }}.zip"
 
@@ -279,12 +279,17 @@ jobs:
       - name: Merge platform packages
         run: |
           set -euo pipefail
-          version="${RELEASE_VERSION#v}"
-          # Pre-release tags (v1.2.3-rc1) are listed as "testing" in the PCM.
+          tag="v${RELEASE_VERSION#v}"
+          # KiCad's PCM accepts only digits in a version ("0.14.0"), so a
+          # pre-release tag (v0.14.0-rc.1) is packaged as 0.14.0 with status
+          # "testing"; the stable 0.14.0 release replaces it in the
+          # self-hosted repository, and pre-releases never go to KiCad's.
+          version="${tag#v}"; version="${version%%-*}"
           status=stable
-          case "$version" in *-*) status=testing;; esac
+          case "$tag" in *-*) status=testing;; esac
           python packaging/build-pcm-universal.py --version "$version" \
             --status "$status" \
+            --download-base "https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag" \
             --windows "dist/kidig-mcp-pcm-v$version-windows.zip" \
             --macos "dist/kidig-mcp-pcm-v$version-macos.zip" \
             --linux "dist/kidig-mcp-pcm-v$version-linux.zip" \
@@ -294,7 +299,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install jsonschema
-          version="${RELEASE_VERSION#v}"
+          version="${RELEASE_VERSION#v}"; version="${version%%-*}"
           python packaging/validate-pcm.py --zip "dist/universal/kidig-mcp-pcm-v$version.zip"
 
       - name: Upload artifact

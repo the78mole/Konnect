@@ -8,10 +8,6 @@ name: Submit to KiCad addon repository
 on:
   workflow_dispatch:
     inputs:
-      include_prereleases:
-        description: Also list pre-releases (status "testing")
-        type: boolean
-        default: false
       draft:
         description: Open the merge request as draft
         type: boolean
@@ -53,20 +49,21 @@ jobs:
       - name: Collect version entries of the releases
         env:
           GH_TOKEN: ${{ github.token }}
-          INCLUDE_PRE: ${{ inputs.include_prereleases }}
         run: |
           set -euo pipefail
           mkdir -p versions
-          filter='.[] | select(.isDraft | not)'
-          [ "$INCLUDE_PRE" = "true" ] || filter="$filter | select(.isPrerelease | not)"
+          # Pre-releases are packaged under the version of the stable release
+          # that follows them (KiCad accepts digits only), and KiCad's
+          # repository never lets a listed version change, so they stay out.
           tags=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 200 \
-                   --json tagName,isDraft,isPrerelease --jq "$filter | .tagName")
+                   --json tagName,isDraft,isPrerelease \
+                   --jq '.[] | select((.isDraft or .isPrerelease) | not) | .tagName')
           for tag in $tags; do
             gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
               --pattern '*.pcm-version.json' --dir versions || true
           done
           if ! ls versions/*.pcm-version.json >/dev/null 2>&1; then
-            echo "::error::no release carries a .pcm-version.json (pre-releases included: $INCLUDE_PRE)"
+            echo "::error::no stable release carries a .pcm-version.json yet"
             exit 1
           fi
           ls -l versions
