@@ -49,7 +49,33 @@ Requirements checked against <https://dev-docs.kicad.org/en/addons/>:
   must contact `plugins@kicad.org` first. KopperDigger queries LCSC/JLCPCB part
   data, so send that mail before or together with the merge request.
 
-Steps (needs a GitLab account):
+### Automated: workflow "Submit to KiCad addon repository"
+
+`.github/workflows/kicad-addons-submit.yml` is started by hand (*Actions → Submit
+to KiCad addon repository → Run workflow*). It collects the `.pcm-version.json`
+of the published releases (pre-releases only if asked), merges them into the
+`metadata.json` KiCad already lists (existing versions stay untouched, new ones
+are appended), runs KiCad's own `ci/validate-package.py` and
+`ci/validate-image.py`, pushes branch `kopperdigger-<version>` to your GitLab
+fork and opens the merge request. Running it again for the same version updates
+that branch and the open merge request; if KiCad already lists every release it
+does nothing.
+
+One-time setup:
+
+1. GitLab: fork <https://gitlab.com/kicad/addons/metadata> into your account.
+2. GitLab: *Preferences → Access tokens → Add new token*, scopes `api` and
+   `write_repository`, with an expiry date you will notice.
+3. GitHub: *Settings → Environments → New environment* `kicad-addons`
+   (optionally with yourself as required reviewer, so every submission waits
+   for a click), then in that environment
+   - secret `KICAD_GITLAB_TOKEN`: the token from step 2
+   - variable `KICAD_GITLAB_FORK`: the fork's path, e.g. `the78mole/metadata`
+
+The KiCad team reviews and merges the merge request; nothing is listed before
+that.
+
+### By hand (needs a GitLab account)
 
 1. Fork <https://gitlab.com/kicad/addons/metadata> on GitLab and clone it.
 2. `git switch -c add-kopperdigger`
@@ -62,6 +88,5 @@ Steps (needs a GitLab account):
    repository with just this package; test it in KiCad.
 6. Open the merge request against `kicad/addons/metadata` `main`.
 
-For every later release, repeat with the regenerated `metadata.json` (it holds
-all versions; old entries must stay byte-identical, which the generator
-guarantees because it rebuilds them from the published `.pcm-version.json`).
+For every later release, run the workflow again (or repeat by hand with the
+regenerated `metadata.json`; versions KiCad already lists must stay unchanged).

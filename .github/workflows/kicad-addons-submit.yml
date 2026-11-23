@@ -1,0 +1,188 @@
+name: Submit to KiCad addon repository
+
+# Manually opens (or updates) a merge request at
+# gitlab.com/kicad/addons/metadata that lists the released versions of
+# KopperDigger. See docs/PCM_PUBLISHING.md for the one-time setup:
+#   secret   KICAD_GITLAB_TOKEN  GitLab personal access token (api, write_repository)
+#   variable KICAD_GITLAB_FORK   your fork of kicad/addons/metadata, e.g. the78mole/metadata
+on:
+  workflow_dispatch:
+    inputs:
+      include_prereleases:
+        description: Also list pre-releases (status "testing")
+        type: boolean
+        default: false
+      draft:
+        description: Open the merge request as draft
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kicad-addons-submit
+  cancel-in-progress: false
+
+env:
+  UPSTREAM: kicad/addons/metadata
+  PACKAGE_ID: com.github.the78mole.kidig-mcp
+
+jobs:
+  submit:
+    name: Open or update the KiCad merge request
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: kicad-addons
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Check configuration
+        env:
+          GITLAB_TOKEN: ${{ secrets.KICAD_GITLAB_TOKEN }}
+          GITLAB_FORK: ${{ vars.KICAD_GITLAB_FORK }}
+        run: |
+          set -euo pipefail
+          [ -n "$GITLAB_TOKEN" ] || { echo "::error::secret KICAD_GITLAB_TOKEN is not set"; exit 1; }
+          [ -n "$GITLAB_FORK" ] || { echo "::error::variable KICAD_GITLAB_FORK is not set"; exit 1; }
+
+      - name: Collect version entries of the releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INCLUDE_PRE: ${{ inputs.include_prereleases }}
+        run: |
+          set -euo pipefail
+          mkdir -p versions
+          filter='.[] | select(.isDraft | not)'
+          [ "$INCLUDE_PRE" = "true" ] || filter="$filter | select(.isPrerelease | not)"
+          tags=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 200 \
+                   --json tagName,isDraft,isPrerelease --jq "$filter | .tagName")
+          for tag in $tags; do
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+              --pattern '*.pcm-version.json' --dir versions || true
+          done
+          if ! ls versions/*.pcm-version.json >/dev/null 2>&1; then
+            echo "::error::no release carries a .pcm-version.json (pre-releases included: $INCLUDE_PRE)"
+            exit 1
+          fi
+          ls -l versions
+
+      - name: Generate metadata
+        run: |
+          python packaging/build-pcm-repo.py --versions versions \
+            --base-url https://the78mole.github.io/KopperDigger --out site
+
+      - name: Prepare branch in the GitLab fork
+        id: branch
+        env:
+          GITLAB_TOKEN: ${{ secrets.KICAD_GITLAB_TOKEN }}
+          GITLAB_FORK: ${{ vars.KICAD_GITLAB_FORK }}
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 50 "https://gitlab.com/$UPSTREAM.git" metadata
+          cd metadata
+          pkg="packages/$PACKAGE_ID"
+          if [ -f "$pkg/metadata.json" ]; then listed=true; else listed=false; fi
+          mkdir -p "$pkg"
+          set +e
+          new=$(python ../packaging/merge-kicad-addons-metadata.py \
+                  --ours "../site/kicad-addons/$PACKAGE_ID/metadata.json" \
+                  --theirs "$pkg/metadata.json" --out "$pkg/metadata.json")
+          rc=$?
+          set -e
+          if [ "$rc" -eq 3 ]; then
+            echo "KiCad already lists every released version; nothing to submit."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [ "$rc" -eq 0 ] || exit "$rc"
+          cp "../site/kicad-addons/$PACKAGE_ID/icon.png" "$pkg/icon.png"
+
+          latest=$(echo "$new" | tail -n 1)
+          branch="kopperdigger-$latest"
+          echo "New versions: $new"
+
+          # KiCad's own checks, before anything leaves this runner.
+          python -m pip install --quiet -r ci/requirements.txt
+          python ci/validate-package.py --schema-v1 schema-v1.json --schema-v2 schema-v2.json \
+            "$PACKAGE_ID" "$pkg/metadata.json"
+          python ci/validate-image.py "$pkg/icon.png"
+
+          git config user.name "KopperDigger release workflow"
+          git config user.email "kopperdigger-release@users.noreply.github.com"
+          git switch --quiet -c "$branch"
+          git add "$pkg"
+          if git diff --cached --quiet; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ "$listed" = true ]; then
+            msg="Update KopperDigger to $latest"
+          else
+            msg="Add KopperDigger ($PACKAGE_ID)"
+          fi
+          git commit --quiet -m "$msg"
+          git push --quiet --force \
+            "https://oauth2:${GITLAB_TOKEN}@gitlab.com/${GITLAB_FORK}.git" "HEAD:refs/heads/$branch"
+
+          {
+            echo "skip=false"
+            echo "branch=$branch"
+            echo "title=$msg"
+            echo "latest=$latest"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the merge request
+        if: steps.branch.outputs.skip == 'false'
+        env:
+          GITLAB_TOKEN: ${{ secrets.KICAD_GITLAB_TOKEN }}
+          GITLAB_FORK: ${{ vars.KICAD_GITLAB_FORK }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+          TITLE: ${{ steps.branch.outputs.title }}
+          LATEST: ${{ steps.branch.outputs.latest }}
+          DRAFT: ${{ inputs.draft }}
+        run: |
+          set -euo pipefail
+          api=https://gitlab.com/api/v4
+          auth=(--header "PRIVATE-TOKEN: $GITLAB_TOKEN")
+          enc() { python -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1],safe=""))' "$1"; }
+          upstream_id=$(curl -fsS "${auth[@]}" "$api/projects/$(enc "$UPSTREAM")" | jq -r .id)
+          fork_id=$(curl -fsS "${auth[@]}" "$api/projects/$(enc "$GITLAB_FORK")" | jq -r .id)
+
+          existing=$(curl -fsS "${auth[@]}" \
+            "$api/projects/$upstream_id/merge_requests?state=opened&source_branch=$(enc "$BRANCH")" \
+            | jq -r --argjson fork "$fork_id" '[.[] | select(.source_project_id == $fork)][0].web_url // empty')
+          if [ -n "$existing" ]; then
+            echo "Updated the existing merge request: $existing" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          title="$TITLE"
+          [ "$DRAFT" = "true" ] && title="Draft: $title"
+          description=$(cat <<EOF
+          Adds/updates **KopperDigger** (\`$PACKAGE_ID\`) to version $LATEST.
+
+          KopperDigger is an AGPL-3.0-only Model Context Protocol (MCP) server that gives AI
+          assistants a full set of KiCad design tools.
+
+          - Source and issue tracker: https://github.com/the78mole/KopperDigger
+          - Release: https://github.com/the78mole/KopperDigger/releases/tag/v$LATEST
+          - One package for all platforms: native Rust binaries for Windows, macOS (universal)
+            and Linux under \`plugins/bin/<platform>/\`, built by the public GitHub Actions
+            release workflow; the plugin selects the one for the running OS.
+          - Community fork of the last open-source release of Konnect (mixelpixx); Konnect itself
+            was never listed in this repository.
+          - Optional part-sourcing tools query public LCSC/JLCPCB data (plugins@kicad.org contacted).
+          - Validated with \`ci/validate-package.py\` and \`ci/validate-image.py\` before submission.
+          EOF
+          )
+          body=$(jq -n --arg sb "$BRANCH" --arg t "$title" --arg d "$description" \
+                       --argjson target "$upstream_id" \
+                 '{source_branch:$sb, target_branch:"main", target_project_id:$target,
+                   title:$t, description:$d, allow_collaboration:true, remove_source_branch:true}')
+          url=$(curl -fsS "${auth[@]}" --header "Content-Type: application/json" \
+                  --data "$body" "$api/projects/$fork_id/merge_requests" | jq -r .web_url)
+          echo "Opened merge request: $url" | tee -a "$GITHUB_STEP_SUMMARY"
