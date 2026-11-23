@@ -1,21 +1,28 @@
 # Third-Party Notices
 
-Konnect incorporates data, algorithms, and code ported from the following
-projects. Konnect itself is licensed under the AGPL-3.0 (see LICENSE) with a
-commercial option (see COMMERCIAL.md); the notices below travel with every
-distribution of Konnect, under either license.
+KopperDigger incorporates data, algorithms, and code ported from the following
+projects. KopperDigger itself is licensed under the AGPL-3.0 (see LICENSE); the notices
+below travel with every distribution of KopperDigger.
 
 ## topola_specctra
 
-Konnect uses the `topola_specctra` parser, data model, and serializer from the
+KopperDigger uses the `topola_specctra` parser, data model, and serializer from the
 [Topola project](https://codeberg.org/topola/topola) to validate and emit
 Specctra DSN syntax. Copyright 2024 Topola contributors; used under the MIT
 license. The MIT permission grant and warranty disclaimer reproduced below
 apply to this dependency.
 
+## KiCad IPC API protocol definitions
+
+The `.proto` files under `crates/kidig-ipc/proto/` are copied from KiCad.
+Copyright (C) 2024 Jon Evans and the KiCad Developers (see KiCad's
+AUTHORS.txt). They are licensed under the GNU General Public License,
+version 3 or (at your option) any later version; each file keeps its original
+license header. GPL-3.0 code may be combined with AGPL-3.0 code (GPL-3.0 §13).
+
 ## kicad-mcp-pro
 
-Portions of Konnect — including the JLCPCB pick-and-place rotation
+Portions of KopperDigger — including the JLCPCB pick-and-place rotation
 correction table (itself community-derived; see also yaqwsx/jlcparts and the
 KiCad forum), placement scoring weights and heuristics, engineering
 calculator formulas and their reference test vectors, and the release-gate

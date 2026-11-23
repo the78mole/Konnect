@@ -1,11 +1,11 @@
-# Konnect — Tool Directory
+# KopperDigger — Tool Directory
 
-Canonical reference for every MCP tool exposed by Konnect. Generated from the Rust source (not from hand-maintained prose), so it reflects what the binary actually serves.
+Canonical reference for every MCP tool exposed by KopperDigger. Generated from the Rust source (not from hand-maintained prose), so it reflects what the binary actually serves.
 
 **Source of truth**
-- Toolset metadata + declared counts: `crates/konnect-core/src/router/registry.rs` (`ALL_TOOLSETS`)
-- Meta-tool definitions: `crates/konnect-core/src/router/meta_tools.rs` (`meta_tool_descriptions()`)
-- Per-tool names + descriptions: `crates/konnect-core/src/tools/<toolset>.rs` (each `tool!(…)` in the `tools()` vec)
+- Toolset metadata + declared counts: `crates/kidig-core/src/router/registry.rs` (`ALL_TOOLSETS`)
+- Meta-tool definitions: `crates/kidig-core/src/router/meta_tools.rs` (`meta_tool_descriptions()`)
+- Per-tool names + descriptions: `crates/kidig-core/src/tools/<toolset>.rs` (each `tool!(…)` in the `tools()` vec)
 
 Compatibility notes for removed or narrowed arguments are recorded in
 [`docs/API_MIGRATIONS.md`](docs/API_MIGRATIONS.md).
@@ -15,7 +15,7 @@ Compatibility notes for removed or narrowed arguments are recorded in
 - **22 toolsets** organized into 10 categories
 - **232 registered tools** + **7 always-visible meta-tools** = **239 total**
 - **Discovery pattern**: the server pre-loads only the **starter kit** (`project`, `config`) so baseline `tools/list` costs ~2K tokens instead of ~23K. The LLM reads `list_toolboxes` → calls `load_toolset(name)` to expose additional tools on demand; `unload_toolset(name)` prunes them. `tools/list_changed` is notified on every mutation. If the LLM calls a tool whose toolset isn't loaded, the error names the owning toolset so recovery is a single `load_toolset` hop. `load_toolset` also accepts an array of names to load several toolsets with a single `tools/list` refresh.
-- **Observability**: every `tools/call` is recorded — ring buffer of the last 100 calls + per-tool counters + JSONL at `<konnect dir>/logs/calls.jsonl`. The LLM self-diagnoses via `get_recent_calls` and `server_stats`.
+- **Observability**: every `tools/call` is recorded — ring buffer of the last 100 calls + per-tool counters + JSONL at `<kidig-mcp dir>/logs/calls.jsonl`. The LLM self-diagnoses via `get_recent_calls` and `server_stats`.
 
 ## Meta-tools (always visible)
 
@@ -50,7 +50,7 @@ and Windows servers do not.
 
 | Tool | Purpose |
 |------|---------|
-| `reload_server` | After explicit confirmation, open and validate the on-disk Konnect binary, preserve the original argv (including `--config`), flush the reply, stop accepting requests, release process bookkeeping, recheck the candidate identity at the final handoff, and replace the current standalone Unix stdio process image. Linux executes the open file directly. Same-version development rebuilds require `allow_same_version=true`; downgrades are refused. |
+| `reload_server` | After explicit confirmation, open and validate the on-disk KopperDigger binary, preserve the original argv (including `--config`), flush the reply, stop accepting requests, release process bookkeeping, recheck the candidate identity at the final handoff, and replace the current standalone Unix stdio process image. Linux executes the open file directly. Same-version development rebuilds require `allow_same_version=true`; downgrades are refused. |
 
 ---
 
@@ -58,7 +58,7 @@ and Windows servers do not.
 
 ### `project` · 7 tools
 **Purpose:** Create, open, save, rename, snapshot KiCAD projects, and launch the live schematic viewer.
-**Source:** [`crates/konnect-core/src/tools/project.rs`](crates/konnect-core/src/tools/project.rs)
+**Source:** [`crates/kidig-core/src/tools/project.rs`](crates/kidig-core/src/tools/project.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -72,7 +72,7 @@ and Windows servers do not.
 
 ### `editor_navigation` · 5 tools
 **Purpose:** Observe and semantically navigate exact KiCad editor, document, sheet, selection, and cross-probe context.
-**Source:** [`crates/konnect-core/src/tools/editor_navigation.rs`](crates/konnect-core/src/tools/editor_navigation.rs)
+**Source:** [`crates/kidig-core/src/tools/editor_navigation.rs`](crates/kidig-core/src/tools/editor_navigation.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -88,7 +88,7 @@ and Windows servers do not.
 
 ### `sch_components` · 18 tools
 **Purpose:** Add, edit, move, rotate, and delete schematic symbols.
-**Source:** [`crates/konnect-core/src/tools/sch_components.rs`](crates/konnect-core/src/tools/sch_components.rs)
+**Source:** [`crates/kidig-core/src/tools/sch_components.rs`](crates/kidig-core/src/tools/sch_components.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -101,7 +101,7 @@ and Windows servers do not.
 | `rotate_schematic_component` | Set the lowest-numbered unit's absolute rotation and rotate every other unit by the same delta. Does NOT adjust connected wires; junction dots are re-judged where the pins turned, and a no-connect flag travels with the pin it protects. |
 | `move_connected` | Move a symbol and stretch/shrink connected wire stubs to preserve connections. |
 | `move_region` | Move all symbols within a bounding box by a given offset. |
-| `annotate_schematic` | Number `?` designators the way eeschema's Tools → Annotate does (first free number in the project, ascending X per sheet instance, numbers reserved across every instance in the file, both places written). The units of one multi-unit part share one designator. Separate parts sharing a designator are reported as `unresolved` with a `partial` outcome, or renumbered with `resolve_duplicates`; a shared designator that could be a package is never renumbered. Annotates one project's instance records (`project`, default the schematic's owner). Konnect's own implementation; kicad-cli has no annotate command. |
+| `annotate_schematic` | Number `?` designators the way eeschema's Tools → Annotate does (first free number in the project, ascending X per sheet instance, numbers reserved across every instance in the file, both places written). The units of one multi-unit part share one designator. Separate parts sharing a designator are reported as `unresolved` with a `partial` outcome, or renumbered with `resolve_duplicates`; a shared designator that could be a package is never renumbered. Annotates one project's instance records (`project`, default the schematic's owner). KopperDigger's own implementation; kicad-cli has no annotate command. |
 | `get_schematic_pin_locations` | Get exact (X,Y) coordinates of every pin on every placed unit, accounting for rotation/mirroring, plus each pin's `orientation_degrees` and `length_mm`. |
 | `batch_get_schematic_pin_locations` | Get pin locations for multiple components in a single file read, with the same per-pin fields. |
 | `add_component_annotation` | Add or update a custom property across every placed unit of a component. |
@@ -113,7 +113,7 @@ and Windows servers do not.
 
 ### `sch_wiring` · 20 tools
 **Purpose:** Wires, net labels, power symbols, junctions, no-connects, pin-to-pin connections.
-**Source:** [`crates/konnect-core/src/tools/sch_wiring.rs`](crates/konnect-core/src/tools/sch_wiring.rs)
+**Source:** [`crates/kidig-core/src/tools/sch_wiring.rs`](crates/kidig-core/src/tools/sch_wiring.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -140,7 +140,7 @@ and Windows servers do not.
 
 ### `sch_bus` · 4 tools
 **Purpose:** Buses, bus entries, and fanning a group of pins out onto a bus.
-**Source:** [`crates/konnect-core/src/tools/sch_bus.rs`](crates/konnect-core/src/tools/sch_bus.rs)
+**Source:** [`crates/kidig-core/src/tools/sch_bus.rs`](crates/kidig-core/src/tools/sch_bus.rs)
 
 | Tool | Description |
 |---|---|
@@ -151,7 +151,7 @@ and Windows servers do not.
 
 ### `sch_analysis` · 15 tools
 **Purpose:** Net connectivity, pin queries, trace paths, overlap/orphan detection.
-**Source:** [`crates/konnect-core/src/tools/sch_analysis.rs`](crates/konnect-core/src/tools/sch_analysis.rs)
+**Source:** [`crates/kidig-core/src/tools/sch_analysis.rs`](crates/kidig-core/src/tools/sch_analysis.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -173,7 +173,7 @@ and Windows servers do not.
 
 ### `sch_batch` · 12 tools
 **Purpose:** Bulk add, edit, delete, and move schematic elements in one call.
-**Source:** [`crates/konnect-core/src/tools/sch_batch.rs`](crates/konnect-core/src/tools/sch_batch.rs)
+**Source:** [`crates/kidig-core/src/tools/sch_batch.rs`](crates/kidig-core/src/tools/sch_batch.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -192,13 +192,13 @@ and Windows servers do not.
 
 ### `sch_export` · 10 tools
 **Purpose:** Export schematic to SVG/PDF/PNG/netlist, run ERC, and synchronize a live PCB.
-**Source:** [`crates/konnect-core/src/tools/sch_export.rs`](crates/konnect-core/src/tools/sch_export.rs)
+**Source:** [`crates/kidig-core/src/tools/sch_export.rs`](crates/kidig-core/src/tools/sch_export.rs)
 
 | Tool | Description |
 |------|-------------|
 | `export_schematic_svg` | Export a schematic sheet to SVG using kicad-cli, with optional monochrome rendering and colour theme. |
 | `render_schematic_png` | Render a sheet to PNG: kicad-cli SVG rasterized in-process with deterministic stroke-font rendering. Returns the path and actual pixel dimensions; `inline` adds base64 content so the caller can inspect its own output. |
-| `set_visual_baseline` | Capture the current render of a sheet as its visual baseline under the project's `.konnect/baselines/`, recording the source hash and renderer identity. |
+| `set_visual_baseline` | Capture the current render of a sheet as its visual baseline under the project's `.kidig-mcp/baselines/`, recording the source hash and renderer identity. |
 | `compare_visual_baseline` | Re-render at the baseline's width and report pixel drift vs a 2% threshold, with the changed region's bounding box; "no baseline stored" is an explicit result, and a stale-renderer baseline is flagged, never silently trusted. |
 | `export_schematic_pdf` | Export a schematic to PDF using kicad-cli, optionally monochrome or limited to the root sheet. |
 | `generate_netlist` | Generate a KiCAD netlist file from the schematic using kicad-cli. |
@@ -209,7 +209,7 @@ and Windows servers do not.
 
 ### `sch_hierarchy` · 14 tools
 **Purpose:** Sheet files and hierarchical sheets: create a schematic file and set its page size, add/edit/move/delete/duplicate a sheet, hierarchy and page-numbering queries, import/add/edit/delete sheet pins, pin/label sync validation.
-**Source:** [`crates/konnect-core/src/tools/sch_hierarchy.rs`](crates/konnect-core/src/tools/sch_hierarchy.rs)
+**Source:** [`crates/kidig-core/src/tools/sch_hierarchy.rs`](crates/kidig-core/src/tools/sch_hierarchy.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -234,7 +234,7 @@ and Windows servers do not.
 
 ### `pcb_board` · 13 tools
 **Purpose:** Board outline, layers, physical stackup, zones, mounting holes, board text, SVG logo import.
-**Source:** [`crates/konnect-core/src/tools/pcb_board.rs`](crates/konnect-core/src/tools/pcb_board.rs)
+**Source:** [`crates/kidig-core/src/tools/pcb_board.rs`](crates/kidig-core/src/tools/pcb_board.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -254,7 +254,7 @@ and Windows servers do not.
 
 ### `pcb_components` · 20 tools
 **Purpose:** Place, refresh, move, rotate, flip, align, duplicate and repair PCB footprints; inspect pads; inspect and edit a placed footprint's graphics and 3D models.
-**Source:** [`crates/konnect-core/src/tools/pcb_components.rs`](crates/konnect-core/src/tools/pcb_components.rs)
+**Source:** [`crates/kidig-core/src/tools/pcb_components.rs`](crates/kidig-core/src/tools/pcb_components.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -281,7 +281,7 @@ and Windows servers do not.
 
 ### `pcb_routing` · 15 tools
 **Purpose:** Traces, vias, copper pours, net classes, differential pairs, and strict Specctra SES import.
-**Source:** [`crates/konnect-core/src/tools/pcb_routing.rs`](crates/konnect-core/src/tools/pcb_routing.rs)
+**Source:** [`crates/kidig-core/src/tools/pcb_routing.rs`](crates/kidig-core/src/tools/pcb_routing.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -303,7 +303,7 @@ and Windows servers do not.
 
 ### `placement` · 5 tools
 **Purpose:** Placement quality and automation — score, plan decoupling rows, plan BGA fanouts; every plan reports its own before/after score.
-**Source:** [`crates/konnect-core/src/tools/placement.rs`](crates/konnect-core/src/tools/placement.rs)
+**Source:** [`crates/kidig-core/src/tools/placement.rs`](crates/kidig-core/src/tools/placement.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -317,7 +317,7 @@ and Windows servers do not.
 
 ### `pcb_export` · 14 tools
 **Purpose:** Gerber, PDF, SVG, 3D model, BOM, revision-bound Specctra DSN, pick-and-place, DRC, DXF/GenCAD/IPC-2581/ODB++.
-**Source:** [`crates/konnect-core/src/tools/pcb_export.rs`](crates/konnect-core/src/tools/pcb_export.rs)
+**Source:** [`crates/kidig-core/src/tools/pcb_export.rs`](crates/kidig-core/src/tools/pcb_export.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -342,7 +342,7 @@ and Windows servers do not.
 
 ### `library` · 17 tools
 **Purpose:** Search, register, and author symbol and footprint libraries — create symbols and footprints, edit pads, graphics, metadata and 3D models.
-**Source:** [`crates/konnect-core/src/tools/library.rs`](crates/konnect-core/src/tools/library.rs)
+**Source:** [`crates/kidig-core/src/tools/library.rs`](crates/kidig-core/src/tools/library.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -370,7 +370,7 @@ and Windows servers do not.
 
 ### `integration` · 9 tools
 **Purpose:** JLCPCB parts database, local Freerouting MCP routing, datasheet URLs.
-**Source:** [`crates/konnect-core/src/tools/integration.rs`](crates/konnect-core/src/tools/integration.rs)
+**Source:** [`crates/kidig-core/src/tools/integration.rs`](crates/kidig-core/src/tools/integration.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -386,12 +386,12 @@ and Windows servers do not.
 
 Migration from the former `autoroute` tool: use `export_specctra_dsn`,
 `route_specctra_dsn`, then `plan_specctra_ses_import` / `apply_specctra_ses`.
-Konnect delegates routing to Freerouting's native MCP server instead of duplicating
+KopperDigger delegates routing to Freerouting's native MCP server instead of duplicating
 the router or relying on the KiCad ActionPlugin workflow.
 
 ### `sch_sourcing` · 4 tools
 **Purpose:** Group identical components across the project and manage LCSC/LCSC2/LCSCX sourcing plus stock/price, including a local web UI.
-**Source:** [`crates/konnect-core/src/tools/sch_sourcing.rs`](crates/konnect-core/src/tools/sch_sourcing.rs)
+**Source:** [`crates/kidig-core/src/tools/sch_sourcing.rs`](crates/kidig-core/src/tools/sch_sourcing.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -406,7 +406,7 @@ the router or relying on the KiCad ActionPlugin workflow.
 
 ### `verification` · 10 tools
 **Purpose:** DRC, design rules, layer constraints, clearance checks, KiCAD UI control. ERC lives in `sch_export` (`run_erc`), not here.
-**Source:** [`crates/konnect-core/src/tools/verification.rs`](crates/konnect-core/src/tools/verification.rs)
+**Source:** [`crates/kidig-core/src/tools/verification.rs`](crates/kidig-core/src/tools/verification.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -427,13 +427,13 @@ the router or relying on the KiCad ActionPlugin workflow.
 
 ### `config` · 7 tools
 **Purpose:** User preferences, project rules, design rules, fab constraints. **Call `load_user_config` at session start.**
-**Source:** [`crates/konnect-core/src/tools/config.rs`](crates/konnect-core/src/tools/config.rs)
+**Source:** [`crates/kidig-core/src/tools/config.rs`](crates/kidig-core/src/tools/config.rs)
 
 | Tool | Description |
 |------|-------------|
-| `load_user_config` | Load the user's global Konnect preferences (manufacturers, fab constraints, default passives, design rules). Call at session start. `source` says file or defaults; a file that exists but cannot be parsed or read is refused (`invalid_configuration`), never replaced by defaults. |
+| `load_user_config` | Load the user's global KopperDigger preferences (manufacturers, fab constraints, default passives, design rules). Call at session start. `source` says file or defaults; a file that exists but cannot be parsed or read is refused (`invalid_configuration`), never replaced by defaults. |
 | `save_user_config` | Update a user preference using dot-notation, e.g. `fab_constraints.fab_house`. Keeps every other key, reports the file as read back, and refuses to write over a file it could not read. |
-| `load_project_config` | Load project-specific config from `<project_dir>/.konnect/project.json`. Project overrides user. `source` says file or defaults; an unusable file is refused. |
+| `load_project_config` | Load project-specific config from `<project_dir>/.kidig-mcp/project.json`. Project overrides user. `source` says file or defaults; an unusable file is refused. |
 | `save_project_config` | Save a project-specific rule or override (same dot-notation and the same refusals as `save_user_config`). |
 | `get_effective_config` | Return the merged config (user defaults + project overrides) with `sources` for each half. The config Claude should use for design decisions; refuses rather than merge defaults in place of a file that cannot be used. |
 | `add_design_rule` | Add a natural-language design rule Claude should follow. Examples: "Always use 100nF X7R for MCU decoupling within 3mm of power pin". |
@@ -445,7 +445,7 @@ the router or relying on the KiCad ActionPlugin workflow.
 
 ### `design_review` · 6 tools
 **Purpose:** AI-powered design audits: decoupling, connections, power rails, DFM, BOM health.
-**Source:** [`crates/konnect-core/src/tools/design_review.rs`](crates/konnect-core/src/tools/design_review.rs)
+**Source:** [`crates/kidig-core/src/tools/design_review.rs`](crates/kidig-core/src/tools/design_review.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -462,7 +462,7 @@ the router or relying on the KiCad ActionPlugin workflow.
 
 ### `templates` · 4 tools
 **Purpose:** Reference circuit library — USB-C, LDO, buck converter, STM32, I2C, LED — verified component values.
-**Source:** [`crates/konnect-core/src/tools/templates.rs`](crates/konnect-core/src/tools/templates.rs)
+**Source:** [`crates/kidig-core/src/tools/templates.rs`](crates/kidig-core/src/tools/templates.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -480,7 +480,7 @@ the router or relying on the KiCad ActionPlugin workflow.
 
 ### `manufacturing` · 3 tools
 **Purpose:** Design-to-fab pipeline: export Gerber+BOM+positions package, validate for fab house, estimate cost.
-**Source:** [`crates/konnect-core/src/tools/manufacturing.rs`](crates/konnect-core/src/tools/manufacturing.rs)
+**Source:** [`crates/kidig-core/src/tools/manufacturing.rs`](crates/kidig-core/src/tools/manufacturing.rs)
 
 | Tool | Description |
 |------|-------------|
@@ -510,10 +510,10 @@ the router or relying on the KiCad ActionPlugin workflow.
 
 ### Implementation notes
 
-- The `tool!(name, description, input_schema, handler)` macro lives in `crates/konnect-core/src/tools/mod.rs` and produces a `ToolDef` inserted into each toolset's `tools()` vec.
+- The `tool!(name, description, input_schema, handler)` macro lives in `crates/kidig-core/src/tools/mod.rs` and produces a `ToolDef` inserted into each toolset's `tools()` vec.
 - Dispatch: `router::registry::tools_for(name)` maps each toolset string to its `tools::<mod>::tools()` vec; `handler.rs` looks up `tools/call` in the currently-loaded toolsets. If the tool exists but its toolset isn't loaded, the error names the owning toolset for single-hop recovery (`router::ToolRouter::find_toolset_for_tool`).
-- Some schematic handlers are mid-migration from raw `konnect-sexp` to the typed `konnect-schematic-editor` model (Phase 2 Waves 1–4). Tool names and semantics are unchanged; only the internal implementation is in flux.
+- Some schematic handlers are mid-migration from raw `kidig-sexp` to the typed `kidig-schematic-editor` model (Phase 2 Waves 1–4). Tool names and semantics are unchanged; only the internal implementation is in flux.
 
 ### Regenerating this doc
 
-The tool list is extracted mechanically from the `tool!(...)` invocations in `crates/konnect-core/src/tools/*.rs`. To regenerate after adding tools, re-run the same extraction and re-verify counts against `registry.rs::ALL_TOOLSETS` — the row count in each table here must equal each toolset's `tool_count`.
+The tool list is extracted mechanically from the `tool!(...)` invocations in `crates/kidig-core/src/tools/*.rs`. To regenerate after adding tools, re-run the same extraction and re-verify counts against `registry.rs::ALL_TOOLSETS` — the row count in each table here must equal each toolset's `tool_count`.

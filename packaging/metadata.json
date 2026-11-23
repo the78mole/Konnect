@@ -1,19 +1,19 @@
 {
   "$schema": "https://go.kicad.org/pcm/schemas/v1",
-  "name": "Konnect",
+  "name": "KopperDigger",
   "description": "AI-assisted PCB design via the Model Context Protocol. Enables Claude and other AI assistants to design schematics and PCBs with 232 tools organized into on-demand toolsets.",
-  "description_full": "Konnect exposes a complete set of KiCAD design tools to AI assistants via the Model Context Protocol (MCP). It supports schematic editing, PCB layout, local Freerouting MCP routing, library management, JLCPCB part search, ERC/DRC, design review audits, and full export pipelines. Tools are organized into 22 toolsets loaded on demand so the AI only sees relevant tools at once.",
-  "identifier": "com.github.mixelpixx.konnect",
+  "description_full": "KopperDigger exposes a complete set of KiCAD design tools to AI assistants via the Model Context Protocol (MCP). It supports schematic editing, PCB layout, local Freerouting MCP routing, library management, JLCPCB part search, ERC/DRC, design review audits, and full export pipelines. Tools are organized into 22 toolsets loaded on demand so the AI only sees relevant tools at once.",
+  "identifier": "com.github.the78mole.kidig-mcp",
   "type": "plugin",
   "author": {
-    "name": "mixelpixx",
+    "name": "the78mole (fork of KopperDigger by mixelpixx and contributors)",
     "contact": {
-      "web": "https://github.com/mixelpixx"
+      "web": "https://github.com/the78mole"
     }
   },
   "license": "open-source",
   "resources": {
-    "homepage": "https://github.com/mixelpixx/Konnect"
+    "homepage": "https://github.com/the78mole/Konnect"
   },
   "versions": [
     {

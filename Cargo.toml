@@ -1,13 +1,13 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/konnect",
-    "crates/konnect-core",
-    "crates/konnect-sexp",
-    "crates/konnect-ipc",
-    "crates/konnect-schematic-editor",
-    "crates/konnect-render",
-    "crates/konnect-vcs",
+    "crates/kidig-mcp",
+    "crates/kidig-core",
+    "crates/kidig-sexp",
+    "crates/kidig-ipc",
+    "crates/kidig-schematic-editor",
+    "crates/kidig-render",
+    "crates/kidig-vcs",
     "xtask",
 ]
 exclude = [
@@ -17,7 +17,7 @@ exclude = [
 [workspace.package]
 version = "0.13.0"
 edition = "2021"
-authors = ["Konnect contributors"]
+authors = ["KopperDigger contributors"]
 license = "AGPL-3.0-only"
 # Minimum supported Rust version. Set to the pinned toolchain
 # (rust-toolchain.toml) — the only version the gate actually verifies.
@@ -41,7 +41,7 @@ axum = { version = "0.8", features = ["macros"] }
 # S-expression parsing
 nom = "8"
 
-# Specctra DSN/SES syntax. Konnect owns the KiCad lowering and manifest;
+# Specctra DSN/SES syntax. KopperDigger owns the KiCad lowering and manifest;
 # Topola supplies the format AST and serializer/parser used for parity checks.
 topola_specctra = "0.1.0"
 
@@ -83,13 +83,13 @@ winreg = "0.56"
 # SVG parsing (import_svg_logo)
 usvg = "0.48"
 
-# Rasterization for the visual-feedback tools (konnect-render). resvg and
+# Rasterization for the visual-feedback tools (kidig-render). resvg and
 # tiny-skia are pinned EXACTLY: visual baselines compare pixel output across
 # machines, so a silent renderer bump must be a deliberate decision.
 resvg = "=0.48.1"
 image = { version = "0.25", default-features = false, features = ["png"] }
 
-# Pure-Rust git for the vcs toolset (konnect-vcs). No libgit2, no C.
+# Pure-Rust git for the vcs toolset (kidig-vcs). No libgit2, no C.
 # Default features for now — the T2.1 spike trims to the plumbing actually
 # used once the API surface is settled (default-features=false breaks
 # gix-hash's backend selection).
@@ -99,16 +99,16 @@ gix = { version = "0.87", features = ["status", "worktree-mutation"] }
 open = "5"
 
 # Internal crates
-konnect-sexp = { path = "crates/konnect-sexp" }
-konnect-ipc = { path = "crates/konnect-ipc" }
-konnect-core = { path = "crates/konnect-core" }
-konnect-schematic-editor = { path = "crates/konnect-schematic-editor" }
-konnect-render = { path = "crates/konnect-render" }
-konnect-vcs = { path = "crates/konnect-vcs" }
+kidig-sexp = { path = "crates/kidig-sexp" }
+kidig-ipc = { path = "crates/kidig-ipc" }
+kidig-core = { path = "crates/kidig-core" }
+kidig-schematic-editor = { path = "crates/kidig-schematic-editor" }
+kidig-render = { path = "crates/kidig-render" }
+kidig-vcs = { path = "crates/kidig-vcs" }
 
 # The S-expression parser is ~25x slower unoptimized. The installed-demo
 # tests parse 185 MB of KiCad boards, and debug servers parse real boards.
-[profile.dev.package.konnect-sexp]
+[profile.dev.package.kidig-sexp]
 opt-level = 3
 
 [profile.dev.package.nom]

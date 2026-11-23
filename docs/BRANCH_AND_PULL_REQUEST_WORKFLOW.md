@@ -1,6 +1,6 @@
 # Branch and Pull Request Workflow
 
-Konnect accepts independent pull requests, short dependent series, and
+KopperDigger accepts independent pull requests, short dependent series, and
 maintainer-approved integration branches. Choose the smallest model that makes
 every review show one coherent change.
 
@@ -16,7 +16,7 @@ green in isolation while omitting fixes and contracts already present on
 
 ## Current repository mechanics
 
-Konnect is currently a personal-account repository. Write collaborators can
+KopperDigger is currently a personal-account repository. Write collaborators can
 triage, review, merge, and enable auto-merge, but only the owner can administer
 repository settings. Organization-only Maintain/Admin role separation and the
 native GitHub merge queue are not available here yet.
@@ -31,7 +31,7 @@ after exact-head review, and merged topic branches are deleted automatically.
 
 ## Review requests and completion
 
-CODEOWNERS automatically requests its listed owners, including `@mixelpixx` on
+CODEOWNERS automatically requests its listed owners, including `@the78mole` on
 most PRs. The ruleset requires **zero approving reviews** and does not require a
 code-owner review. A pending request is therefore not a merge blocker or proof
 that no maintainer has reviewed the PR. The one `status:*` label names the next
@@ -201,7 +201,7 @@ gh pr update-branch N --rebase
 ```
 
 The ordinary update command creates a merge commit in the contributor branch;
-Konnect uses `--rebase` for its focused branches. Refreshing rewrites the head
+KopperDigger uses `--rebase` for its focused branches. Refreshing rewrites the head
 and invalidates earlier readiness. Afterward:
 
 1. verify the new commit list and diff still contain only the same unique work;
@@ -245,15 +245,14 @@ For the one next-to-land PR in an overlap set:
    moving without requiring completion of the broader tracker.
 3. If something remains, the maintainer applies the label for the actual next
    actor and leaves auto-merge off. A substantive review finding always means
-   `status:waiting-on-author`, including on a PR authored by `@mixelpixx` or
-   `@neusse`. Record one complete actionable review and stop processing that PR.
+   `status:waiting-on-author`, including on a maintainer-authored PR. Record one complete actionable review and stop processing that PR.
    Do not silently patch another maintainer's PR and merge it in the same review
    pass unless explicitly asked to take over that specific finding.
 4. If the PR is ready but required checks are still running, the maintainer
    applies `status:ready-to-merge` and enables auto-merge with the merge-commit
    method. If all requirements are already satisfied, the maintainer may merge
    immediately with `gh pr merge N --merge` after the same verification. A PR
-   authored by `@mixelpixx` or `@neusse` has standing merge authorization once
+   authored by a maintainer has standing merge authorization once
    this exact-head gate is satisfied with no unresolved findings; any other
    author's PR requires explicit maintainer authorization for that exact head.
 5. A new commit, rewritten head, base change, failed or missing required check,
@@ -262,14 +261,14 @@ For the one next-to-land PR in an overlap set:
 6. After GitHub merges it, update local `main`, verify terminal issue closure,
    post the acceptance mapping, and only then promote the immediate successor.
    Continue the loop automatically while each immediate successor is ready and
-   authored by `@mixelpixx` or `@neusse`. Stop before the first PR by another
+   authored by a maintainer. Stop before the first PR by another
    author, even when a maintainer-authored PR appears later; the queue order is
    not bypassed to consume standing authorization.
    Run the complete local gate only under the conditional rules in
    `GOVERNANCE.md`.
 
 Auto-merge removes waiting time; it does not relax admission control, review,
-CI, or the one-next-PR rule. Until Konnect moves to an organization with a
+CI, or the one-next-PR rule. Until KopperDigger moves to an organization with a
 native merge queue, maintainers must not arm several overlapping PRs and hope
 GitHub chooses a safe order.
 

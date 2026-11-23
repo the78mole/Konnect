@@ -1,33 +1,28 @@
-# How Konnect is run
+# How KopperDigger is run
 
 One page, so nobody has to reconstruct this from issue threads.
 
 ## Maintainers
 
-- **[@mixelpixx](https://github.com/mixelpixx)** — project owner. Decides
-  scope, releases, licensing, and anything not settled below.
-- **[@neusse](https://github.com/neusse)** — maintainer. Owns the areas listed
-  in [`.github/CODEOWNERS`](.github/CODEOWNERS).
+- **[@the78mole](https://github.com/the78mole)** — maintainer of this fork.
+  Decides scope, releases, and anything not settled below.
+
+This repository is an independent fork of the archived
+[mixelpixx/Konnect](https://github.com/mixelpixx/Konnect). The original
+maintainers (`mixelpixx`, `neusse`) have no role in this fork; their rules
+below have been adapted where they named people.
 
 ### Current repository access model
 
-Konnect currently lives in a personal GitHub account. [GitHub gives a personal
-repository one owner and write collaborators](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/repository-access-and-collaboration/permission-levels-for-a-personal-account-repository);
-it does not offer the granular Triage, Maintain, and Admin roles available to
-organization repositories.
-Accordingly, `@neusse` can triage, label, assign, review, push, merge, and arm
-auto-merge, but cannot change repository settings or bypass the `main` ruleset.
-Only `@mixelpixx`, as owner, can administer those controls.
+This fork lives in a personal GitHub account, which gives one owner plus write
+collaborators and no organization-style Triage/Maintain/Admin roles. GitHub's
+native merge queue is therefore not available; the ordered queue below, the
+`status:*` labels, and auto-merge provide the smaller substitute.
 
-Moving Konnect to an organization is accepted in principle but is not part of
-the current workflow. Until that happens, [GitHub's native merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)
-is not available here. The ordered queue below, the `status:*` labels, and
-auto-merge provide the deliberately smaller substitute.
-
-Konnect is deliberately built and reviewed through **two different AI
+KopperDigger is deliberately built and reviewed through **two different AI
 toolchains** — Claude Code on one side, OpenAI Codex on the other. That is not
 duplication to be tidied away. Every defect found so far in the agent-facing
-guidance Konnect ships was found from *outside* the toolchain that ships it,
+guidance KopperDigger ships was found from *outside* the toolchain that ships it,
 because a reviewer inside it cannot see its blind spots. Keep the two stacks
 independent.
 
@@ -37,7 +32,7 @@ independent.
   approving-review count is required, but review is still a real decision:
   every conversation must be resolved and the exact current head must satisfy
   the issue, evidence, and queue requirements below.
-- **PRs authored by `@mixelpixx` or `@neusse` carry standing merge
+- **PRs authored by a maintainer listed above carry standing merge
   authorization once they satisfy that readiness gate.** The queue maintainer
   does not wait for an additional per-PR or per-head approval. After each such
   merge, synchronize `main`, verify the result, recompute the immediate queue,
@@ -119,7 +114,7 @@ independent.
    `status:ready-to-merge`. If checks are still running, arm GitHub auto-merge
    with the **merge commit** method. If every requirement is already green,
    merge with `gh pr merge N --merge` after the same final verification. For a
-   PR authored by `@mixelpixx` or `@neusse`, standing authorization applies;
+   PR authored by a maintainer, standing authorization applies;
    otherwise record explicit maintainer authorization for that exact head
    before executing the merge.
 6. Any new commit, force-push, base change, required-check regression, or newly
@@ -130,7 +125,7 @@ independent.
 7. After merge, synchronize local `main`, verify the merge commit, terminal
    issue closure, and acceptance evidence, then promote only the next PR in the
    documented dependency order. Continue automatically while that immediate
-   successor is ready and authored by `@mixelpixx` or `@neusse`; stop at the
+   successor is ready and authored by a maintainer; stop at the
    first other author, blocker, or end of the queue. Run the complete local gate
    above only when one of its explicit conditions applies. GitHub deletes the
    merged topic branch automatically.
@@ -324,7 +319,16 @@ The workflow enforces timing only. It never chooses the disposition.
 
 ## Licensing
 
-Konnect is AGPL-3.0 with commercial licences available, so contributions must
-be relicensable. Submitting a contribution accepts the CLA in
-[CONTRIBUTING.md](CONTRIBUTING.md). If you cannot agree to it, open an issue
-describing the change instead — a reimplementation from a description is fine.
+**Open source, forever.** This is a fixed principle of the project, not a
+policy the maintainers can change: KopperDigger stays free and open source
+under the AGPL-3.0, is never turned into a paid or commercial product, is never
+relicensed under proprietary or source-available terms, and its source code is
+never closed. No CLA or other relicensing grant may ever be introduced, so the
+rights needed to break this commitment never come together in one hand. See the
+[README](README.md#open-source-forever).
+
+KopperDigger is licensed under the AGPL-3.0 only, with no commercial licences
+and no CLA. Contributions are accepted under the same license ("inbound =
+outbound") and contributors keep their copyright; see
+[CONTRIBUTING.md](CONTRIBUTING.md#licensing-of-contributions) and
+[LICENSING.md](LICENSING.md).

@@ -1,26 +1,26 @@
 # KiCad Integration
 
-Konnect uses direct KiCad file editing, KiCad IPC, and `kicad-cli`. The correct
+KopperDigger uses direct KiCad file editing, KiCad IPC, and `kicad-cli`. The correct
 path depends on the operation and whether KiCad currently owns the document.
 
 ## Schematic File Editing
 
-Schematic handlers under `crates/konnect-core/src/tools/sch_*.rs` operate on
-saved `.kicad_sch` files through `konnect-schematic-editor` and
-`konnect-sexp`. These paths work without a running KiCad process and preserve
+Schematic handlers under `crates/kidig-core/src/tools/sch_*.rs` operate on
+saved `.kicad_sch` files through `kidig-schematic-editor` and
+`kidig-sexp`. These paths work without a running KiCad process and preserve
 the embedded library definitions, UUIDs, and instance information needed by
 KiCad.
 
 Existing-file writes use the atomic/conflict-aware machinery in
-`konnect-sexp/src/writer.rs`. Multi-file changes use
-`konnect-sexp/src/transaction.rs`; a source revision change must become a
+`kidig-sexp/src/writer.rs`. Multi-file changes use
+`kidig-sexp/src/transaction.rs`; a source revision change must become a
 conflict rather than an overwrite.
 
 ## KiCad IPC
 
-`crates/konnect-ipc` sends typed protobuf requests over NNG. The socket comes
+`crates/kidig-ipc` sends typed protobuf requests over NNG. The socket comes
 from `ipc_address`, then `KICAD_API_SOCKET`, then discovery of KiCad's default
-endpoint by `konnect-ipc/src/socket.rs`; KiCad-provided credentials such as
+endpoint by `kidig-ipc/src/socket.rs`; KiCad-provided credentials such as
 `KICAD_API_TOKEN` are carried in the IPC client request metadata.
 
 Discovery is per-platform because the endpoint is: a Unix socket is a
@@ -34,9 +34,9 @@ would also consume a server instance. Liveness stays the job of the bounded
 
 The three board-write gates are:
 
-- `KiCadIpcClient::ensure_board_is_active` in `konnect-ipc/src/client.rs`
+- `KiCadIpcClient::ensure_board_is_active` in `kidig-ipc/src/client.rs`
   prevents a request naming one board from changing another open board.
-- `attempt_ipc_write` in `konnect-core/src/tools/pcb_board.rs` permits a file
+- `attempt_ipc_write` in `kidig-core/src/tools/pcb_board.rs` permits a file
   fallback only when IPC is unreachable. A response from KiCad, including a
   rejection, fails closed.
 - `refuse_if_board_open_in_kicad` in the same module protects file-only tools
@@ -61,7 +61,7 @@ remains out of scope (issue #604).
 
 ### Editor observation
 
-`konnect-ipc::KiCadIpcClient::observe_editor_state` queries the running KiCad
+`kidig-ipc::KiCadIpcClient::observe_editor_state` queries the running KiCad
 version and schematic/PCB `GetOpenDocuments` surfaces on the configured
 endpoint. `tools/editor_navigation.rs` exposes that typed observation through
 the provisional `editor_navigation` toolset while design issue #395 is under
@@ -70,7 +70,7 @@ review.
 The observation preserves project and `DocumentSpecifier` sheet/board identity
 and labels its evidence as live IPC. KiCad 10 has no stable typed query for the
 foreground frame, active document, or active schematic sheet, so those fields
-remain unavailable; Konnect does not infer active state from open-document
+remain unavailable; KopperDigger does not infer active state from open-document
 order. The same capability record reports stable typed activation and reveal
 as unsupported rather than routing callers through arbitrary `RunAction`
 strings.
@@ -97,7 +97,7 @@ fail closed before any editor mutation.
 Selection mutation uses KiCad's typed `ClearSelection`, `AddToSelection`, and
 `RemoveFromSelection` commands only after every non-clear KIID resolves in the
 explicit saved project/document/sheet. The transport response is not treated
-as success: Konnect performs a fresh exact-context `GetSelection`, compares the
+as success: KopperDigger performs a fresh exact-context `GetSelection`, compares the
 entire observed set with the expected before/after transition, and returns a
 structured `readback_mismatch` if KiCad did not make precisely that change.
 Duplicate or empty KIID requests are rejected before IPC.
@@ -128,7 +128,7 @@ after commit.
 
 ## `kicad-cli`
 
-`crates/konnect-core/src/tools/cli.rs` is the shared subprocess and result parser
+`crates/kidig-core/src/tools/cli.rs` is the shared subprocess and result parser
 for ERC, DRC, exports, and rendering. Callers should use it rather than build
 ad-hoc command lines.
 
@@ -143,14 +143,14 @@ schematic, `run_drc` reads that statement and reports the category as
 unchecked, with a diagnostic naming the root it would have read, rather than
 as zero. A non-empty parity array is kept as KiCad's evidence regardless.
 
-Konnect's Freerouting bridge keeps the KiCad and routing responsibilities
+KopperDigger's Freerouting bridge keeps the KiCad and routing responsibilities
 separate: `export_specctra_dsn` snapshots the live board and writes a
 revision-bound DSN job, `route_specctra_dsn` drives the discovered local JAR
 through Freerouting's native headless MCP server, and
 `plan_specctra_ses_import` / `apply_specctra_ses` validate and apply the result
 through one KiCad undo transaction. Board data stays local, output files are
 created without replacement, and the Freerouting child process is bounded and
-owned by Konnect.
+owned by KopperDigger.
 
 On KiCad 10, `export_specctra_dsn` can optionally use the legacy Python
 ActionPlugin as a deliberately narrow native-export bridge. The plugin calls
@@ -171,7 +171,7 @@ through Python.
 
 ## Configuration
 
-Konnect selects the first existing server configuration file in the order below
+KopperDigger selects the first existing server configuration file in the order below
 and loads only that file. It does not merge settings from later locations. Call
 `get_installation_info` to see which file configured the running process and
 which later files were shadowed.
@@ -179,7 +179,7 @@ which later files were shadowed.
 So a value present only in a lower-priority file has no effect while a
 higher-priority file exists.
 
-1. `konnect.toml` in the working directory;
+1. `kidig-mcp.toml` in the working directory;
 2. `settings.json` in the working directory;
 3. `settings.json` beside the executable;
 4. `settings.json` one directory above the executable;
@@ -191,7 +191,7 @@ missing functionality:
 - In the standard plugin layout a `settings.json` exists beside the binary, so
   the platform configuration directory is never reached and any `config.toml`
   there is inert.
-- A stray `konnect.toml` or `settings.json` in a working directory takes over the
+- A stray `kidig-mcp.toml` or `settings.json` in a working directory takes over the
   entire configuration for that run.
 
 Call **`get_installation_info`** to see which file configured the running
@@ -214,8 +214,8 @@ list above is not consulted, and `get_installation_info` reports
 `ipc_socket_path` alias is accepted by the serde definition in `config.rs`.
 
 A blank or whitespace-only configured `jlcpcb_db_path` means unset for all
-JLCPCB database tools. They use the platform default (`%APPDATA%/konnect/jlcpcb.db`
-on Windows, `$HOME/.konnect/jlcpcb.db` elsewhere) unless a nonblank configured
+JLCPCB database tools. They use the platform default (`%APPDATA%/kidig-mcp/jlcpcb.db`
+on Windows, `$HOME/.kidig-mcp/jlcpcb.db` elsewhere) unless a nonblank configured
 path is supplied. Nonblank configured paths are preserved without trimming;
 the download tool's per-call `output_path` takes precedence. This normalization does not rewrite
 your settings file or download a database at startup.

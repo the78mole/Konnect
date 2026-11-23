@@ -68,21 +68,21 @@ jobs:
 
       - name: E2E design loop (create → wire → ERC → Gerber → DRC)
         env:
-          KONNECT_E2E_KEEP_DIR: ${{ github.workspace }}/e2e-artifacts
-        run: cargo test -p konnect --test e2e_kicad -- --ignored --nocapture
+          KIDIG_MCP_E2E_KEEP_DIR: ${{ github.workspace }}/e2e-artifacts
+        run: cargo test -p kidig-mcp --test e2e_kicad -- --ignored --nocapture
 
       - name: Demo-corpus conformance (115+ eeschema-authored schematics)
-        run: cargo test -p konnect-core --test conformance_test -- --nocapture
+        run: cargo test -p kidig-core --test conformance_test -- --nocapture
 
       # The variant grammar of record (fixtures/variants/README.md) is
       # evidence adjudicated by kicad-cli; this re-runs the adjudication so a
       # KiCad update that changes variant handling is noticed here, not by a
       # user. kicad-cli-only — no GUI session required.
       - name: Variant-grammar adjudication (kicad-cli acceptance)
-        run: cargo test -p konnect-sexp --test variant_fixture_test -- --ignored --nocapture
+        run: cargo test -p kidig-sexp --test variant_fixture_test -- --ignored --nocapture
 
       - name: IPC wedge timeout regression
-        run: cargo test -p konnect-ipc --test mock_server_test -- --ignored --nocapture
+        run: cargo test -p kidig-ipc --test mock_server_test -- --ignored --nocapture
 
       - uses: actions/setup-python@v7
         with:
@@ -92,9 +92,9 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install jsonschema
-          cargo build --release --locked -p konnect
-          ./packaging/build-pcm.ps1 -Version 0.0.0 -BinaryPath target/release/konnect.exe -Platform windows -OutDir dist
-          python packaging/validate-pcm.py --zip dist/konnect-pcm-v0.0.0-windows.zip
+          cargo build --release --locked -p kidig-mcp
+          ./packaging/build-pcm.ps1 -Version 0.0.0 -BinaryPath target/release/kidig-mcp.exe -Platform windows -OutDir dist
+          python packaging/validate-pcm.py --zip dist/kidig-mcp-pcm-v0.0.0-windows.zip
 
       - name: Upload artifacts on failure
         if: failure()

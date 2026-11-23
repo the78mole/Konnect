@@ -1,6 +1,6 @@
 # Roadmap
 
-Where Konnect is going, in the order the work actually depends on itself.
+Where KopperDigger is going, in the order the work actually depends on itself.
 There are no promised dates: an item ships when its contract, implementation,
 and evidence agree. Opening or updating an issue is the best way to influence
 priority.
@@ -12,6 +12,13 @@ outcomes and the architectural boundaries that constrain them. Priorities are
 informed by the dated
 [Improvement Backlog](https://github.com/mixelpixx/Konnect/discussions/165),
 live issue labels, tracker issues, and benchmark evidence.
+
+> [!NOTE]
+> This roadmap was inherited from the original, now archived
+> [mixelpixx/Konnect](https://github.com/mixelpixx/Konnect). The `#NNN` links
+> below point to issues and discussions in that archived repository, which stay
+> readable but are no longer answered there. New work for this fork is tracked in
+> [this fork's issues](https://github.com/the78mole/Konnect/issues).
 
 ## 1. Truth, source authority, and write safety
 
@@ -42,7 +49,7 @@ synchronization, live-board readback, and source-aware board operations.
 architectural horizon. Prefer supported KiCad IPC or CLI operations, keep
 guarded file compatibility only where the supported KiCad release has no
 usable native operation, and retire fallbacks once native equivalence is
-proved. Konnect should expose KiCad capabilities safely; it should not quietly
+proved. KopperDigger should expose KiCad capabilities safely; it should not quietly
 become a second PCB editor, manufacturing suite, or UI-automation framework.
 
 - Track vendored protocol provenance and stable/nightly drift in
@@ -53,7 +60,7 @@ become a second PCB editor, manufacturing suite, or UI-automation framework.
   [#436](https://github.com/mixelpixx/Konnect/issues/436), with an explicit
   product decision before adding replacement behavior.
 - Preserve the architecture review filter in issue triage: native capability
-  first, transparent AI-directed workflow second, Konnect-owned replacement
+  first, transparent AI-directed workflow second, KopperDigger-owned replacement
   only by deliberate exception.
 
 ## 3. Multilayer boards, stackup, planes, and routing
@@ -110,7 +117,7 @@ previous versions listed as open foundations.
   [#714](https://github.com/mixelpixx/Konnect/issues/714) using the narrow
   KiCad-backed contract already recorded there.
 - Keep variants, jobsets, and other advanced manufacturing orchestration
-  outside Konnect unless KiCad exposes a stable IPC/CLI contract that Konnect
+  outside KopperDigger unless KiCad exposes a stable IPC/CLI contract that KopperDigger
   can observe and verify.
 
 ## 6. Client discovery, startup, and guidance

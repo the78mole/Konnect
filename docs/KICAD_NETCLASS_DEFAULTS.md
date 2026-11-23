@@ -1,7 +1,7 @@
 # KiCad Netclass Defaults
 
-Netclasses live in `.kicad_pro` under `net_settings.classes`. Konnect writes them
-from `create_netclass` (`crates/konnect-core/src/tools/pcb_routing.rs`).
+Netclasses live in `.kicad_pro` under `net_settings.classes`. KopperDigger writes them
+from `create_netclass` (`crates/kidig-core/src/tools/pcb_routing.rs`).
 
 This file records what KiCad itself considers a complete netclass, and which
 fields may safely be omitted. The values below are taken from KiCad 10 source and

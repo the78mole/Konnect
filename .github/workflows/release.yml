@@ -20,12 +20,12 @@ permissions: {}
 
 env:
   CARGO_TERM_COLOR: always
-  BINARY_NAME: konnect
+  BINARY_NAME: kidig-mcp
   RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
   RELEASE_ARTIFACT_LABEL: ${{ github.event_name == 'workflow_dispatch' && format('v{0}-smoke', inputs.version) || github.ref_name }}
   # Embedded into get_installation_info so release artifacts identify the
   # exact source commit even when built outside a Git working tree.
-  KONNECT_BUILD_COMMIT: ${{ github.sha }}
+  KIDIG_MCP_BUILD_COMMIT: ${{ github.sha }}
 
 jobs:
   real-kicad-acceptance:
@@ -80,7 +80,7 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Build release binary
-        run: cargo build --release --locked --target ${{ matrix.target }} -p konnect
+        run: cargo build --release --locked --target ${{ matrix.target }} -p kidig-mcp
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
@@ -151,7 +151,7 @@ jobs:
 
       - name: Build server binary
         if: matrix.platform != 'macos'
-        run: cargo build --release --locked -p konnect
+        run: cargo build --release --locked -p kidig-mcp
 
       - name: Build schematic viewer (optional)
         if: matrix.platform != 'macos'
@@ -178,13 +178,13 @@ jobs:
         run: |
           set -euo pipefail
           for target in aarch64-apple-darwin x86_64-apple-darwin; do
-            cargo build --release --locked -p konnect --target "$target"
+            cargo build --release --locked -p kidig-mcp --target "$target"
           done
           mkdir -p dist/universal
-          lipo -create -output dist/universal/konnect \
-            target/aarch64-apple-darwin/release/konnect \
-            target/x86_64-apple-darwin/release/konnect
-          lipo -info dist/universal/konnect
+          lipo -create -output dist/universal/kidig-mcp \
+            target/aarch64-apple-darwin/release/kidig-mcp \
+            target/x86_64-apple-darwin/release/kidig-mcp
+          lipo -info dist/universal/kidig-mcp
 
       - name: Build universal schematic viewer (macOS, optional)
         if: matrix.platform == 'macos'
@@ -209,7 +209,7 @@ jobs:
         run: |
           $version = "${{ env.RELEASE_VERSION }}".TrimStart('v')
           ./packaging/build-pcm.ps1 -Version $version `
-            -BinaryPath target/release/konnect.exe `
+            -BinaryPath target/release/kidig-mcp.exe `
             -ViewerPath crates/schematic-viewer/target/release/schematic-viewer.exe `
             -Platform windows `
             -OutDir dist
@@ -219,7 +219,7 @@ jobs:
         run: |
           version="${RELEASE_VERSION#v}"
           ./packaging/build-pcm.sh --version "$version" \
-            --binary dist/universal/konnect \
+            --binary dist/universal/kidig-mcp \
             --viewer dist/universal/schematic-viewer \
             --platform macos --out dist
 
@@ -228,7 +228,7 @@ jobs:
         run: |
           version="${RELEASE_VERSION#v}"
           ./packaging/build-pcm.sh --version "$version" \
-            --binary target/release/konnect \
+            --binary target/release/kidig-mcp \
             --viewer crates/schematic-viewer/target/release/schematic-viewer \
             --platform linux --out dist
 
@@ -245,13 +245,13 @@ jobs:
           python -m pip install jsonschema
           version="${RELEASE_VERSION#v}"
           python packaging/validate-pcm.py \
-            --zip "dist/konnect-pcm-v$version-${{ matrix.platform }}.zip"
+            --zip "dist/kidig-mcp-pcm-v$version-${{ matrix.platform }}.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: konnect-pcm-${{ matrix.platform }}
-          path: dist/konnect-pcm-*.zip
+          name: kidig-mcp-pcm-${{ matrix.platform }}
+          path: dist/kidig-mcp-pcm-*.zip
 
   release:
     name: Create Release

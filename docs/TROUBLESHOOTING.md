@@ -16,7 +16,7 @@ Always inspect the fabricator's placement preview before ordering.
 
 ## IPC operation returned `ipc_outcome_unknown`
 
-Stop automatic retries. Konnect sent a request but could not establish its
+Stop automatic retries. KopperDigger sent a request but could not establish its
 outcome, or a transaction's attempted rollback failed. The live board may
 contain some or all of the requested changes; this is not proof that nothing
 happened. The structured error reports `board_state: unknown` and
@@ -32,7 +32,7 @@ undo will reverse a pending, unpublished commit.
 
 ## Schematic sync returned `ipc_batch_recovered`
 
-The apply was aborted after a late IPC reply, not published. Konnect confirmed
+The apply was aborted after a late IPC reply, not published. KopperDigger confirmed
 the known commit was dropped and compared a fresh serialized live snapshot
 with the exact target's pre-apply snapshot. This reports `board_state: unchanged`,
 `drop_confirmed: true`, and `retry_safe: false`. Review the live board and run a
@@ -48,10 +48,10 @@ Sync creates are sent in ordered groups of at most 32 footprints, with every
 group and the updates inside one KiCad commit. A successful apply is one Undo
 entry, not one entry per group. This bounds the item count, not the serialized
 request bytes: it does not establish KiCad's listener size limit or eliminate
-timeouts. A rejected or uncertain group stops the apply; Konnect never retries
+timeouts. A rejected or uncertain group stops the apply; KopperDigger never retries
 it or publishes a partial group sequence automatically.
 
-## Which Konnect binary is this client using?
+## Which KopperDigger binary is this client using?
 
 Call the always-visible `get_installation_info` tool in the affected MCP
 session. The result comes from the process serving that call and includes its
@@ -63,7 +63,7 @@ same path, KiCad CLI version, redacted IPC endpoint, and restart guidance.
 both stable versions can be parsed and the on-disk binary is newer. `null`
 means the comparison could not be proven, not that the process is current.
 Likewise, `installation.source: "unknown"` means no trusted package manifest
-identified the channel; Konnect does not guess from directory names. Endpoint
+identified the channel; KopperDigger does not guess from directory names. Endpoint
 credentials and query or fragment data are redacted.
 
 Follow the returned platform-specific guidance, restart the MCP client (and
@@ -72,9 +72,9 @@ to verify the process that actually restarted. This diagnostic writes nothing.
 
 ## Installed guidance is out of date
 
-`konnect init` writes skills, agents, and Claude hooks once. Upgrading Konnect
+`kidig-mcp init` writes skills, agents, and Claude hooks once. Upgrading KopperDigger
 does not touch them, so an older install keeps advising the old tools. Run
-`konnect status` (add `--client codex` for Codex) with the binary your MCP
+`kidig-mcp status` (add `--client codex` for Codex) with the binary your MCP
 client uses. Each file and hook is compared with that binary's bundle:
 
 | Status | Meaning |
@@ -86,18 +86,18 @@ client uses. Each file and hook is compared with that binary's bundle:
 
 A `different` hook carries a reason: `legacy_handler` is the pre-hook-JSON
 `… skill <name>` form, which Claude ignores, and `other_executable` is a hook
-that runs another Konnect binary, written exactly as `konnect init` writes it.
+that runs another KopperDigger binary, written exactly as `kidig-mcp init` writes it.
 
 The serving process makes the same comparison for both clients once per
 installed guidance version, meaning each install marker. The first start
 for that marker scans, records the resulting state in
-`~/.konnect/.guidance-checked-<client>`, and sets the MCP `initialize`
+`~/.kidig-mcp/.guidance-checked-<client>`, and sets the MCP `initialize`
 `instructions` to a one-line notice when either client is `out_of_sync`. Later
 starts read the record instead of rescanning and give no notice. Running
-`konnect init` starts a new check. Upgrading the binary alone does not. `get_installation_info` reports the
+`kidig-mcp init` starts a new check. Upgrading the binary alone does not. `get_installation_info` reports the
 result under `guidance`; its `checked` field is `now` for a scan in this
 process, with per-file detail, or `earlier` for a recorded state without it.
-`konnect status` always scans. Nothing rewrites guidance. Run `konnect init` to
+`kidig-mcp status` always scans. Nothing rewrites guidance. Run `kidig-mcp init` to
 update. It overwrites `different` files, so save any edits you made first.
 
 ## "KiCAD IPC socket path not configured"
@@ -105,18 +105,18 @@ update. It overwrites `different` files, so save any edits you made first.
 Any tool that talks to a live KiCAD session (`save_project`, PCB editing,
 `check_kicad_ui`, …) needs the IPC socket address.
 
-**At startup** — once, and only then — Konnect resolves it in order: the
+**At startup** — once, and only then — KopperDigger resolves it in order: the
 `ipc_address` in your config, then `KICAD_API_SOCKET` (set only for plugins
 KiCad launches itself), then the platform default — `<temp dir>/kicad/api.sock`,
 used only if something is actually listening there. The startup log on stderr
 says which it picked, and warns when nothing was found.
 
-So **if KiCad is already running with the API enabled when Konnect starts**,
+So **if KiCad is already running with the API enabled when KopperDigger starts**,
 no configuration is needed on any platform. That order matters and is easy to
-get wrong: an MCP client normally launches the Konnect server itself, before
-you open KiCad. Konnect does not re-probe afterwards, so a server started first
+get wrong: an MCP client normally launches the KopperDigger server itself, before
+you open KiCad. KopperDigger does not re-probe afterwards, so a server started first
 stays unresolved for its whole life no matter what you open later. Start KiCad
-first, or restart the Konnect server (in most clients, reconnect the MCP
+first, or restart the KopperDigger server (in most clients, reconnect the MCP
 server) once KiCad is up — or set `ipc_address` explicitly, which never depends
 on ordering.
 
@@ -125,14 +125,14 @@ and macOS the socket is a filesystem entry and its metadata is read. On Windows
 KiCad's `ipc://` endpoint is a **named pipe**, which has no filesystem presence
 at all, so the same path is looked up in the pipe namespace (`\\.\pipe\`)
 instead. Before that was true, Windows detected nothing and every setup had to
-be configured by hand (#529); if you are on a Konnect older than that fix, set
+be configured by hand (#529); if you are on a KopperDigger older than that fix, set
 `ipc_address` or `KICAD_API_SOCKET` explicitly.
 
 If the address is unresolved, both of the following must be correct — neither
 happens automatically:
 
-1. **The socket path in Konnect's plugin settings** (inside KiCAD)
-2. **The Konnect server registration in your AI client's MCP config**
+1. **The socket path in KopperDigger's plugin settings** (inside KiCAD)
+2. **The KopperDigger server registration in your AI client's MCP config**
 
 Step by step (based on the diagnostic guide contributed in
 [#18](https://github.com/mixelpixx/Konnect/issues/18)):
@@ -147,15 +147,15 @@ Step by step (based on the diagnostic guide contributed in
 
    Copy the whole address including the `ipc://` prefix — it is unique to
    your machine and user.
-3. In KiCAD, open **Tools → External Plugins → Konnect** to open the settings
+3. In KiCAD, open **Tools → External Plugins → KopperDigger** to open the settings
    dialog.
 4. Paste the address into the **IPC Socket** field and click **Save**.
-5. Confirm your AI client (Claude Code, Claude Desktop, …) has the `konnect`
+5. Confirm your AI client (Claude Code, Claude Desktop, …) has the `kidig-mcp`
    MCP server registered in its own config (`.mcp.json` or
-   `claude_desktop_config.json`) pointing at the `konnect` binary — see
+   `claude_desktop_config.json`) pointing at the `kidig-mcp` binary — see
    [examples/](../examples/). This registration is separate from the KiCAD
    plugin settings.
-6. Restart the AI client session so it spawns a fresh Konnect process that
+6. Restart the AI client session so it spawns a fresh KopperDigger process that
    reads the saved settings.
 7. Verify: have the AI call `open_project`. Expected:
 
@@ -164,7 +164,7 @@ Step by step (based on the diagnostic guide contributed in
    ```
 
 Alternative: launching the server from within KiCAD sets `KICAD_API_SOCKET`
-automatically, and a `konnect-settings.json` passed via `--config` can carry
+automatically, and a `kidig-mcp-settings.json` passed via `--config` can carry
 `ipc_socket_path` directly.
 
 ## PCB tools return "KiCAD must be running with the board loaded"
@@ -191,7 +191,7 @@ apart cases that used to share one `false`, and each has a different fix:
 |---|---|---|
 | `not_configured` | No address was configured or discovered. | See ["KiCAD IPC socket path not configured"](#kicad-ipc-socket-path-not-configured). |
 | `no_listener` | Nothing is listening at the address. | Open an editor with the API enabled, and check the address against KiCad's "Listening on" line. |
-| `access_denied` | The operating system refused this account access to the endpoint. Likely a different account or a restrictive ACL. | Run Konnect as the same operating-system user as KiCad; see below. |
+| `access_denied` | The operating system refused this account access to the endpoint. Likely a different account or a restrictive ACL. | Run KopperDigger as the same operating-system user as KiCad; see below. |
 | `handshake_failed` | A listener accepted the connection and did not complete NNG's handshake. | Another program holds KiCad's address ([#531](https://github.com/mixelpixx/Konnect/issues/531)). Close it, then restart KiCad so it can bind. |
 | `transport_error` | Any other dial or send failure. | Read `message`. |
 | `request_failed` | The request did not complete and may have reached the endpoint. A KiCad status in `message` (for example `AS_NOT_READY` while an editor is still loading) proves it did; a receive timeout or a malformed reply does not. | With a KiCad status: wait for the editor to finish loading, then retry. Without one: treat the endpoint as unproven and check what holds the address. |
@@ -210,21 +210,21 @@ proves only that the operating system denied this account. The likely cause in
 that setup: KiCad's endpoint was created by the desktop user, and a Windows
 named pipe created without an explicit security descriptor gives full control
 only to its creator and read access to everyone else, while a request needs
-both read and write. A Konnect started inside the sandbox is then refused,
+both read and write. A KopperDigger started inside the sandbox is then refused,
 however its address is configured. A restrictive ACL on the pipe produces the
 same kind.
 
-The known workaround: run Konnect outside the sandbox, as the same user as
+The known workaround: run KopperDigger outside the sandbox, as the same user as
 KiCad, over HTTP:
 
 ```toml
-# konnect.toml in the directory Konnect is started from
+# kidig-mcp.toml in the directory KopperDigger is started from
 transport = "http"
 http_address = "127.0.0.1:3000"
 ipc_address = "ipc://C:/Users/<you>/AppData/Local/Temp/kicad/api.sock"
 ```
 
-Start `konnect` from a normal terminal and point the client at
+Start `kidig-mcp` from a normal terminal and point the client at
 `http://127.0.0.1:3000/mcp`; `http://127.0.0.1:3000/health` answers `ok` while
 the server is up. Keep the address on `127.0.0.1`: the HTTP transport has no
 authentication. KiCad needs no change.
@@ -255,7 +255,7 @@ refused before anything was sent. Nothing on the board changed.
 This refusal exists because the alternative is worse. KiCAD 10.0.5 does not
 validate the layer field on an incoming item, so an unrepresentable value used
 to reach it and **terminate the process**, discarding any unsaved board
-([#237](https://github.com/mixelpixx/Konnect/issues/237)). Konnect now stops at
+([#237](https://github.com/mixelpixx/Konnect/issues/237)). KopperDigger now stops at
 its own boundary instead.
 
 Every layer a KiCAD 10 footprint can legally draw on is supported, including
@@ -271,12 +271,12 @@ Update to v0.6.1 or later.
 
 ## `unsafe_file_fallback` after KiCad disappears
 
-Konnect remembers each board it positively observes open through IPC during the
+KopperDigger remembers each board it positively observes open through IPC during the
 current server process. If IPC later becomes unreachable, a board-file mutation
 for that same board fails with `error.kind: "unsafe_file_fallback"` instead of
 editing the saved file. KiCad may have crashed or been force-quit with unsaved
 state, so the saved `.kicad_pcb` is not known to be authoritative. The error
-confirms that Konnect left it unchanged
+confirms that KopperDigger left it unchanged
 ([#240](https://github.com/mixelpixx/Konnect/issues/240)).
 
 KiCad running with no PCB editor open is *not* this state: nothing was ever
@@ -298,38 +298,38 @@ Recover deliberately:
 3. Continue through live IPC.
 
 If KiCad was intentionally closed cleanly and closed-board mode is desired,
-first confirm that the saved file is authoritative, then restart Konnect to
+first confirm that the saved file is authoritative, then restart KopperDigger to
 begin a new server session. Repeating the tool call does not clear the safety
-memory, and an agent must not restart Konnect or edit `.kicad_pcb` directly to
+memory, and an agent must not restart KopperDigger or edit `.kicad_pcb` directly to
 bypass the refusal.
 
 This memory is intentionally process-local. It cannot detect a KiCad crash that
-happened before the current Konnect process started. File-fallback success
+happened before the current KopperDigger process started. File-fallback success
 therefore carries a warning describing that cold-start limitation.
 
 ## `invalid_configuration` from a config tool
 
 `load_user_config`, `get_effective_config` or a save refuses with
-`error.kind: "invalid_configuration"` when a Konnect preferences file exists
+`error.kind: "invalid_configuration"` when a KopperDigger preferences file exists
 but cannot be used. `error.path` names the file and `error.reason` starts with
 `malformed_json:` (invalid JSON, or a root that is not an object — often a
 truncated write or a hand edit) or `unreadable:` (permissions, a directory at
 that path, invalid UTF-8).
 
-Konnect used to answer with its defaults here, and the next save then replaced
+KopperDigger used to answer with its defaults here, and the next save then replaced
 the file with them. It now refuses and writes nothing, so your settings are
 still in the file. Open it, fix the JSON (or move it aside to start again from
-the defaults), and retry. The user file is `%APPDATA%\konnect\config.json` on
-Windows, `~/Library/Application Support/konnect/config.json` on macOS and
-`~/.konnect/config.json` elsewhere; a project's is
-`<project_dir>/.konnect/project.json`.
+the defaults), and retry. The user file is `%APPDATA%\kidig-mcp\config.json` on
+Windows, `~/Library/Application Support/kidig-mcp/config.json` on macOS and
+`~/.kidig-mcp/config.json` elsewhere; a project's is
+`<project_dir>/.kidig-mcp/project.json`.
 
 A save that ends in `mutation_outcome_uncertain` could not prove what is on
 disk. Read the file before retrying; do not assume nothing was written.
 
 ## An older schematic-to-PCB sync left extra unnamed pads
 
-Konnect versions v0.4.0 through v0.6.1 could rewrite each drawing shape inside
+KopperDigger versions v0.4.0 through v0.6.1 could rewrite each drawing shape inside
 a footprint as an anonymous pad while `update_pcb_from_schematic` reassigned
 pad nets ([#244](https://github.com/mixelpixx/Konnect/issues/244)). Current
 versions prevent and detect that corruption, but prevention does not repair a
@@ -354,7 +354,7 @@ result is not what you expect.
 
 Common install paths are auto-detected (including the Windows registry). If
 your install is somewhere unusual, set the path in the plugin settings dialog
-in a `settings.json` beside the binary, or in a `konnect.toml` in the working directory (`kicad_cli`). Discovery order is `konnect.toml` and `settings.json` in the CWD, then `settings.json` next to the binary and one level up, then the platform config dir. **Only the first existing file is loaded — later ones are not merged in**, so a `kicad_cli` set in a lower-priority file is ignored while a higher-priority file exists. A file under any other name is only read when passed with `--config`.
+in a `settings.json` beside the binary, or in a `kidig-mcp.toml` in the working directory (`kicad_cli`). Discovery order is `kidig-mcp.toml` and `settings.json` in the CWD, then `settings.json` next to the binary and one level up, then the platform config dir. **Only the first existing file is loaded — later ones are not merged in**, so a `kicad_cli` set in a lower-priority file is ignored while a higher-priority file exists. A file under any other name is only read when passed with `--config`.
 
 If a setting appears to be ignored, call `get_installation_info` and read its
 `configuration` block: `selected_path` is the file that configured the running
@@ -365,7 +365,7 @@ wrong", which otherwise look identical.
 ## Native Specctra export used the Rust fallback
 
 The KiCad-native exporter is an optional KiCad 10 compatibility path. Open the
-PCB Editor, choose **Tools → External Plugins → Konnect**, enable **KiCad 10
+PCB Editor, choose **Tools → External Plugins → KopperDigger**, enable **KiCad 10
 native Specctra bridge**, save, and close the dialog. The status changes to
 running after the setting is applied. The requested board must be saved and be
 the active PCB Editor document.
@@ -378,24 +378,24 @@ fallback. Use `disable` to force Rust output.
 
 The bridge listens only on an ephemeral IPv4 loopback port and requires a
 per-session bearer token. Registration and temporary DSN files live under the
-per-user local-data directory (`%LOCALAPPDATA%\konnect\native-bridge` on
-Windows); `KONNECT_BRIDGE_DIR` overrides it for diagnostics and tests. A clean
+per-user local-data directory (`%LOCALAPPDATA%\kidig-mcp\native-bridge` on
+Windows); `KIDIG_MCP_BRIDGE_DIR` overrides it for diagnostics and tests. A clean
 plugin shutdown removes its own registration and temporary files. Stale
-registrations left by a hard KiCad crash are ignored because Konnect probes and
+registrations left by a hard KiCad crash are ignored because KopperDigger probes and
 authenticates each candidate before use.
 
 This option is unavailable on KiCad 11 after removal of the legacy SWIG Python
-API. Konnect then uses its Rust exporter unless KiCad gains an equivalent
+API. KopperDigger then uses its Rust exporter unless KiCad gains an equivalent
 supported IPC operation.
 
 ## A schematic write is blocked by a KiCad editor lock
 
-Konnect refuses to change a `.kicad_sch` file while the sibling
+KopperDigger refuses to change a `.kicad_sch` file while the sibling
 `~<name>.kicad_sch.lck` exists. Close the schematic editor normally and retry.
 Read-only schematic tools remain available while the lock exists.
 
 KiCad's lock stores only a username and hostname, not a process identifier or
-document-instance token. Konnect therefore cannot distinguish a live lock from
+document-instance token. KopperDigger therefore cannot distinguish a live lock from
 one left by a crash without risking unsaved editor state. It treats valid,
 foreign-host, empty, and malformed locks alike and never removes one
 automatically. If KiCad crashed, first confirm that no schematic editor owns the
@@ -404,23 +404,23 @@ the lock. Remove a confirmed stale lock manually only as a last resort.
 
 ## Transaction recovery is blocked by divergent content
 
-Multi-file schematic changes persist a `.konnect-transaction-<id>.json`
+Multi-file schematic changes persist a `.kidig-mcp-transaction-<id>.json`
 write-ahead journal in the project before changing any target. On restart,
-Konnect safely completes files that still match either the recorded before
+KopperDigger safely completes files that still match either the recorded before
 image or intended replacement. It never overwrites a file changed by KiCad or
 another process after the journal was written.
 
 Inspect active journals without printing their contents:
 
 ```text
-konnect transaction status <project-dir>
+kidig-mcp transaction status <project-dir>
 ```
 
 Each target is reported as `pending`, `applied`, or `divergent`. Retry safe
 recovery with:
 
 ```text
-konnect transaction recover <project-dir>
+kidig-mcp transaction recover <project-dir>
 ```
 
 If a target is divergent, first inspect the schematic in KiCad and preserve
@@ -428,11 +428,11 @@ the version you want. To unblock future transactions without changing any
 schematic file, explicitly abandon the journal:
 
 ```text
-konnect transaction abandon <project-dir> <transaction-id> --force
+kidig-mcp transaction abandon <project-dir> <transaction-id> --force
 ```
 
 Abandonment renames the journal to
-`.konnect-transaction-<id>.abandoned.json`; it does not restore, replace, or
+`.kidig-mcp-transaction-<id>.abandoned.json`; it does not restore, replace, or
 delete a target. The abandoned file is retained as recovery evidence and is
 ignored by future transactions. Delete it only after you have made any backup
 you need.
@@ -443,7 +443,7 @@ without reviewing their contents, and do not commit them. Both forms are
 ignored by the repository `.gitignore`.
 
 Cooperative document locks are stored outside the project under the platform
-local-data directory. Set `KONNECT_STATE_DIR` to an absolute directory to
+local-data directory. Set `KIDIG_MCP_STATE_DIR` to an absolute directory to
 override that location. A relative override is rejected rather than falling
 back to project-local sidecars.
 
@@ -478,7 +478,7 @@ callable tools, the fix is to make the *first* listing complete:
 { "eager_toolsets": true }
 ```
 
-in `konnect.toml` in the working directory, or a `settings.json` beside the binary. Every toolset is then loaded at
+in `kidig-mcp.toml` in the working directory, or a `settings.json` beside the binary. Every toolset is then loaded at
 startup, so `tools/list` carries all 239 tools from the first call.
 
 It is off by default because it costs what the router exists to save: roughly
@@ -490,10 +490,10 @@ tool name — so it does nothing for a client whose tool list is stale.
 
 ## VS Code Copilot says a tool is "currently disabled by the user"
 
-That exact message comes from the VS Code Copilot client layer, not Konnect.
+That exact message comes from the VS Code Copilot client layer, not KopperDigger.
 In the confirmed report in
 [#325](https://github.com/mixelpixx/Konnect/issues/325), the attempted calls did
-not appear in Konnect's `get_recent_calls` output because Copilot refused them
+not appear in KopperDigger's `get_recent_calls` output because Copilot refused them
 before they reached the server.
 
 Two Copilot behaviors make the normal toolset settings ineffective:
@@ -501,13 +501,13 @@ Two Copilot behaviors make the normal toolset settings ineffective:
 - With `eager_toolsets = false`, Copilot caches the initial `tools/list` and
   does not re-fetch it after `notifications/tools/list_changed`. Tools loaded
   later therefore remain unavailable to the model.
-- With `eager_toolsets = true`, Konnect advertises its full catalog at startup,
+- With `eager_toolsets = true`, KopperDigger advertises its full catalog at startup,
   but Copilot applies its own total callable-tool budget across all configured
   MCP servers. The #325 reporter measured a 128-tool ceiling and saw only an
-  arbitrary, changing subset of Konnect tools exposed. Tools outside that
+  arbitrary, changing subset of KopperDigger tools exposed. Tools outside that
   subset produced "currently disabled by the user."
 
-Changing Konnect from stdio to HTTP/SSE does not remove a limit applied by the
+Changing KopperDigger from stdio to HTTP/SSE does not remove a limit applied by the
 client after it receives `tools/list`. Reloading the VS Code window also does
 not make an over-budget catalog callable.
 
@@ -515,17 +515,17 @@ Current options are:
 
 1. Disable unrelated MCP servers or tools if that brings the complete set you
    need below the client's budget.
-2. Use an MCP client that honors `tools/list_changed` or can expose Konnect's
+2. Use an MCP client that honors `tools/list_changed` or can expose KopperDigger's
    full catalog.
 3. Use the community two-tool proxy pattern demonstrated in
    [the #325 follow-up](https://github.com/mixelpixx/Konnect/issues/325#issuecomment-5407317596):
-   expose only `konnect_help` and `konnect_call` to Copilot, let
-   `konnect_help()` list names or return one tool's description and schema,
-   and let `konnect_call(tool, arguments)` forward the actual call to a child
-   Konnect process started with `eager_toolsets = true`.
+   expose only `kidig_mcp_help` and `kidig_mcp_call` to Copilot, let
+   `kidig_mcp_help()` list names or return one tool's description and schema,
+   and let `kidig_mcp_call(tool, arguments)` forward the actual call to a child
+   KopperDigger process started with `eager_toolsets = true`.
 
 The proxy is a community workaround attached to the issue, not code shipped or
-reviewed by Konnect; inspect it and configure its executable path before use.
+reviewed by KopperDigger; inspect it and configure its executable path before use.
 A native compact tool-surface mode and MCP tool-directory resource are planned
 in the [client compatibility roadmap](../ROADMAP.md#4-client-compatibility),
 but are not available yet.
@@ -533,18 +533,18 @@ but are not available yet.
 ## Plugin doesn't appear in KiCAD
 
 Install via **Plugin and Content Manager → Install from File** with the
-`konnect-pcm-*.zip` release asset (not the bare binary archives), then restart
+`kidig-mcp-pcm-*.zip` release asset (not the bare binary archives), then restart
 KiCAD.
 
 ## A board no longer opens after `set_active_layer`
 
-Konnect v0.12.0 could write an unsupported `(active_layer "...")` entry into a
+KopperDigger v0.12.0 could write an unsupported `(active_layer "...")` entry into a
 board's `(setup ...)` block. KiCad 10.0.6 cannot parse that token because the
 active layer belongs to the editor session, not the `.kicad_pcb` document.
 
 Close the board in KiCad, make a backup copy, remove only the injected
 `(active_layer "...")` line from the board file, and reopen the board. Do not
-remove the surrounding `(setup ...)` block. Konnect versions containing the
+remove the surrounding `(setup ...)` block. KopperDigger versions containing the
 fix for #610 refuse `set_active_layer` with `unsupported_capability` and leave
 the file byte-identical until stable KiCad IPC exposes a native operation with
 readback.

@@ -15,7 +15,7 @@ Issue: #
 ### Architectural fit
 
 <!--
-Does this change extend an existing KiCad capability or shared Konnect module?
+Does this change extend an existing KiCad capability or shared KopperDigger module?
 If it introduces a workaround or duplicates behavior, explain why and when it
 can be retired. Keep the answer short; documentation-only changes may say N/A.
 See architectural coordination tracker #590. This is a design review signal,
@@ -98,6 +98,6 @@ mark individual inapplicable rows with a reason. Do not invent runtime evidence.
   were cleared under the review-request workflow (manual requests remain open).
 - [ ] All required checks and review conversations satisfy the `main` ruleset.
 - [ ] Merge authorization is established: standing authorization applies to a
-  `@mixelpixx`/`@neusse` PR, or explicit authorization names this exact head.
+  maintainer-authored PR, or explicit authorization names this exact head.
 - [ ] Auto-merge uses a merge commit, or an already-green PR will be merged with `gh pr merge N --merge`.
 - [ ] Terminal issue closure and the next PR to promote are identified.

@@ -33,7 +33,7 @@ def _load_plugin():
     sys.modules.setdefault("wx", wx)
 
     settings_dialog = types.ModuleType("settings_dialog")
-    settings_dialog.KonnectSettingsDialog = object
+    settings_dialog.KopperDiggerSettingsDialog = object
     settings_dialog.load_settings = lambda *a, **k: {}
     sys.modules.setdefault("settings_dialog", settings_dialog)
 
@@ -42,7 +42,7 @@ def _load_plugin():
     import importlib
 
     spec = importlib.util.spec_from_file_location(
-        "konnect_plugin_under_test", os.path.join(_PLUGIN_DIR, "__init__.py")
+        "kidig_mcp_plugin_under_test", os.path.join(_PLUGIN_DIR, "__init__.py")
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

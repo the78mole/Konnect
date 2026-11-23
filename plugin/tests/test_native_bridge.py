@@ -12,7 +12,7 @@ import urllib.request
 
 _PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SPEC = importlib.util.spec_from_file_location(
-    "konnect_native_bridge_under_test",
+    "kidig_mcp_native_bridge_under_test",
     os.path.join(_PLUGIN_DIR, "native_bridge.py"),
 )
 native_bridge = importlib.util.module_from_spec(_SPEC)

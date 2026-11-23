@@ -1,4 +1,4 @@
-# Developer Guide — Konnect
+# Developer Guide — KopperDigger
 
 Internal reference for developing and maintaining the Rust port.
 
@@ -25,7 +25,7 @@ set PROTOC=C:\path\to\protoc.exe   # or install via `choco install protoc`
 
 cargo check                          # verify everything compiles (~15s)
 cargo test --workspace --lib --tests # all tests
-cargo build --release -p konnect # build the MCP server binary
+cargo build --release -p kidig-mcp # build the MCP server binary
 
 # Build the schematic viewer (separate crate)
 cd crates/schematic-viewer
@@ -45,15 +45,15 @@ A `flake.nix` provides a reproducible build and dev shell on Linux
 (`x86_64`/`aarch64`), contributed in #198:
 
 ```bash
-nix build .#konnect   # build the server binary
-nix run  .#konnect    # build and run it
+nix build .#kidig-mcp   # build the server binary
+nix run  .#kidig-mcp    # build and run it
 nix develop           # shell with the pinned toolchain, protoc, kicad-small
 ```
 
 The flake pins its own toolchain from `rust-toolchain.toml` and reads the
 version from the workspace `Cargo.toml`, so those stay in step automatically.
 What it does *not* track automatically is the build itself: `cargoBuildFlags`
-names `-p konnect --bin konnect`, and `preCheck` exports `KONNECT_STATE_DIR`
+names `-p kidig-mcp --bin kidig-mcp`, and `preCheck` exports `KIDIG_MCP_STATE_DIR`
 for the tests that need a writable state dir. **Renaming the binary, adding a
 workspace member the server depends on, or introducing a test that needs
 another environment variable will break the Nix build without breaking any
@@ -63,9 +63,9 @@ failure there as a real break rather than a Nix-user problem.
 ## Architecture
 
 ```
-Konnect/
+KopperDigger/
 ├── crates/
-│   ├── konnect/              # Main binary + cdylib entry points
+│   ├── kidig-mcp/              # Main binary + cdylib entry points
 │   │   └── src/
 │   │       ├── main.rs              # CLI: --config, subcommands
 │   │       ├── lib.rs               # cdylib re-exports ffi
@@ -75,7 +75,7 @@ Konnect/
 │   │           ├── stdio.rs         # Line-by-line JSON-RPC over stdin/stdout (default)
 │   │           └── http.rs          # Streamable HTTP: POST + GET (SSE) on /mcp (transport = "http" / "both")
 │   │
-│   ├── konnect-core/          # All tool logic (22 toolsets)
+│   ├── kidig-core/          # All tool logic (22 toolsets)
 │   │   └── src/
 │   │       ├── mcp/
 │   │       │   ├── protocol.rs      # MCP JSON-RPC 2.0 types
@@ -117,7 +117,7 @@ Konnect/
 │   │           ├── templates.rs      # 4 tools (6 built-in reference circuit templates)
 │   │           └── manufacturing.rs  # 3 tools (export package, validate, cost estimate)
 │   │
-│   ├── konnect-sexp/                  # S-expression engine (no KiCAD dependency)
+│   ├── kidig-sexp/                  # S-expression engine (no KiCAD dependency)
 │   │   └── src/
 │   │       ├── parser.rs             # nom-based parser (handles empty strings)
 │   │       ├── writer.rs             # SexpEdit + apply_edits + write_atomic
@@ -129,14 +129,14 @@ Konnect/
 │   │       ├── transaction.rs        # Write-ahead journal for multi-file writes
 │   │       └── error.rs              # SexpError (incl. Conflict)
 │   │
-│   ├── konnect-schematic-editor/      # Typed schematic model (parse → mutate → write)
+│   ├── kidig-schematic-editor/      # Typed schematic model (parse → mutate → write)
 │   │   └── src/
 │   │       ├── schematic/            # Schematic, symbol, wire, label, sheet, misc
 │   │       ├── sexp/                 # parser + writer (indent-preserving, see #210)
 │   │       ├── library.rs            # Library symbol lookup
 │   │       └── types.rs              # Shared value types (fmt_f64, …)
 │   │
-│   ├── konnect-ipc/                   # KiCAD 10 IPC API client
+│   ├── kidig-ipc/                   # KiCAD 10 IPC API client
 │   │   ├── proto/                    # Protobuf definitions (copied from KiCAD v10 source)
 │   │   ├── build.rs                  # prost-build protobuf code generation
 │   │   └── src/
@@ -197,28 +197,28 @@ Konnect/
 - Symbol definitions auto-embedded from KiCAD 10's `.kicad_symdir` format
 - Power symbols (VCC, GND) embedded from `power.kicad_symdir`
 - Existing-file edits use revision-checked atomic replacement: read the exact
-  source, acquire a cooperative lock, reject any intervening KiCad or Konnect
+  source, acquire a cooperative lock, reject any intervening KiCad or KopperDigger
   change, write a unique sibling scratch file, fsync, and rename.
-- Cooperative lock files live under `KONNECT_STATE_DIR/locks` when that
+- Cooperative lock files live under `KIDIG_MCP_STATE_DIR/locks` when that
   absolute override is set, otherwise under the platform local-data directory
-  (`konnect/locks`). Reads never create files in the KiCad project.
+  (`kidig-mcp/locks`). Reads never create files in the KiCad project.
 - Schematic writes also refuse while KiCad's sibling `~<name>.kicad_sch.lck`
-  exists. KiCad records only a username and hostname, so Konnect cannot prove
+  exists. KiCad records only a username and hostname, so KopperDigger cannot prove
   that a same-host or remote lock is stale; valid, foreign, empty, and malformed
   locks all fail closed. The check runs before a transaction journal is created
   and again at the final target-write boundary.
 - Multi-file schematic changes use project-local
-  `.konnect-transaction-*.json` write-ahead journals. These journals contain
+  `.kidig-mcp-transaction-*.json` write-ahead journals. These journals contain
   complete before/after images and must be treated as sensitive project data.
   On Unix a journal is created `0600` whatever the umask says; elsewhere it
   inherits whatever the platform gives a new file, so keep the project
   directory itself private there.
 - A newly created design file or exported artifact takes the mode any other
   new file would get — `0666 & ~umask` on Unix. A replacement keeps the mode
-  the destination already had, so a project created by an earlier Konnect
+  the destination already had, so a project created by an earlier KopperDigger
   stays at `0600` until its owner widens it with `chmod`.
 
-`konnect_schematic_editor::Schematic` deliberately distinguishes creation from
+`kidig_schematic_editor::Schematic` deliberately distinguishes creation from
 replacement:
 
 - `save(new_path)` is create-only and refuses to replace an existing path.
@@ -229,8 +229,8 @@ replacement:
   revision-aware writer/command APIs; they must not delete the destination or
   weaken `save()` into an unconditional overwrite.
 
-For journal diagnosis and recovery, use `konnect transaction status`,
-`konnect transaction recover`, and the explicit force-gated `konnect
+For journal diagnosis and recovery, use `kidig-mcp transaction status`,
+`kidig-mcp transaction recover`, and the explicit force-gated `kidig-mcp
 transaction abandon` escape hatch documented in
 [Troubleshooting](docs/TROUBLESHOOTING.md#transaction-recovery-is-blocked-by-divergent-content).
 
@@ -269,7 +269,7 @@ broader per-tool inventory is tracked in #574.
 
 ### Plugin Installation
 - **PCM zip** is the correct install method
-- KiCad installs to: `C:\Users\<YOU>\Documents\KiCad\10.0\3rdparty\plugins\com_github_mixelpixx_konnect\`
+- KiCad installs to: `C:\Users\<YOU>\Documents\KiCad\10.0\3rdparty\plugins\com_github_the78mole_kidig-mcp\`
 - Both `__init__.py` (SWIG ActionPlugin for PCB editor settings dialog) and `plugin.json` (IPC exec plugin) are included
 - `native_bridge.py` is a KiCad-10-only, opt-in compatibility bridge. It exposes
   only authenticated status and native Specctra export over an ephemeral
@@ -281,7 +281,7 @@ broader per-tool inventory is tracked in #574.
 
 ## Structured Errors
 
-Tool-call failures are typed via the `ToolErrorKind` enum in `crates/konnect-core/src/mcp/error.rs`. MCP's `CallToolResult` spec has no top-level `data` field, so structured errors ride inside the text content as JSON:
+Tool-call failures are typed via the `ToolErrorKind` enum in `crates/kidig-core/src/mcp/error.rs`. MCP's `CallToolResult` spec has no top-level `data` field, so structured errors ride inside the text content as JSON:
 
 ```json
 {
@@ -310,7 +310,7 @@ Tool-call failures are typed via the `ToolErrorKind` enum in `crates/konnect-cor
 | `stale_target` | A previously bound PCB document is no longer uniquely open, saved symbol instance metadata disagrees with the proven hierarchy, or prospective component state lacks the expected document, UUID/reference, unit, library, hierarchy, position, rotation, or property value — carries `target` and `reason`; the edit, annotation, and grouping preflight refuses before writing |
 | `mutation_outcome_uncertain` | A schematic edit committed, but immediate readback could not prove its requested result — carries `operation`, `path`, and `reason`; reload and inspect the named file before retrying because it may have changed |
 | `ambiguous_open_board` | KiCad answered, and its open-document list could not be read as a complete set of comparable board identities — carries `path`; neither the live nor the file path may run |
-| `invalid_configuration` | A Konnect preferences file (`config.json`, `.konnect/project.json`) exists but cannot be used — carries `path` and a `reason` starting `malformed_json:` or `unreadable:`; defaults are never substituted, because the next save would persist them over the user's settings |
+| `invalid_configuration` | A KopperDigger preferences file (`config.json`, `.kidig-mcp/project.json`) exists but cannot be used — carries `path` and a `reason` starting `malformed_json:` or `unreadable:`; defaults are never substituted, because the next save would persist them over the user's settings |
 | `handler_error` | Catch-all for unmigrated `anyhow::Error` returns |
 
 ### Producing structured errors in a handler
@@ -332,7 +332,7 @@ The dispatch-level errors (not-loaded/unknown/handler-panic) are fully structure
 
 2. **The typed helpers**, in `tools/mod.rs`: `require_str`, `require_f64`, `require_array`, `require_u64`, checked optional helpers such as `opt_u32` and `opt_positive_f64`, and domain-specific validators. Each returns a `CallToolResult` carrying `InvalidArgument { field, reason }`. They preserve the same refusal when a handler is called directly — as most tests do — instead of relying only on MCP dispatch.
 
-3. **`get_path`**, which returns `anyhow::Result<PathBuf>` so its 171 call sites can use `?`. Changing that signature was not worth it, so it attaches a `MissingArgument` marker to the error and `dispatch_tool` downcasts for it. Classify by downcasting, never by matching message text — the same rule `konnect_ipc::TransportUnreachable` follows.
+3. **`get_path`**, which returns `anyhow::Result<PathBuf>` so its 171 call sites can use `?`. Changing that signature was not worth it, so it attaches a `MissingArgument` marker to the error and `dispatch_tool` downcasts for it. Classify by downcasting, never by matching message text — the same rule `kidig_ipc::TransportUnreachable` follows.
 
 A path that is *present but unusable* — absent on disk, wrong extension — is deliberately **not** an argument error. That is the handler trying and failing, and it stays a `handler_error` or `FileNotFound`. Collapsing the two would make "you forgot an argument" and "that file is not there" indistinguishable.
 
@@ -342,7 +342,7 @@ Most in-handler errors still use `CallToolResult::error("free text")` or bubble 
 
 ### One value KiCAD does not reject: an unrepresentable layer
 
-`builders::layer_from_name` maps a layer name to a `BoardLayer`, and anything it does not know becomes `BL_UNDEFINED`. KiCAD 10.0.5 does **not** validate that field on an incoming item — it indexes its layer bitset with whatever arrives — so `BL_UNDEFINED` is answered with an access violation that terminates the process and takes the user's unsaved board with it (#237). Konnect sees only an NNG receive timeout.
+`builders::layer_from_name` maps a layer name to a `BoardLayer`, and anything it does not know becomes `BL_UNDEFINED`. KiCAD 10.0.5 does **not** validate that field on an incoming item — it indexes its layer bitset with whatever arrives — so `BL_UNDEFINED` is answered with an access violation that terminates the process and takes the user's unsaved board with it (#237). KopperDigger sees only an NNG receive timeout.
 
 So on any path that puts a layer into a message bound for KiCAD, use **`builders::try_layer_from_name`**, which refuses instead. `client.rs::build_footprint_item` validates the root layer, every pad layer and every graphic layer before it builds a single child; the `*.Cu`/`*.Mask`/`*.Paste` wildcards KiCAD itself writes are expanded rather than mapped, so they are skipped.
 
@@ -353,17 +353,17 @@ The infallible `layer_from_name` stays for read paths that already filter `BL_UN
 Every `tools/call` flows through `McpHandler::execute_tool`, which wraps the dispatch with:
 - A **ring buffer** of the last 100 `CallRecord`s (surfaced via `get_recent_calls` meta-tool).
 - **Per-tool counters** for totals, errors, cumulative duration, last-status, last-error (surfaced via `server_stats`).
-- **JSONL append** to `<konnect dir>/logs/calls.jsonl` (one line per call). Paths:
-  - Windows: `%APPDATA%\konnect\logs\calls.jsonl`
-  - macOS: `~/Library/Application Support/konnect/logs/calls.jsonl`
-  - Linux: `~/.konnect/logs/calls.jsonl`
+- **JSONL append** to `<kidig-mcp dir>/logs/calls.jsonl` (one line per call). Paths:
+  - Windows: `%APPDATA%\kidig-mcp\logs\calls.jsonl`
+  - macOS: `~/Library/Application Support/kidig-mcp/logs/calls.jsonl`
+  - Linux: `~/.kidig-mcp/logs/calls.jsonl`
 - **Structured `tracing` events** (`tool_call_start` + `tool_call_end`) carrying `call_id`, `tool`, `toolset`, `status`, `dur_ms` — greppable in the stderr log.
 
 Each `CallRecord` includes: `call_id`, `ts` (unix ms), `tool`, `toolset` (optional — `None` for meta-tools), `dur_ms`, `status` (`ok` / `error` / `not_found`), `error_kind`, `args_bytes`, `result_bytes`.
 
 The observer is constructed once by `McpHandler::new` and stashed on both the handler and `ToolContext` so meta-tools can reach it. IO failures on the JSONL file never fail the tool call — they `tracing::warn!` and are silently dropped. Tests construct an in-memory-only observer via `ToolContext::new(...)` (no `log_path`).
 
-Source: [`crates/konnect-core/src/observability.rs`](crates/konnect-core/src/observability.rs).
+Source: [`crates/kidig-core/src/observability.rs`](crates/kidig-core/src/observability.rs).
 
 ## Tool Routing (Starter Kit + On-Demand Loading)
 
@@ -373,11 +373,11 @@ The server does NOT expose all 232 tools (239 total with the 7 meta-tools) in `t
 - **On demand**: the LLM reads `list_toolboxes` → calls `load_toolset(name)` to expose a toolset's tools in subsequent `tools/list` responses. `unload_toolset(name)` prunes them when the task shifts.
 - **`tools/list_changed` notification**: sent on every load/unload so MCP clients refresh their local tool cache.
 - **Error recovery**: if the LLM calls an unloaded tool, `handler.rs` returns an actionable error naming the toolset that owns it (so the LLM can load it and retry in one hop — no extra `list_toolboxes` round-trip).
-- **`auto_load_toolsets` (config key, default `false`)**: when set, a miss in `dispatch_tool` loads the owning toolset and executes the call in the same hop instead of returning `toolset_not_loaded` -- fewer round trips, at the cost of toolsets accumulating monotonically for the rest of the session (`unload_toolset` still prunes, but a tool call reloads its toolset right back). Off by default because the router's whole point is keeping `tools/list` small; turn it on only if your client would rather eat the context growth than handle one recoverable error per miss. Set via `konnect.toml`/`settings.json` (`auto_load_toolsets = true`) or the equivalent `ServerConfig` field when embedding.
+- **`auto_load_toolsets` (config key, default `false`)**: when set, a miss in `dispatch_tool` loads the owning toolset and executes the call in the same hop instead of returning `toolset_not_loaded` -- fewer round trips, at the cost of toolsets accumulating monotonically for the rest of the session (`unload_toolset` still prunes, but a tool call reloads its toolset right back). Off by default because the router's whole point is keeping `tools/list` small; turn it on only if your client would rather eat the context growth than handle one recoverable error per miss. Set via `kidig-mcp.toml`/`settings.json` (`auto_load_toolsets = true`) or the equivalent `ServerConfig` field when embedding.
 
 - **`eager_toolsets` (config key, default `false`)**: pre-loads every toolset at startup via `ToolRouter::load_all`, so the *first* `tools/list` is the full catalogue. This is for MCP clients that cache the initial tool list and never act on `notifications/tools/list_changed` — for those, a tool absent from the first listing can never be called at all, because `load_toolset` reports the names it loaded but returns no schemas and the client has nothing to invoke (#134, #169). Note `auto_load_toolsets` does **not** cover this case: it fires on a tool *call*, so it only helps a caller that already knows the tool name. Costs ~25K tokens per listing against the ~2K baseline, which is the router's entire reason for existing — hence off by default.
 
-The router is defined in `crates/konnect-core/src/router/mod.rs`.
+The router is defined in `crates/kidig-core/src/router/mod.rs`.
 
 ## Build Requirements
 
@@ -385,8 +385,8 @@ The router is defined in `crates/konnect-core/src/router/mod.rs`.
   rustup picks it up automatically, and CI compiles with the same version. The pinned
   version IS the MSRV: bump it deliberately, in its own commit, after running the full
   local gate on the new version.
-- `protoc` binary (for protobuf code generation in konnect-ipc crate)
-  - Set `PROTOC` to the binary, or leave it unset and `konnect-ipc/build.rs` resolves
+- `protoc` binary (for protobuf code generation in kidig-ipc crate)
+  - Set `PROTOC` to the binary, or leave it unset and `kidig-ipc/build.rs` resolves
     `protoc` from PATH
   - Well-known-type includes (`google/protobuf/any.proto`) are derived from
     `<protoc>/../../include` after the binary is resolved to an absolute path. This
@@ -414,12 +414,12 @@ Run all: `PROTOC=<path> cargo test --workspace --lib --tests`
 
 | Location | What |
 |----------|------|
-| `konnect-sexp` unit tests | Parser, writer, geometry transforms |
-| `konnect-core` unit tests | Router load/unload, starter-kit, registry invariants, observability, error taxonomy, arg helpers |
-| `konnect-core` integration tests | Fixture files: parse, edit, write, observability, structured errors |
-| `konnect-schematic-editor` tests | Typed schematic model + round-tripping |
-| `konnect-ipc` unit tests | Protobuf builders, client message construction, rigid-body child transform |
-| `crates/konnect/tests/` | Protocol over stdio, doc/asset count guards, transaction CLI, `#[ignore]`d live-KiCAD tests |
+| `kidig-sexp` unit tests | Parser, writer, geometry transforms |
+| `kidig-core` unit tests | Router load/unload, starter-kit, registry invariants, observability, error taxonomy, arg helpers |
+| `kidig-core` integration tests | Fixture files: parse, edit, write, observability, structured errors |
+| `kidig-schematic-editor` tests | Typed schematic model + round-tripping |
+| `kidig-ipc` unit tests | Protobuf builders, client message construction, rigid-body child transform |
+| `crates/kidig-mcp/tests/` | Protocol over stdio, doc/asset count guards, transaction CLI, `#[ignore]`d live-KiCAD tests |
 
 `schematic-viewer` is **excluded from the workspace** (`Cargo.toml`'s `[workspace] exclude`) since
 it's a Tauri app built separately, so `cargo test --workspace` never touches it. **CI does**: the

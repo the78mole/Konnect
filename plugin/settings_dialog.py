@@ -1,5 +1,5 @@
 """
-Konnect — Settings Dialog.
+KopperDigger — Settings Dialog.
 
 wxPython dialog for configuring the MCP server: paths and
 server control. Launched from the KiCAD Tools menu via the action plugin.
@@ -147,8 +147,8 @@ def detect_kicad_cli():
 
 # ─── Dialog ──────────────────────────────────────────────────────────────────
 
-class KonnectSettingsDialog(wx.Dialog):
-    """Settings dialog for the Konnect plugin."""
+class KopperDiggerSettingsDialog(wx.Dialog):
+    """Settings dialog for the KopperDigger plugin."""
 
     def __init__(
         self,
@@ -164,7 +164,7 @@ class KonnectSettingsDialog(wx.Dialog):
         # The dialog is sized to fit its content after _build_ui instead.
         super().__init__(
             parent,
-            title="Konnect Settings",
+            title="KopperDigger Settings",
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
         self.plugin_dir = plugin_dir
@@ -346,7 +346,7 @@ class KonnectSettingsDialog(wx.Dialog):
     def _on_save(self, event):
         self.settings = self._collect_settings()
         save_settings(self.settings_path, self.settings)
-        wx.MessageBox("Settings saved.", "Konnect", wx.OK | wx.ICON_INFORMATION)
+        wx.MessageBox("Settings saved.", "KopperDigger", wx.OK | wx.ICON_INFORMATION)
 
     def _on_start_stop(self, event):
         """Toggle server — delegates to parent plugin via return value."""

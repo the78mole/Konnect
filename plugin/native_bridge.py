@@ -1,4 +1,4 @@
-"""Authenticated KiCad 10 native-operation bridge for Konnect.
+"""Authenticated KiCad 10 native-operation bridge for KopperDigger.
 
 This module is loaded only by the legacy ``pcbnew.ActionPlugin``.  It exposes
 one deliberately narrow operation to the external Rust server: ask KiCad's
@@ -24,8 +24,8 @@ UI_TIMEOUT_SECONDS = 30
 
 
 def bridge_root():
-    """Return the per-user registration directory shared with Konnect Rust."""
-    override = os.environ.get("KONNECT_BRIDGE_DIR")
+    """Return the per-user registration directory shared with KopperDigger Rust."""
+    override = os.environ.get("KIDIG_MCP_BRIDGE_DIR")
     if override:
         return os.path.abspath(os.path.expanduser(override))
     if os.name == "nt":
@@ -34,7 +34,7 @@ def bridge_root():
         base = os.path.expanduser("~/Library/Application Support")
     else:
         base = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
-    return os.path.join(base, "konnect", "native-bridge")
+    return os.path.join(base, "kidig-mcp", "native-bridge")
 
 
 def sys_platform():
@@ -78,7 +78,7 @@ class _BridgeServer(ThreadingHTTPServer):
 
 
 class _BridgeRequestHandler(BaseHTTPRequestHandler):
-    server_version = "KonnectNativeBridge/1"
+    server_version = "KopperDiggerNativeBridge/1"
 
     def log_message(self, _format, *_args):
         # pcbnew has no reliable stderr and the bearer token must never enter logs.
@@ -185,7 +185,7 @@ class NativeSpecctraBridge:
             _write_owner_only_json(self.registration_path, registration)
             self.thread = threading.Thread(
                 target=self.server.serve_forever,
-                name="konnect-native-bridge",
+                name="kidig-mcp-native-bridge",
                 daemon=True,
             )
             self.thread.start()

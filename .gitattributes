@@ -4,7 +4,7 @@
 *.icns binary
 
 # KiCad-authored fixtures are byte-evidence: never eol-normalize them.
-crates/konnect-sexp/tests/fixtures/** -text
-crates/konnect-core/tests/fixtures/** -text
-crates/konnect-ipc/tests/fixtures/** -text
-crates/konnect-schematic-editor/tests/fixtures/** -text
+crates/kidig-sexp/tests/fixtures/** -text
+crates/kidig-core/tests/fixtures/** -text
+crates/kidig-ipc/tests/fixtures/** -text
+crates/kidig-schematic-editor/tests/fixtures/** -text
