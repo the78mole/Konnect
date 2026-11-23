@@ -1760,7 +1760,7 @@ dependencies = [
 
 [[package]]
 name = "kidig-schematic-editor"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "kidig-sexp",
  "thiserror 1.0.69",
@@ -1769,7 +1769,7 @@ dependencies = [
 
 [[package]]
 name = "kidig-sexp"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "anyhow",
  "dirs",
@@ -2787,7 +2787,7 @@ dependencies = [
 
 [[package]]
 name = "schematic-viewer"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "kidig-schematic-editor",
  "notify",
