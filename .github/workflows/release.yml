@@ -253,10 +253,60 @@ jobs:
           name: kidig-mcp-pcm-${{ matrix.platform }}
           path: dist/kidig-mcp-pcm-*.zip
 
+  # KiCad's official addon repository allows one download per version, and
+  # KiCad's PCM looks versions up by version string, so the three platform
+  # zips are merged into one package carrying every platform's binaries.
+  pcm-universal:
+    name: KiCAD PCM plugin package (all platforms)
+    needs: [pcm-package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: kidig-mcp-pcm-*
+          path: dist
+          merge-multiple: true
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Merge platform packages
+        run: |
+          set -euo pipefail
+          version="${RELEASE_VERSION#v}"
+          # Pre-release tags (v1.2.3-rc1) are listed as "testing" in the PCM.
+          status=stable
+          case "$version" in *-*) status=testing;; esac
+          python packaging/build-pcm-universal.py --version "$version" \
+            --status "$status" \
+            --windows "dist/kidig-mcp-pcm-v$version-windows.zip" \
+            --macos "dist/kidig-mcp-pcm-v$version-macos.zip" \
+            --linux "dist/kidig-mcp-pcm-v$version-linux.zip" \
+            --out dist/universal
+
+      - name: Validate all-platform package (release gate)
+        run: |
+          set -euo pipefail
+          python -m pip install jsonschema
+          version="${RELEASE_VERSION#v}"
+          python packaging/validate-pcm.py --zip "dist/universal/kidig-mcp-pcm-v$version.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: kidig-mcp-pcm-all
+          path: dist/universal/*
+
   release:
     name: Create Release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [real-kicad-acceptance, build, pcm-package]
+    needs: [real-kicad-acceptance, build, pcm-package, pcm-universal]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -272,5 +322,56 @@ jobs:
         with:
           files: artifacts/*
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Self-hosted KiCad PCM repository on GitHub Pages. Rebuilt from every
+  # release's .pcm-version.json, so it never depends on earlier site state.
+  # Needs Settings > Pages > Source: "GitHub Actions" once.
+  pcm-repository:
+    name: Publish PCM repository (GitHub Pages)
+    needs: [release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Collect version entries of all releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p versions
+          for tag in $(gh release list --repo "$GITHUB_REPOSITORY" --limit 200 \
+                         --json tagName,isDraft --jq '.[] | select(.isDraft | not) | .tagName'); do
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+              --pattern '*.pcm-version.json' --dir versions || true
+          done
+          ls -l versions
+
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Build repository.json, packages.json, resources.zip
+        run: |
+          python packaging/build-pcm-repo.py --versions versions \
+            --base-url "${{ steps.pages.outputs.base_url }}" --out site
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

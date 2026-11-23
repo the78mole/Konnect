@@ -190,8 +190,17 @@ class KopperDiggerSettingsDialog(wx.Dialog):
 
         # ── Paths section ────────────────────────────────────────────
         paths_box = wx.StaticBoxSizer(wx.VERTICAL, panel, "Paths")
-        pgrid = wx.FlexGridSizer(2, 3, 5, 5)
+        pgrid = wx.FlexGridSizer(3, 3, 5, 5)
         pgrid.AddGrowableCol(1, 1)
+
+        # Installed from the PCM, the server lives deep inside KiCad's
+        # 3rdparty folder; show it so it can be pasted into an MCP client.
+        pgrid.Add(wx.StaticText(panel, label="Server binary:"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.binary_ctrl = wx.TextCtrl(panel, value=self.binary_path, style=wx.TE_READONLY)
+        pgrid.Add(self.binary_ctrl, 1, wx.EXPAND)
+        self.copy_binary_btn = wx.Button(panel, label="Copy")
+        self.copy_binary_btn.Bind(wx.EVT_BUTTON, self._on_copy_binary)
+        pgrid.Add(self.copy_binary_btn, 0)
 
         pgrid.Add(wx.StaticText(panel, label="kicad-cli:"), 0, wx.ALIGN_CENTER_VERTICAL)
         self.kicad_cli_ctrl = wx.TextCtrl(panel)
@@ -329,6 +338,13 @@ class KopperDiggerSettingsDialog(wx.Dialog):
             self.start_stop_btn.SetLabel("Start Server")
 
     # ── Event handlers ───────────────────────────────────────────────
+
+    def _on_copy_binary(self, event):
+        if wx.TheClipboard.Open():
+            try:
+                wx.TheClipboard.SetData(wx.TextDataObject(self.binary_path))
+            finally:
+                wx.TheClipboard.Close()
 
     def _on_browse_cli(self, event):
         wildcard = "Executables (*.exe)|*.exe|All files (*)|*" if sys.platform == "win32" else "All files (*)|*"
