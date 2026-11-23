@@ -69,10 +69,23 @@ that teach Claude KiCAD conventions out of the box.
 
 ## Why KopperDigger exists
 
-KopperDigger (via Konnect) is the successor to [KiCAD-MCP-Server](https://github.com/mixelpixx/KiCAD-MCP-Server),
-a Python/TypeScript project that proved AI-driven PCB design works — and, in the
-process, showed exactly where that architecture runs out of road. KopperDigger was built
-to fix those specific problems:
+KopperDigger exists to keep the Konnect source code open. When Konnect moved to a
+closed-source, commercial successor, its last free version stayed available under
+the AGPL-3.0. KopperDigger picks up that code so that it can keep being developed,
+fixed and extended as open source, independently of Konnect, and stay that way
+(see [Open source, forever](#open-source-forever)).
+
+The design itself is Konnect's work. KopperDigger inherits it unchanged and builds
+on it.
+
+## Where the architecture comes from
+
+Konnect, created by [mixelpixx](https://github.com/mixelpixx),
+[neusse](https://github.com/neusse) and its contributors, is the successor to
+[KiCAD-MCP-Server](https://github.com/mixelpixx/KiCAD-MCP-Server), a
+Python/TypeScript project that proved AI-driven PCB design works and, in the
+process, showed exactly where that architecture runs out of road. Konnect was
+built to fix those specific problems, and KopperDigger keeps those solutions:
 
 **The call path was too long.** In the original server, a single tool call travels
 through TypeScript, schema validation, a spawned Python subprocess, JSON over
@@ -80,12 +93,12 @@ stdin/stdout, a command router, and finally SWIG-generated C++ proxy objects bef
 anything touches your board. That's four language and serialization boundaries, each
 with its own failure modes — subprocess lifecycle management, stdout parsing that
 filters out warnings KiCAD leaks into the stream, chunked-JSON reassembly. In
-KopperDigger, a tool call is a function call. One process, one language, no plumbing.
+Konnect, and so in KopperDigger, a tool call is a function call. One process, one language, no plumbing.
 
 **The dependency surface was enormous.** Running the original means carrying Node.js
 and its npm tree, Python and its pip packages, wxPython, kicad-skip, and KiCAD's
 SWIG bindings — two package ecosystems plus a binding layer, every one of them a
-moving target that can break an install. KopperDigger is a single static binary —
+moving target that can break an install. Konnect, and KopperDigger with it, is a single static binary —
 20–25 MB depending on platform, a ~9 MB download. There is nothing to install
 alongside it and nothing to version-match.
 
@@ -93,17 +106,17 @@ alongside it and nothing to version-match.
 bindings, which KiCAD is deprecating in favor of its IPC API. SWIG also carried
 real operational scars: a zone-fill call that can segfault the backend, proxy-object
 comparison bugs, and a fallback path that can silently swap backends mid-session.
-KopperDigger talks to KiCAD 10 through the official IPC API (protobuf over NNG) — the
+Konnect talks to KiCAD 10 through the official IPC API (protobuf over NNG) — the
 interface KiCAD is investing in — with real-time board edits that integrate with
 KiCAD's own undo/redo.
 
-**Schematic edits should not corrupt files.** KopperDigger edits `.kicad_sch` files
+**Schematic edits should not corrupt files.** Konnect edits `.kicad_sch` files
 through its own S-expression engine with atomic writes (write, fsync, rename), UUID
 preservation, and round-trip tests — no third-party schematic library with known
 gaps, no text-manipulation workarounds.
 
 **Context economy is a feature.** Exposing all 232 tools to an LLM costs roughly 23K
-tokens of context on every listing. KopperDigger's router loads a starter kit (~2K
+tokens of context on every listing. Konnect's router loads a starter kit (~2K
 tokens) and lets the model pull in toolsets on demand — plus built-in observability
 (`get_recent_calls`, `server_stats`, JSONL call logs) so the model can diagnose its
 own tool failures.
@@ -370,10 +383,10 @@ AGPL.
 ## Relationship to KiCAD-MCP-Server
 
 The original [Python/TypeScript project](https://github.com/mixelpixx/KiCAD-MCP-Server)
-remains fully open (MIT) and maintained. KopperDigger is where new development happens —
-the architecture it proved, rebuilt for production:
+remains fully open (MIT) and maintained. Konnect rebuilt the architecture it proved
+for production, and KopperDigger continues Konnect's last open-source state:
 
-| | KiCAD-MCP-Server | KopperDigger |
+| | KiCAD-MCP-Server | Konnect / KopperDigger |
 |---|---|---|
 | Runtime | Node.js + Python + SWIG bindings | Single static binary (20–25 MB) |
 | Tool call path | TS → subprocess → Python → SWIG C++ | Direct function call |
