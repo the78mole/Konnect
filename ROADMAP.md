@@ -18,7 +18,7 @@ live issue labels, tracker issues, and benchmark evidence.
 > [mixelpixx/Konnect](https://github.com/mixelpixx/Konnect). The `#NNN` links
 > below point to issues and discussions in that archived repository, which stay
 > readable but are no longer answered there. New work for this fork is tracked in
-> [this fork's issues](https://github.com/the78mole/Konnect/issues).
+> [this fork's issues](https://github.com/the78mole/KopperDigger/issues).
 
 ## 1. Truth, source authority, and write safety
 

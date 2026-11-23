@@ -22,7 +22,7 @@ modified version of the original Konnect, renamed to KopperDigger
   (commit `676efce`, 1 November 2026). The original repository stopped
   development when its authors moved to a closed-source successor
   (Konnect-EDA by Orchis.ai LLC). Nothing from that successor is included here.
-- **Fork:** https://github.com/the78mole/Konnect, maintained independently
+- **Fork:** https://github.com/the78mole/KopperDigger, maintained independently
   since November 2026. The full list of changes is the git history after
   commit `676efce`.
 
