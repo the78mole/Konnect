@@ -597,6 +597,15 @@ impl UnreachableReason {
             | nng::Error::ConnectionReset
             | nng::Error::ConnectionAborted
             | nng::Error::Protocol => Self::HandshakeFailed,
+            // macOS can report a listener that accepts and immediately closes
+            // as a raw ENOTCONN ("Socket is not connected", os error 57)
+            // instead of NNG's `Closed`. Same cause, same fix.
+            nng::Error::SystemErr(code)
+                if std::io::Error::from_raw_os_error(code as i32).kind()
+                    == std::io::ErrorKind::NotConnected =>
+            {
+                Self::HandshakeFailed
+            }
             _ => Self::TransportError,
         }
     }
@@ -5848,6 +5857,19 @@ mod diagnostic_tests {
                 UnreachableReason::from_dial_error(error),
                 expected,
                 "{error:?}"
+            );
+        }
+        // macOS surfaces a listener that closes before negotiating as raw
+        // ENOTCONN; any other raw OS error stays unclassified.
+        #[cfg(unix)]
+        {
+            assert_eq!(
+                UnreachableReason::from_dial_error(nng::Error::SystemErr(libc::ENOTCONN as u32)),
+                HandshakeFailed
+            );
+            assert_eq!(
+                UnreachableReason::from_dial_error(nng::Error::SystemErr(libc::EINVAL as u32)),
+                TransportError
             );
         }
     }
