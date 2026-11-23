@@ -14,6 +14,7 @@ Installation (KiCAD PCM):
 import atexit
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -90,11 +91,33 @@ def _prepare_binaries(plugin_dir, bin_dir):
                 action["entrypoint"] = entry
                 changed = True
         if changed:
-            with open(manifest, "w", encoding="utf-8") as f:
+            # Write beside it and swap in atomically: KiCad must never see a
+            # half-written manifest, and two KiCad processes may race here.
+            tmp = f"{manifest}.{os.getpid()}.tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
                 f.write("\n")
+            os.replace(tmp, manifest)
     except (OSError, ValueError) as error:
         print(f"[KopperDigger] Could not update plugin.json: {error}", file=sys.stderr)
+
+
+def _unsupported_architecture(system=None, machine=None):
+    """Explain why the bundled binary cannot run here, or return None.
+
+    KiCad's PCM knows platforms but not CPU architectures, so the package is
+    also offered to ARM Linux. Linux binaries are x86_64 only; macOS ships a
+    universal binary and Windows on ARM runs x86_64 code under emulation.
+    """
+    system = system or platform.system()
+    machine = (machine or platform.machine()).lower()
+    if system == "Linux" and machine not in ("x86_64", "amd64"):
+        return (
+            f"KopperDigger ships its Linux server for x86_64 only; this machine "
+            f"is {machine}.\n\nBuild it from source for this architecture: "
+            "https://github.com/the78mole/KopperDigger#build-from-source"
+        )
+    return None
 
 
 _BIN_DIR = _resolve_bin_dir(PLUGIN_DIR)
@@ -274,6 +297,11 @@ def _run_server():
 def start_server():
     """Start the MCP server in a background thread."""
     global _server_thread
+
+    unsupported = _unsupported_architecture()
+    if unsupported:
+        wx.MessageBox(unsupported, "KopperDigger", wx.OK | wx.ICON_ERROR)
+        return False
 
     if not os.path.exists(BINARY_PATH):
         wx.MessageBox(

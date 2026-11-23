@@ -46,17 +46,7 @@ jobs:
       - name: Collect version entries of all releases
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          mkdir -p versions
-          # One directory per tag: a pre-release and the stable release that
-          # follows it carry the same file name (same PCM version).
-          for tag in $(gh release list --repo "$GITHUB_REPOSITORY" --limit 200 \
-                         --json tagName,isDraft --jq '.[] | select(.isDraft | not) | .tagName'); do
-            gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
-              --pattern '*.pcm-version.json' --dir "versions/$tag" || true
-          done
-          ls -lR versions
+        run: packaging/collect-pcm-versions.sh versions
 
       - id: pages
         uses: actions/configure-pages@v5

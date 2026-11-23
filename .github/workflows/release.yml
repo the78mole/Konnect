@@ -208,7 +208,8 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ env.RELEASE_VERSION }}".TrimStart('v') -replace '-.*$', ''  # PCM: digits only
-          ./packaging/build-pcm.ps1 -Version $version `
+          $status = if ("${{ env.RELEASE_VERSION }}" -like '*-*') { 'testing' } else { 'stable' }
+          ./packaging/build-pcm.ps1 -Version $version -Status $status `
             -BinaryPath target/release/kidig-mcp.exe `
             -ViewerPath crates/schematic-viewer/target/release/schematic-viewer.exe `
             -Platform windows `
@@ -218,7 +219,8 @@ jobs:
         if: matrix.platform == 'macos'
         run: |
           version="${RELEASE_VERSION#v}"; version="${version%%-*}"  # PCM: digits only
-          ./packaging/build-pcm.sh --version "$version" \
+          status=stable; case "$RELEASE_VERSION" in *-*) status=testing;; esac
+          ./packaging/build-pcm.sh --version "$version" --status "$status" \
             --binary dist/universal/kidig-mcp \
             --viewer dist/universal/schematic-viewer \
             --platform macos --out dist
@@ -227,7 +229,8 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           version="${RELEASE_VERSION#v}"; version="${version%%-*}"  # PCM: digits only
-          ./packaging/build-pcm.sh --version "$version" \
+          status=stable; case "$RELEASE_VERSION" in *-*) status=testing;; esac
+          ./packaging/build-pcm.sh --version "$version" --status "$status" \
             --binary target/release/kidig-mcp \
             --viewer crates/schematic-viewer/target/release/schematic-viewer \
             --platform linux --out dist

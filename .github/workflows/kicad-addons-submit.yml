@@ -49,24 +49,10 @@ jobs:
       - name: Collect version entries of the releases
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          mkdir -p versions
-          # Pre-releases are packaged under the version of the stable release
-          # that follows them (KiCad accepts digits only), and KiCad's
-          # repository never lets a listed version change, so they stay out.
-          tags=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 200 \
-                   --json tagName,isDraft,isPrerelease \
-                   --jq '.[] | select((.isDraft or .isPrerelease) | not) | .tagName')
-          for tag in $tags; do
-            gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
-              --pattern '*.pcm-version.json' --dir "versions/$tag" || true
-          done
-          if ! ls versions/*/*.pcm-version.json >/dev/null 2>&1; then
-            echo "::error::no stable release carries a .pcm-version.json yet"
-            exit 1
-          fi
-          ls -lR versions
+        # Pre-releases are packaged under the version of the stable release
+        # that follows them (KiCad accepts digits only), and KiCad's
+        # repository never lets a listed version change, so they stay out.
+        run: packaging/collect-pcm-versions.sh versions --stable-only
 
       - name: Generate metadata
         run: |

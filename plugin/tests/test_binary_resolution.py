@@ -38,8 +38,12 @@ class BinaryResolution(unittest.TestCase):
         with open(os.path.join(self.dir, "plugin.json")) as f:
             return json.load(f)["actions"][0]["entrypoint"]
 
+    def test_platform_key_matches_the_running_os(self):
+        expected = {"win32": "windows", "darwin": "macos"}.get(sys.platform, "linux")
+        self.assertEqual(self.plugin._platform_key(), expected)
+
     def test_all_platform_package_uses_own_platform_dir(self):
-        key = self.plugin._platform_key()
+        key = {"win32": "windows", "darwin": "macos"}.get(sys.platform, "linux")
         for p in ("windows", "macos", "linux"):
             self._touch("bin", p, "kidig-mcp.exe" if p == "windows" else "kidig-mcp")
         bin_dir = self.plugin._resolve_bin_dir(self.dir)
@@ -57,6 +61,19 @@ class BinaryResolution(unittest.TestCase):
     def test_source_checkout_is_left_alone(self):
         self.plugin._prepare_binaries(self.dir, self.plugin._resolve_bin_dir(self.dir))
         self.assertEqual(self._entrypoint(), "bin/windows/kidig-mcp.exe")
+
+    def test_arm_linux_is_refused_with_a_reason(self):
+        self.assertIn("x86_64 only", self.plugin._unsupported_architecture("Linux", "aarch64"))
+        self.assertIsNone(self.plugin._unsupported_architecture("Linux", "x86_64"))
+        self.assertIsNone(self.plugin._unsupported_architecture("Darwin", "arm64"))
+        self.assertIsNone(self.plugin._unsupported_architecture("Windows", "ARM64"))
+
+    def test_manifest_rewrite_leaves_no_temp_file(self):
+        self._touch("bin", self.name)
+        self.plugin._prepare_binaries(self.dir, "bin")
+        self.assertEqual(
+            sorted(n for n in os.listdir(self.dir) if n.endswith(".tmp")), []
+        )
 
     @unittest.skipIf(sys.platform == "win32", "no executable bit on Windows")
     def test_lost_executable_bit_is_restored(self):

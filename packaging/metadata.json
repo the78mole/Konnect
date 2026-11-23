@@ -25,6 +25,9 @@
     "pcb",
     "routing"
   ],
+  "keep_on_update": [
+    "^/plugins/[^/]+/settings\\.json$"
+  ],
   "versions": [
     {
       "version": "0.14.0",

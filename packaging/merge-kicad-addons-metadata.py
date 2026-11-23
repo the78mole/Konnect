@@ -23,7 +23,7 @@ from pathlib import Path
 
 DESCRIPTIVE = ("$schema", "name", "description", "description_full",
                "identifier", "type", "author", "maintainer", "license",
-               "resources", "tags")
+               "resources", "tags", "keep_on_update")
 
 
 def main() -> int:
