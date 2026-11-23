@@ -319,7 +319,8 @@ The workflow enforces timing only. It never chooses the disposition.
 
 ## Licensing
 
-KopperDigger is AGPL-3.0 with commercial licences available, so contributions must
-be relicensable. Submitting a contribution accepts the CLA in
-[CONTRIBUTING.md](CONTRIBUTING.md). If you cannot agree to it, open an issue
-describing the change instead — a reimplementation from a description is fine.
+KopperDigger is licensed under the AGPL-3.0 only, with no commercial licences
+and no CLA. Contributions are accepted under the same license ("inbound =
+outbound") and contributors keep their copyright; see
+[CONTRIBUTING.md](CONTRIBUTING.md#licensing-of-contributions) and
+[LICENSING.md](LICENSING.md).

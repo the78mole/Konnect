@@ -135,8 +135,12 @@ KopperDigger.
    assets are the KiCAD plugin packages; the other archives are standalone
    server binaries.)
 2. Open KiCAD 10 → **Plugin and Content Manager**
-3. Click **Install from File** and select the zip
-4. Restart KiCAD
+3. **Coming from Konnect?** Uninstall the old **Konnect** package
+   (`com.github.mixelpixx.konnect`) there first. KopperDigger uses its own
+   package identifier, so KiCAD would otherwise keep both plugins installed and
+   show two server actions.
+4. Click **Install from File** and select the zip
+5. Restart KiCAD
 
 Verify: open the **PCB Editor** → **Tools → External Plugins** → you should see
 **KopperDigger**.
