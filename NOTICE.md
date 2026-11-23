@@ -30,6 +30,13 @@ This fork is not affiliated with, endorsed by, or supported by the original
 authors or Orchis.ai LLC. The names of the original authors and projects are
 used only to credit them and to describe where the code comes from.
 
+### Logo
+
+The KopperDigger logo (`resources/images/kopperdigger-logo.jpg`) and the icons
+derived from it (`packaging/resources/icon.png`,
+`crates/schematic-viewer/icons/`) were created for this fork. The original
+Konnect / KiCAD-MCP-Server logos are not included.
+
 ### Rename
 
 The project, binary, crates, configuration paths (`kidig-mcp.toml`,

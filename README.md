@@ -2,6 +2,8 @@
 
 <div align="center">
 
+<img src="resources/images/kopperdigger-logo.jpg" alt="KopperDigger logo" height="240" />
+
 # KopperDigger
 
 **`kidig-mcp` — the free AI-assisted PCB design server for KiCAD 10, a community fork of Konnect**
