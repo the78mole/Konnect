@@ -128,7 +128,7 @@ it `status:ready-to-merge`, they may enable auto-merge while checks are finishin
 Auto-merge is the last execution step; it is not review and does not make a cumulative
 or poorly evidenced PR ready.
 
-PRs authored by `@mixelpixx` or `@neusse` have standing merge authorization after
+PRs authored by a maintainer listed in [GOVERNANCE.md](GOVERNANCE.md) have standing merge authorization after
 the exact current head satisfies the same review, CI, closure, and queue gates. The
 queue maintainer continues through consecutive ready PRs by either maintainer, but
 stops before the first next-to-land PR by another author for explicit authorization
@@ -221,20 +221,15 @@ First PR from a fork? CI workflows may sit at "waiting for approval" until a
 maintainer approves the run — that's a GitHub setting for first-time contributors,
 not a failure on your part.
 
-## Contributor License Agreement
+## Licensing of contributions
 
-Konnect is dual-licensed: AGPL-3.0 for the community, with commercial licenses
-available for organizations that can't comply with the AGPL (see
-[COMMERCIAL.md](COMMERCIAL.md)). To make that possible, the project must be able to
-relicense contributed code.
+This fork is licensed under the AGPL-3.0 only, and so are contributions to it
+("inbound = outbound"). There is no Contributor License Agreement and no
+relicensing grant: you keep the copyright in your contribution.
 
-By submitting a contribution, you agree that:
+By submitting a contribution, you confirm that you have the right to submit the
+work under the AGPL-3.0. Please do not copy code from the closed-source
+Konnect-EDA or any other source whose license is not AGPL-3.0-compatible.
 
-1. You have the right to submit the work under the project's licenses.
-2. You grant the project maintainer a perpetual, worldwide, non-exclusive,
-   royalty-free, irrevocable license to use, reproduce, modify, distribute, and
-   sublicense your contribution — including under licenses other than the AGPL.
-3. Your contribution remains available to the community under the AGPL-3.0.
-
-If you can't agree to these terms, please open an issue describing the change
-instead of a pull request — reimplementations from descriptions are fine.
+The CLA that the original Konnect project used granted rights to its former
+maintainer; it does not apply to contributions to this fork.

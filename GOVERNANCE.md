@@ -4,25 +4,20 @@ One page, so nobody has to reconstruct this from issue threads.
 
 ## Maintainers
 
-- **[@mixelpixx](https://github.com/mixelpixx)** — project owner. Decides
-  scope, releases, licensing, and anything not settled below.
-- **[@neusse](https://github.com/neusse)** — maintainer. Owns the areas listed
-  in [`.github/CODEOWNERS`](.github/CODEOWNERS).
+- **[@the78mole](https://github.com/the78mole)** — maintainer of this fork.
+  Decides scope, releases, and anything not settled below.
+
+This repository is an independent fork of the archived
+[mixelpixx/Konnect](https://github.com/mixelpixx/Konnect). The original
+maintainers (`mixelpixx`, `neusse`) have no role in this fork; their rules
+below have been adapted where they named people.
 
 ### Current repository access model
 
-Konnect currently lives in a personal GitHub account. [GitHub gives a personal
-repository one owner and write collaborators](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/repository-access-and-collaboration/permission-levels-for-a-personal-account-repository);
-it does not offer the granular Triage, Maintain, and Admin roles available to
-organization repositories.
-Accordingly, `@neusse` can triage, label, assign, review, push, merge, and arm
-auto-merge, but cannot change repository settings or bypass the `main` ruleset.
-Only `@mixelpixx`, as owner, can administer those controls.
-
-Moving Konnect to an organization is accepted in principle but is not part of
-the current workflow. Until that happens, [GitHub's native merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)
-is not available here. The ordered queue below, the `status:*` labels, and
-auto-merge provide the deliberately smaller substitute.
+This fork lives in a personal GitHub account, which gives one owner plus write
+collaborators and no organization-style Triage/Maintain/Admin roles. GitHub's
+native merge queue is therefore not available; the ordered queue below, the
+`status:*` labels, and auto-merge provide the smaller substitute.
 
 Konnect is deliberately built and reviewed through **two different AI
 toolchains** — Claude Code on one side, OpenAI Codex on the other. That is not
@@ -37,7 +32,7 @@ independent.
   approving-review count is required, but review is still a real decision:
   every conversation must be resolved and the exact current head must satisfy
   the issue, evidence, and queue requirements below.
-- **PRs authored by `@mixelpixx` or `@neusse` carry standing merge
+- **PRs authored by a maintainer listed above carry standing merge
   authorization once they satisfy that readiness gate.** The queue maintainer
   does not wait for an additional per-PR or per-head approval. After each such
   merge, synchronize `main`, verify the result, recompute the immediate queue,
@@ -119,7 +114,7 @@ independent.
    `status:ready-to-merge`. If checks are still running, arm GitHub auto-merge
    with the **merge commit** method. If every requirement is already green,
    merge with `gh pr merge N --merge` after the same final verification. For a
-   PR authored by `@mixelpixx` or `@neusse`, standing authorization applies;
+   PR authored by a maintainer, standing authorization applies;
    otherwise record explicit maintainer authorization for that exact head
    before executing the merge.
 6. Any new commit, force-push, base change, required-check regression, or newly
@@ -130,7 +125,7 @@ independent.
 7. After merge, synchronize local `main`, verify the merge commit, terminal
    issue closure, and acceptance evidence, then promote only the next PR in the
    documented dependency order. Continue automatically while that immediate
-   successor is ready and authored by `@mixelpixx` or `@neusse`; stop at the
+   successor is ready and authored by a maintainer; stop at the
    first other author, blocker, or end of the queue. Run the complete local gate
    above only when one of its explicit conditions applies. GitHub deletes the
    merged topic branch automatically.

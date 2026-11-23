@@ -10,7 +10,7 @@ use std::time::Duration;
 use tokio::process::Command;
 
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
-const PCM_IDENTIFIER: &str = "com.github.mixelpixx.konnect";
+const PCM_IDENTIFIER: &str = "com.github.the78mole.konnect";
 
 pub(crate) async fn collect(
     config: &ServerConfig,
@@ -429,7 +429,7 @@ mod tests {
         assert_eq!(classify_installation(&executable).name, "unknown");
         std::fs::write(
             plugin_dir.join("plugin.json"),
-            r#"{"identifier":"com.github.mixelpixx.konnect","runtime":{"type":"exec"}}"#,
+            r#"{"identifier":"com.github.the78mole.konnect","runtime":{"type":"exec"}}"#,
         )
         .unwrap();
 

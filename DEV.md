@@ -269,7 +269,7 @@ broader per-tool inventory is tracked in #574.
 
 ### Plugin Installation
 - **PCM zip** is the correct install method
-- KiCad installs to: `C:\Users\<YOU>\Documents\KiCad\10.0\3rdparty\plugins\com_github_mixelpixx_konnect\`
+- KiCad installs to: `C:\Users\<YOU>\Documents\KiCad\10.0\3rdparty\plugins\com_github_the78mole_konnect\`
 - Both `__init__.py` (SWIG ActionPlugin for PCB editor settings dialog) and `plugin.json` (IPC exec plugin) are included
 - `native_bridge.py` is a KiCad-10-only, opt-in compatibility bridge. It exposes
   only authenticated status and native Specctra export over an ephemeral

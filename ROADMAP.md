@@ -13,6 +13,13 @@ informed by the dated
 [Improvement Backlog](https://github.com/mixelpixx/Konnect/discussions/165),
 live issue labels, tracker issues, and benchmark evidence.
 
+> [!NOTE]
+> This roadmap was inherited from the original, now archived
+> [mixelpixx/Konnect](https://github.com/mixelpixx/Konnect). The `#NNN` links
+> below point to issues and discussions in that archived repository, which stay
+> readable but are no longer answered there. New work for this fork is tracked in
+> [this fork's issues](https://github.com/the78mole/Konnect/issues).
+
 ## 1. Truth, source authority, and write safety
 
 Every response field must derive from an observed result, never from the

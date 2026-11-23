@@ -1,4 +1,4 @@
-# Commercial Licensing
+# Licensing
 
 Konnect is free software, licensed under the [GNU AGPL-3.0](LICENSE).
 
@@ -29,19 +29,15 @@ too. Use Konnect freely.
   boundary. It becomes a question only when you incorporate Konnect's own code
   into something you distribute or host for others.
 
-## The commercial option
+## No commercial license from this fork
 
-If your plans include shipping Konnect inside a proprietary product or offering
-a modified Konnect as a hosted service — or your organization simply prefers a
-signed agreement, support commitment, or indemnity over doing its own license
-analysis — a commercial license is available. It removes the copyleft
-conditions entirely, and support and indemnity terms can be part of the same
-agreement.
-
-Contact: **nate.slidebyone.summers@gmail.com** or **chris_stockslager@comcast.net** — include a sentence or two about how you
-plan to use Konnect and the size of your team, and I'll get back to you with terms.
+The original Konnect project offered commercial licenses in addition to the
+AGPL. This fork does not: the copyright in the inherited code stays with its
+original authors and contributors, and the AGPL-3.0 is the only license under
+which this fork receives and passes on that code. If you need terms other than
+the AGPL for the original code, you would have to ask its copyright holders.
 
 ## Contributions
 
-To keep dual licensing possible, contributions to Konnect require agreeing to the
-contributor terms described in [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions to this fork are accepted under the AGPL-3.0 only
+("inbound = outbound"); see [CONTRIBUTING.md](CONTRIBUTING.md).

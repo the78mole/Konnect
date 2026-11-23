@@ -2,47 +2,33 @@
 
 <div align="center">
 
-<img src="resources/images/KiCAD-MCP-Server-rust.svg" alt="KiCAD-MCP-Server Logo" height="240" />
+# Konnect
 
-
-# Konnect has moved to Konnect-EDA
-
-## [Go to Konnect-EDA →](https://github.com/Orchis-ai-LLC/Konnect-EDA)
+**Community fork of Konnect, the free AI-assisted PCB design server for KiCAD 10**
 
 </div>
 
-This repository is being archived, which makes it read-only. Development continues
-at Konnect-EDA, from Orchis.ai LLC.
+> [!NOTE]
+> **This is an actively maintained, independent fork.** The original Konnect
+> repository ([mixelpixx/Konnect](https://github.com/mixelpixx/Konnect)) stopped
+> development in November 2026, when its authors moved on to a commercial,
+> closed-source successor (Konnect-EDA by Orchis.ai LLC). This fork continues the
+> last free state of that code under the original
+> [GNU AGPL-3.0](LICENSE) and stays free software for everyone.
+>
+> This fork is **not affiliated with, endorsed by, or supported by** the original
+> authors or Orchis.ai LLC. Please report problems with this fork
+> [here](https://github.com/the78mole/Konnect/issues), not upstream.
 
-## It stays free, unless you're a business
+### Credits
 
-Konnect-EDA is now commercial and closed source. Here's what that means for you:
-
-- **Everyone, businesses included:** free until version 1.0.
-- **Personal, hobby, student and open-hardware work:** still free after 1.0. You'll
-  need a license key, and that key is free too.
-- **Businesses:** a paid license from 1.0.
-
-Business licenses pay for the work, and that's what lets us keep it free for
-everyone else.
-
-**Nothing here is being taken away.** The code and releases in this repository stay
-available under the AGPL-3.0. The original
-[KiCAD MCP Server](https://github.com/mixelpixx/KiCAD-MCP-Server) stays open source
-under the MIT license and is still maintained. The boards you design are always yours.
-
-## Where to go now
-
-- **Downloads:** the [Konnect-EDA releases page](https://github.com/Orchis-ai-LLC/Konnect-EDA/releases).
-  The first release is coming soon.
-- **Bugs and feature requests:** the
-  [Konnect-EDA issue tracker](https://github.com/Orchis-ai-LLC/Konnect-EDA/issues).
-- **Want to help build it?** [Sign up to contribute](https://orchis.ai/konnect/join).
-- **Contributed to Konnect?** Please [complete your sign-off](https://orchis.ai/konnect/sign-off)
-  by November 20.
-- **Using it at a company?** See [licensing](https://konnect-eda.orchis.ai/licensing/).
-
-Thank you to everyone who built Konnect with us.
+Konnect was created by [mixelpixx](https://github.com/mixelpixx),
+[neusse](https://github.com/neusse) and the many contributors to the original
+repository — see the git history for everyone who built it. Their copyright
+notices are kept intact. Konnect itself grew out of the MIT-licensed
+[KiCAD-MCP-Server](https://github.com/mixelpixx/KiCAD-MCP-Server). Third-party
+code and data are listed in [THIRD_PARTY.md](THIRD_PARTY.md), and the changes
+made in this fork are described in [NOTICE.md](NOTICE.md).
 
 ---
 
@@ -140,7 +126,7 @@ Konnect.
 
 ### From the KiCAD Plugin Manager (recommended)
 
-1. Download the package for your OS from [Releases](https://github.com/mixelpixx/Konnect/releases):
+1. Download the package for your OS from [Releases](https://github.com/the78mole/Konnect/releases):
    `konnect-pcm-v<version>-windows.zip`, `-macos.zip`, or `-linux.zip`. Each
    bundles that platform's server binary — the macOS package is a universal
    build, so one download covers Apple Silicon and Intel. (The `konnect-pcm-*`
@@ -237,7 +223,7 @@ it is not silently guessed from a directory name.
 
 ### macOS
 
-The [Releases](https://github.com/mixelpixx/Konnect/releases) page ships
+The [Releases](https://github.com/the78mole/Konnect/releases) page ships
 standalone server binaries for both Apple Silicon (`aarch64-apple-darwin`) and
 Intel (`x86_64-apple-darwin`). They are not yet code-signed, so if you download
 one through a browser, clear the quarantine flag before first launch:
@@ -288,7 +274,7 @@ the Windows build yet.
 After a PCM install, the server binary lives in your KiCAD documents folder:
 
 ```
-C:\Users\<YOU>\Documents\KiCad\10.0\3rdparty\plugins\com_github_mixelpixx_konnect\bin\konnect.exe
+C:\Users\<YOU>\Documents\KiCad\10.0\3rdparty\plugins\com_github_the78mole_konnect\bin\konnect.exe
 ```
 
 Edit `%APPDATA%\Claude\claude_desktop_config.json`:
@@ -297,7 +283,7 @@ Edit `%APPDATA%\Claude\claude_desktop_config.json`:
 {
   "mcpServers": {
     "konnect": {
-      "command": "C:\\Users\\<YOU>\\Documents\\KiCad\\10.0\\3rdparty\\plugins\\com_github_mixelpixx_konnect\\bin\\konnect.exe"
+      "command": "C:\\Users\\<YOU>\\Documents\\KiCad\\10.0\\3rdparty\\plugins\\com_github_the78mole_konnect\\bin\\konnect.exe"
     }
   }
 }
@@ -340,17 +326,17 @@ the main workspace — see [DEV.md](DEV.md) for build steps.
   closed with `unsupported_capability`; it never edits the file underneath a
   live editor that cannot perform the native flip.
 
-## License: free for the little guys
+## License
 
-Konnect is licensed under the **[GNU AGPL-3.0](LICENSE)**.
+Konnect is free software, licensed under the **[GNU AGPL-3.0](LICENSE)** — for
+everyone, businesses included. Design boards, ship them, sell them: the boards and
+design files you produce are yours.
 
-If you're a hobbyist, student, freelancer, or open-source project: **use it freely,
-no strings attached.** Design boards, ship them, sell them.
-
-If you're a business: the AGPL requires that anything you build on or around Konnect —
-including software provided over a network — be open-sourced under the same license.
-If that doesn't work for you, **commercial licenses are available**: see
-[COMMERCIAL.md](COMMERCIAL.md).
+The AGPL's obligations only start when you distribute Konnect or let others use a
+modified version over a network; see [LICENSING.md](LICENSING.md) for a plain-language
+summary. This fork does not sell commercial licenses: the copyright in the inherited
+code belongs to its original authors, so only they could grant terms other than the
+AGPL.
 
 ## Relationship to KiCAD-MCP-Server
 
@@ -366,7 +352,7 @@ the architecture it proved, rebuilt for production:
 | Schematic backend | kicad-skip + custom loaders | Native S-expression engine, atomic writes |
 | Context cost | Router pattern | Load/unload toolsets + observability |
 | Skills / agents | — | 6 skills + 2 agents bundled |
-| License | MIT | AGPL-3.0 + commercial |
+| License | MIT | AGPL-3.0 |
 
 ## Troubleshooting
 
@@ -392,9 +378,6 @@ works only when passed with `--config`.)
 
 ## Support
 
-- Community Discord: [join the Konnect community](https://discord.gg/NVp9RGMmDu)
-  for installation help, AI-client setup, design-workflow discussion,
-  contributor coordination, and live project-status updates
-- Issues & feature requests: [GitHub Issues](https://github.com/mixelpixx/Konnect/issues)
+- Issues & feature requests: [GitHub Issues](https://github.com/the78mole/Konnect/issues)
 - Roadmap: [ROADMAP.md](ROADMAP.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
