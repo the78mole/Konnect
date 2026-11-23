@@ -1,10 +1,17 @@
 name: CI
 
+# Pushes and PRs run the Linux lanes only. The Windows and macOS legs of
+# "Check & Test" and the Windows-only schematic viewer cost most of the CI
+# minutes and rarely catch anything Linux does not, so they run weekly on
+# main and on demand (workflow_dispatch) instead.
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: "23 4 * * 1" # Mondays 04:23 UTC, ahead of the weekly E2E run
+  workflow_dispatch:
 
 # A new push to the same branch/PR supersedes the previous run.
 concurrency:
@@ -20,8 +27,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # ubuntu-latest verifies every push and PR; windows/macos join only
+        # on the weekly schedule and on manual dispatch.
+        os: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -87,6 +97,8 @@ jobs:
   # omit a missing viewer binary without failing.
   viewer:
     name: Schematic viewer
+    # Windows runner: weekly and on demand only (see the trigger comment).
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 30
     steps:

@@ -74,7 +74,10 @@ test passes only when the exact pre-import IPC snapshot returns.
 ## CI And Live Validation
 
 `.github/workflows/ci.yml` covers the Rust workspace, formatting, clippy,
-documentation tests, viewer, plugin, Nix, and PCM validation. The real-KiCad
+documentation tests, viewer, plugin, Nix, and PCM validation. Pushes and pull
+requests run the Linux jobs only; the Windows and macOS legs of `Check & Test`
+and the Windows schematic-viewer job run weekly on `main` and on manual
+dispatch, so a platform-specific break can surface up to a week late. The real-KiCad
 workflow remains separate because it installs KiCad and is not an ordinary
 per-PR gate. Apply the `run:e2e-kicad` label to run that same workflow for a
 pull request when KiCad-facing behavior needs hosted acceptance evidence.
