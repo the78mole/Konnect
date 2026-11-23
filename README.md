@@ -179,7 +179,9 @@ any other add-on:
    ```
 3. Select the **KopperDigger** repository, pick **KopperDigger** under
    *Plugins*, click **Install**, then **Apply Pending Changes**
-4. Restart KiCAD
+4. Restart KiCAD. This is needed once after installing: on macOS and Linux the
+   KopperDigger IPC toolbar action only points at the right server binary after
+   that restart (the settings dialog works right away).
 
 Updates then show up in the same dialog. The package carries the server for
 Windows, macOS (universal: Apple Silicon and Intel) and Linux x86_64; the plugin
