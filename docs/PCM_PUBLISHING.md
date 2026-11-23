@@ -5,7 +5,7 @@ same release artifacts.
 
 | Channel | URL users add | Who publishes |
 |---|---|---|
-| Self-hosted repository (GitHub Pages) | `https://the78mole.github.io/KopperDigger/repository.json` | `release.yml`, automatically on every tag |
+| Self-hosted repository (GitHub Pages) | `https://the78mole.github.io/KopperDigger/repository.json` | `pages.yml`, automatically after every tagged release |
 | Official KiCad repository (listed by default) | none | merge request to [kicad/addons/metadata](https://gitlab.com/kicad/addons/metadata), reviewed by the KiCad team |
 
 ## What a release produces
@@ -26,7 +26,8 @@ Pushing a tag `vX.Y.Z` (or `vX.Y.Z-rc1` for a pre-release) runs `release.yml`:
    `v0.14.0-rc.1` is packaged as `0.14.0` with status `testing`; the stable
    `v0.14.0` replaces it in the self-hosted repository, and pre-releases are
    never submitted to KiCad's.
-4. `pcm-repository` collects the `.pcm-version.json` of every release, runs
+4. `pages.yml` (started by the finished Release via `workflow_run`, so it runs
+   on `main` and needs no tag rule on the `github-pages` environment) collects the `.pcm-version.json` of every release, runs
    `packaging/build-pcm-repo.py` and deploys `repository.json`,
    `packages.json`, `resources.zip` and `index.html` to GitHub Pages. The same
    site contains `kicad-addons/com.github.the78mole.kidig-mcp/metadata.json`
@@ -83,7 +84,7 @@ that.
 1. Fork <https://gitlab.com/kicad/addons/metadata> on GitLab and clone it.
 2. `git switch -c add-kopperdigger`
 3. Copy `kicad-addons/com.github.the78mole.kidig-mcp/` from the Pages site
-   (or the `pcm-repository` job's artifact) to `packages/`.
+   (or the `pages.yml` run's artifact) to `packages/`.
 4. Optional local check, from the metadata checkout:
    `python -m pip install -r ci/requirements.txt` then
    `python ci/validate-package.py --schema-v1 schema-v1.json --schema-v2 schema-v2.json com.github.the78mole.kidig-mcp packages/com.github.the78mole.kidig-mcp/metadata.json`

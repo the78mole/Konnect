@@ -60,13 +60,13 @@ jobs:
                    --jq '.[] | select((.isDraft or .isPrerelease) | not) | .tagName')
           for tag in $tags; do
             gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
-              --pattern '*.pcm-version.json' --dir versions || true
+              --pattern '*.pcm-version.json' --dir "versions/$tag" || true
           done
-          if ! ls versions/*.pcm-version.json >/dev/null 2>&1; then
+          if ! ls versions/*/*.pcm-version.json >/dev/null 2>&1; then
             echo "::error::no stable release carries a .pcm-version.json yet"
             exit 1
           fi
-          ls -l versions
+          ls -lR versions
 
       - name: Generate metadata
         run: |

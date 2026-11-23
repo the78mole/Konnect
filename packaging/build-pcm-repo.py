@@ -50,7 +50,7 @@ def main() -> int:
     ap.add_argument("--metadata", type=Path, default=HERE / "metadata.json")
     ap.add_argument("--icon", type=Path, default=HERE / "resources" / "icon.png")
     ap.add_argument("--versions", type=Path, required=True,
-                    help="directory holding *.pcm-version.json files")
+                    help="directory holding *.pcm-version.json files (searched recursively)")
     ap.add_argument("--base-url", required=True,
                     help="public URL the output directory is served from")
     ap.add_argument("--out", type=Path, default=Path("site"))
@@ -60,7 +60,7 @@ def main() -> int:
     ident = meta["identifier"]
 
     versions = {}
-    for f in sorted(args.versions.glob("*.pcm-version.json")):
+    for f in sorted(args.versions.rglob("*.pcm-version.json")):
         entry = json.loads(f.read_text(encoding="utf-8"))
         for field in ("version", "download_url", "download_sha256",
                       "download_size", "install_size"):
