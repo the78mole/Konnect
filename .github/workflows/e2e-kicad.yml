@@ -28,9 +28,11 @@ env:
 
 jobs:
   e2e:
-    name: Full design loop on windows-latest
+    name: Full design loop on ubuntu-latest
     if: github.event_name != 'pull_request' || github.event.label.name == 'run:e2e-kicad'
-    runs-on: windows-latest
+    # Linux: KiCad installs from apt in a fraction of the time the Windows
+    # choco install took, and Linux runner minutes are the cheapest.
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
@@ -46,25 +48,34 @@ jobs:
         with:
           key: e2e-kicad
 
-      # Pinned: an unpinned install would silently switch what E2E tests the
-      # day KiCAD 11 ships, while metadata.json still declares kicad_version
-      # 10.x. Bump deliberately alongside the supported-version claim.
+      # Pinned to the 10.0 release series: the 10.0 PPA never moves to
+      # KiCad 11, so E2E keeps testing what metadata.json declares
+      # (kicad_version 10.x). The guard below fails loudly if that ever
+      # stops holding. Bump deliberately alongside the supported-version claim.
+      # Symbols and footprints are needed (the e2e places real Device parts);
+      # 3D models are not and would add gigabytes, hence no recommends.
       - name: Install KiCAD
-        run: choco install kicad --version=10.0.5 --no-progress --yes
+        run: |
+          set -euo pipefail
+          sudo add-apt-repository --yes ppa:kicad/kicad-10.0-releases
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            kicad kicad-symbols kicad-footprints kicad-demos
 
       - name: Locate kicad-cli and demos
-        id: kicad
-        shell: pwsh
         run: |
-          $cli = Get-ChildItem "C:\Program Files\KiCad" -Recurse -Filter kicad-cli.exe -ErrorAction SilentlyContinue |
-                 Select-Object -First 1 -ExpandProperty FullName
-          if (-not $cli) { $cli = Get-ChildItem "C:\KiCad" -Recurse -Filter kicad-cli.exe -ErrorAction SilentlyContinue |
-                 Select-Object -First 1 -ExpandProperty FullName }
-          if (-not $cli) { throw "kicad-cli.exe not found after install" }
-          "KICAD_CLI=$cli" | Out-File $env:GITHUB_ENV -Append
-          $demos = Join-Path (Split-Path (Split-Path $cli)) "share\kicad\demos"
-          if (Test-Path $demos) { "KICAD_DEMOS=$demos" | Out-File $env:GITHUB_ENV -Append }
-          & $cli --version
+          set -euo pipefail
+          cli="$(command -v kicad-cli)"
+          version="$("$cli" --version)"
+          echo "kicad-cli $version at $cli"
+          case "$version" in
+            10.0.*) ;;
+            *) echo "::error::expected KiCad 10.0.x, got $version"; exit 1 ;;
+          esac
+          echo "KICAD_CLI=$cli" >> "$GITHUB_ENV"
+          if [ -d /usr/share/kicad/demos ]; then
+            echo "KICAD_DEMOS=/usr/share/kicad/demos" >> "$GITHUB_ENV"
+          fi
 
       - name: E2E design loop (create → wire → ERC → Gerber → DRC)
         env:
@@ -89,12 +100,13 @@ jobs:
           python-version: "3.12"
 
       - name: Assemble + schema-validate PCM package
-        shell: pwsh
         run: |
+          set -euo pipefail
           python -m pip install jsonschema
           cargo build --release --locked -p kidig-mcp
-          ./packaging/build-pcm.ps1 -Version 0.0.0 -BinaryPath target/release/kidig-mcp.exe -Platform windows -OutDir dist
-          python packaging/validate-pcm.py --zip dist/kidig-mcp-pcm-v0.0.0-windows.zip
+          ./packaging/build-pcm.sh --version 0.0.0 --binary target/release/kidig-mcp \
+            --platform linux --out dist
+          python packaging/validate-pcm.py --zip dist/kidig-mcp-pcm-v0.0.0-linux.zip
 
       - name: Upload artifacts on failure
         if: failure()

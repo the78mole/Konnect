@@ -168,13 +168,13 @@ KopperDigger/
 │   └── resources/                    # PCM package resources (icon.png)
 │
 └── .github/workflows/
-    ├── ci.yml                        # 7 jobs: check+test (3-OS matrix), clippy and
-    │                                 # fmt (ubuntu only), schematic viewer, Python
-    │                                 # plugin, Nix flake, PCM packaging validation.
-    │                                 # The last four cover code `cargo --workspace`
-    │                                 # never sees. 9 check runs per PR — the matrix
-    │                                 # counts as three.
-    ├── e2e-kicad.yml                 # Real KiCAD 10.0.5: end-to-end suite, a
+    ├── ci.yml                        # check+test, clippy, fmt, licenses, Python
+    │                                 # plugin, Nix flake, PCM packaging validation
+    │                                 # on every push/PR (all ubuntu). Weekly cron and
+    │                                 # manual dispatch add the windows/macos legs of
+    │                                 # check+test and the (Windows) schematic viewer.
+    ├── e2e-kicad.yml                 # Real KiCAD 10.0.x on Ubuntu (KiCad PPA):
+    │                                 # end-to-end suite, a
     │                                 # conformance pass over KiCAD's demo corpus, and
     │                                 # PCM assembly + schema validation. Weekly cron,
     │                                 # manual dispatch, reusable release gate, and an
