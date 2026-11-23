@@ -21,7 +21,7 @@
 >
 > This fork is **not affiliated with, endorsed by, or supported by** the original
 > authors or Orchis.ai LLC. Please report problems with this fork
-> [here](https://github.com/the78mole/Konnect/issues), not upstream.
+> [here](https://github.com/the78mole/KopperDigger/issues), not upstream.
 
 ### Credits
 
@@ -164,7 +164,7 @@ KopperDigger.
 
 ### From the KiCAD Plugin Manager (recommended)
 
-1. Download the package for your OS from [Releases](https://github.com/the78mole/Konnect/releases):
+1. Download the package for your OS from [Releases](https://github.com/the78mole/KopperDigger/releases):
    `kidig-mcp-pcm-v<version>-windows.zip`, `-macos.zip`, or `-linux.zip`. Each
    bundles that platform's server binary — the macOS package is a universal
    build, so one download covers Apple Silicon and Intel. (The `kidig-mcp-pcm-*`
@@ -265,7 +265,7 @@ it is not silently guessed from a directory name.
 
 ### macOS
 
-The [Releases](https://github.com/the78mole/Konnect/releases) page ships
+The [Releases](https://github.com/the78mole/KopperDigger/releases) page ships
 standalone server binaries for both Apple Silicon (`aarch64-apple-darwin`) and
 Intel (`x86_64-apple-darwin`). They are not yet code-signed, so if you download
 one through a browser, clear the quarantine flag before first launch:
@@ -420,6 +420,6 @@ works only when passed with `--config`.)
 
 ## Support
 
-- Issues & feature requests: [GitHub Issues](https://github.com/the78mole/Konnect/issues)
+- Issues & feature requests: [GitHub Issues](https://github.com/the78mole/KopperDigger/issues)
 - Roadmap: [ROADMAP.md](ROADMAP.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
