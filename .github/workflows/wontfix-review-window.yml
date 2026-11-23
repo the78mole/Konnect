@@ -66,7 +66,7 @@ jobs:
               const closeTimestamp = closesAt.toISOString();
               const closeDate = closeTimestamp.slice(0, 10);
               const marker =
-                `<!-- konnect:wontfix-window applied=${appliedAt} closes=${closeDate} -->`;
+                `<!-- kidig-mcp:wontfix-window applied=${appliedAt} closes=${closeDate} -->`;
               const comments = await github.paginate(
                 github.rest.issues.listComments,
                 { owner, repo, issue_number: issue.number, per_page: 100 }
@@ -88,7 +88,7 @@ jobs:
               if (Date.now() < closesAt.getTime()) return;
 
               const closeMarker =
-                `<!-- konnect:wontfix-window-complete applied=${appliedAt} -->`;
+                `<!-- kidig-mcp:wontfix-window-complete applied=${appliedAt} -->`;
               if (!comments.some(comment => comment.body?.includes(closeMarker))) {
                 await github.rest.issues.createComment({
                   owner,

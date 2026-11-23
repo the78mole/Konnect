@@ -25,7 +25,7 @@
     {
       "description": "Cargo: bundle minor/patch updates of the workspace into one PR.",
       "matchManagers": ["cargo"],
-      "matchFileNames": ["Cargo.toml", "crates/konnect*/Cargo.toml", "xtask/Cargo.toml"],
+      "matchFileNames": ["Cargo.toml", "crates/kidig-mcp*/Cargo.toml", "xtask/Cargo.toml"],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "cargo workspace (minor/patch)"
     },

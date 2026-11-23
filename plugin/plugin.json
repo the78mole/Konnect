@@ -1,6 +1,6 @@
 {
-  "identifier": "com.github.the78mole.konnect",
-  "name": "Konnect",
+  "identifier": "com.github.the78mole.kidig-mcp",
+  "name": "KopperDigger",
   "description": "AI-assisted PCB design via the Model Context Protocol. 232 tools for schematic editing, PCB layout, routing, design review, and manufacturing export.",
   "runtime": {
     "type": "exec"
@@ -8,9 +8,9 @@
   "actions": [
     {
       "identifier": "start-server",
-      "name": "Konnect",
-      "description": "Start the Konnect AI design server",
-      "entrypoint": "bin/konnect.exe",
+      "name": "KopperDigger",
+      "description": "Start the KopperDigger AI design server",
+      "entrypoint": "bin/kidig-mcp.exe",
       "show-button": true,
       "scopes": ["pcb"]
     }

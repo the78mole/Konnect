@@ -15,7 +15,7 @@ Issue: #
 ### Architectural fit
 
 <!--
-Does this change extend an existing KiCad capability or shared Konnect module?
+Does this change extend an existing KiCad capability or shared KopperDigger module?
 If it introduces a workaround or duplicates behavior, explain why and when it
 can be retired. Keep the answer short; documentation-only changes may say N/A.
 See architectural coordination tracker #590. This is a design review signal,

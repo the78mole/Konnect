@@ -11,7 +11,7 @@
 //! exactly that to eleven open pull requests. The guard stays; the
 //! hand-editing does not.
 
-use konnect_core::router::{meta_tools, registry};
+use kidig_core::router::{meta_tools, registry};
 use std::path::{Path, PathBuf};
 
 const SKIP: &[&str] = &["target", "node_modules", ".git", ".claude", "dist", "build"];

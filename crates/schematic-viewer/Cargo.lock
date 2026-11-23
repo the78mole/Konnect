@@ -1759,16 +1759,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "konnect-schematic-editor"
+name = "kidig-schematic-editor"
 version = "0.13.0"
 dependencies = [
- "konnect-sexp",
+ "kidig-sexp",
  "thiserror 1.0.69",
  "uuid",
 ]
 
 [[package]]
-name = "konnect-sexp"
+name = "kidig-sexp"
 version = "0.13.0"
 dependencies = [
  "anyhow",
@@ -2789,7 +2789,7 @@ dependencies = [
 name = "schematic-viewer"
 version = "0.13.0"
 dependencies = [
- "konnect-schematic-editor",
+ "kidig-schematic-editor",
  "notify",
  "serde",
  "serde_json",

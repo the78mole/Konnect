@@ -1,4 +1,4 @@
-# How Konnect is run
+# How KopperDigger is run
 
 One page, so nobody has to reconstruct this from issue threads.
 
@@ -19,10 +19,10 @@ collaborators and no organization-style Triage/Maintain/Admin roles. GitHub's
 native merge queue is therefore not available; the ordered queue below, the
 `status:*` labels, and auto-merge provide the smaller substitute.
 
-Konnect is deliberately built and reviewed through **two different AI
+KopperDigger is deliberately built and reviewed through **two different AI
 toolchains** — Claude Code on one side, OpenAI Codex on the other. That is not
 duplication to be tidied away. Every defect found so far in the agent-facing
-guidance Konnect ships was found from *outside* the toolchain that ships it,
+guidance KopperDigger ships was found from *outside* the toolchain that ships it,
 because a reviewer inside it cannot see its blind spots. Keep the two stacks
 independent.
 
@@ -319,7 +319,7 @@ The workflow enforces timing only. It never chooses the disposition.
 
 ## Licensing
 
-Konnect is AGPL-3.0 with commercial licences available, so contributions must
+KopperDigger is AGPL-3.0 with commercial licences available, so contributions must
 be relicensable. Submitting a contribution accepts the CLA in
 [CONTRIBUTING.md](CONTRIBUTING.md). If you cannot agree to it, open an issue
 describing the change instead — a reimplementation from a description is fine.

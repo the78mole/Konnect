@@ -5,4 +5,4 @@ edition = "2021"
 publish = false
 
 [dependencies]
-konnect-core = { path = "../crates/konnect-core" }
+kidig-core = { path = "../crates/kidig-core" }

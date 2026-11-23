@@ -1,6 +1,6 @@
 # cargo-deny configuration — dependency license gate.
 #
-# Konnect is AGPL-3.0, so every dependency's license must be AGPL-compatible.
+# KopperDigger is AGPL-3.0, so every dependency's license must be AGPL-compatible.
 # The list below was originally chosen to also allow a proprietary commercial
 # grant (which this fork no longer offers), so it is stricter than necessary.
 # Notably MPL-2.0 (resvg's family) is file-level copyleft: fine to link, but

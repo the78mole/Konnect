@@ -1,6 +1,6 @@
-# Konnect MCP API migrations
+# KopperDigger MCP API migrations
 
-Konnect's tool schemas are public API. This file records intentional argument
+KopperDigger's tool schemas are public API. This file records intentional argument
 removals and the supported replacement workflow.
 
 ## Unreleased: omitted rectangular symbol pin coordinates are distributed (patch release)
@@ -49,7 +49,7 @@ adds `unavailable_item_classes`, one entry per class it could not measure:
   does list a class the bundled protocol has no message for, so the items
   cannot be measured.
 
-A class that Konnect does measure, if KiCad refuses it the same way, is now
+A class that KopperDigger does measure, if KiCad refuses it the same way, is now
 named there too, and the rest of the read still answers. It used to fail the
 whole read. Any other failure still fails the read. A saved-file answer
 carries `unavailable_item_classes: []`, since it lists every item and names
@@ -246,16 +246,16 @@ known price, and `max_price_usd` excludes it. The response adds
 and `exclusions`, which counts the parts the stock floor and the price limit
 removed (#785).
 
-## Unreleased: `konnect init` refreshes stale Claude hook matchers (patch release)
+## Unreleased: `kidig-mcp init` refreshes stale Claude hook matchers (patch release)
 
 A hook's `matcher` is built from the tool registry, so it changes when a board
-tool is added, renamed or reclassified. `konnect init` used to skip any hook
+tool is added, renamed or reclassified. `kidig-mcp init` used to skip any hook
 whose command was already in `~/.claude/settings.json`, leaving an older
 install matching the old tool set. It now rewrites the matcher of an entry that
-holds only Konnect's handler. When a user handler shares that entry, Konnect's
+holds only KopperDigger's handler. When a user handler shares that entry, KopperDigger's
 handler moves to a new entry with the current matcher, and the user's handler
 keeps its own. An install whose matcher is already current is not rewritten.
-Extra copies of Konnect's handler, such as a hand edit can leave, are removed
+Extra copies of KopperDigger's handler, such as a hand edit can leave, are removed
 so that each hook runs once.
 The `Hooks: N entries patched` count now includes refreshed entries and a
 removed legacy handler, so it is non-zero whenever the hook settings changed
@@ -319,7 +319,7 @@ in 32/32/6 groups, observed all references, and verified one native Undo restore
 the entire pre-apply serialized board. Redo restored the entire published state;
 a final Undo left the disposable board unchanged. The ignored regression is
 `sync_chunk_live_one_undo_restores_entire_board`; run it only with a disposable
-sole open board identified by `KONNECT_LIVE_CHUNK_BOARD`. Its native action names
+sole open board identified by `KIDIG_MCP_LIVE_CHUNK_BOARD`. Its native action names
 are version-specific test probes, not a new production API.
 
 ## Unreleased: unknown IPC outcomes (#658, first increment)
@@ -334,7 +334,7 @@ preserves this error instead of converting it to a preflight `conflict`.
 
 Do not retry a mutation or edit the saved file on this result. Inspect and
 reconcile the requested live board first: some or all of the mutation may have
-been applied. Konnect does not send a blind transaction drop after an uncertain
+been applied. KopperDigger does not send a blind transaction drop after an uncertain
 operation or publish. The diagnostic includes the known commit identifier, but
 does not claim a successful rollback. Known API refusals retain their existing
 classification and ordinary failed batches still attempt a drop.
@@ -343,7 +343,7 @@ The second increment opts only `update_pcb_from_schematic` into bounded
 late-reply recovery. It captures the serialized live target before beginning
 the transaction. One receive remains alive for the ordinary 30-second window
 plus a 30-second recovery allowance; NNG cancels the request if the receive
-itself times out, so Konnect does not cancel at the ordinary boundary or resend
+itself times out, so KopperDigger does not cancel at the ordinary boundary or resend
 the request. A reply arriving after the ordinary window aborts the apply.
 The remaining recovery allowance is shared by exact-target checks, dropping
 the known commit, and observing a fresh serialized snapshot. Confirmed drop
@@ -409,8 +409,8 @@ of the binary that runs it. An embedded or library server reports
 The server checks each client once per installed guidance version, identified
 by the install marker alone. A new binary over the same marker does not
 rescan. The first start for a marker scans and records the
-state in `~/.konnect/.guidance-checked-claude` or `.guidance-checked-codex`.
-`konnect init` and `konnect uninstall` delete that client's record, so a
+state in `~/.kidig-mcp/.guidance-checked-claude` or `.guidance-checked-codex`.
+`kidig-mcp init` and `kidig-mcp uninstall` delete that client's record, so a
 re-init with the same version is checked again.
 Each client entry carries `checked`: `now` when this process scanned, or
 `earlier` when it reuses the record. An `earlier` entry has `state` and
@@ -418,10 +418,10 @@ Each client entry carries `checked`: `now` when this process scanned, or
 
 The `initialize` result gains `instructions`, present only on the first
 `initialize` after a scan that found a client `out_of_sync`. It holds one line
-per such client, naming the marker version and the `konnect init` command to
+per such client, naming the marker version and the `kidig-mcp init` command to
 run. Later starts with the same install marker omit it.
 
-`konnect status` prints `[current]`, `[different]`, `[missing]`, or
+`kidig-mcp status` prints `[current]`, `[different]`, `[missing]`, or
 `[unreadable]` for each skill file, agent, and hook in place of `[+]`/`[-]`,
 and a closing `Guidance:` state line.
 
@@ -579,7 +579,7 @@ then also reports `stub_length` and `label_type`.
 
 On Linux, once an update replaced the file at the serving binary's path,
 `/proc/self/exe` gained a ` (deleted)` suffix. Both tools used that path
-literally: `reload_server` failed with "could not open the Konnect binary at
+literally: `reload_server` failed with "could not open the KopperDigger binary at
 … (deleted)", and `get_installation_info` reported
 `binary_on_disk.probe_status: "launch_failed"` (#699).
 
@@ -660,7 +660,7 @@ caller that reads `x`/`y` unconditionally must handle their absence when
 `status` is `withheld` — where it previously received a number that could be
 off by 100× with nothing saying so. KiCad scales the lengths quoted inside its
 own violation *text* the same way ("Horizontal Wire, length 0.1270 mm" for a
-12.70 mm wire); Konnect does not rewrite KiCad's prose, and
+12.70 mm wire); KopperDigger does not rewrite KiCad's prose, and
 `coordinates.reason` states that.
 
 ## Unreleased: `run_erc` refuses a report it does not recognise (patch release)
@@ -668,7 +668,7 @@ own violation *text* the same way ("Horizontal Wire, length 0.1270 mm" for a
 `run_erc` decoded kicad-cli's JSON report leniently: a missing or wrong-typed
 `sheets` array produced an empty violation list, and a sheet without a
 `violations` array was skipped. Zero violations is what a clean schematic looks
-like, so a report Konnect did not recognise — the configured `kicad_cli` not
+like, so a report KopperDigger did not recognise — the configured `kicad_cli` not
 being KiCad's, a wrapper script, a truncated file, a future schema — was served
 as `total: 0, errors: 0, warnings: 0` (#581). `run_drc` already refused the
 equivalent DRC case.
@@ -689,7 +689,7 @@ bounding box (#594). On a concave, notched, rounded, rotated or
 multi-boundary board, a part could sit inside the bounding box but off the
 board and still score as inside it, or be placed there.
 
-Konnect now classifies the outline. It is `rectangular` only when it is
+KopperDigger now classifies the outline. It is `rectangular` only when it is
 provably an axis-aligned rectangle: a single `gr_rect`, a four-vertex
 `gr_poly` whose edges are the rectangle's four sides in order, or four
 `gr_line` segments that are its four sides, each once. Any other outline
@@ -724,7 +724,7 @@ KiCad DRC.
 `save_project_config`, `get_effective_config`, `add_design_rule` and
 `list_design_rules` treated a preferences file that failed to parse, or failed
 to read for any reason, as if it did not exist. The load answered with
-Konnect's defaults and said "User preferences loaded."; the next save then
+KopperDigger's defaults and said "User preferences loaded."; the next save then
 wrote those defaults, plus the one key being set, over the user's file (#580).
 
 A configuration file now has four states that are never merged:
@@ -749,7 +749,7 @@ persistence error, including the conditional writer's `conflict`, is
 `mutation_outcome_uncertain`: that writer reports a conflict both before a
 replacement and after one whose readback differs, so the response does not
 claim nothing was written — read the file before retrying. The one no-write
-statement is a file that appears while Konnect is creating one, which is a
+statement is a file that appears while KopperDigger is creating one, which is a
 `conflict`. `get_effective_config` and `list_design_rules` add `sources:
 {user, project}` (`"file"`, `"defaults"`, or `"not_configured"` when there is
 no project directory) and refuse, naming which file, rather than merge
@@ -812,7 +812,7 @@ nothing is planned or applied.
   `update_footprints_from_library` already uses:
   `footprint_library_resolution_failed` (the library id does not resolve),
   `footprint_library_read_failed` (the file cannot be read) and
-  `unsupported_library_footprint` (it holds something Konnect cannot place).
+  `unsupported_library_footprint` (it holds something KopperDigger cannot place).
   **Changed value:** the custom-pad case was reported as
   `footprint_library_resolution_failed`, although the library resolved; it is
   now `unsupported_library_footprint`.
@@ -957,7 +957,7 @@ select unrelated parts and could generate a row far outside the board.
 
 Callers must now supply a non-empty `capacitor_references` array containing the
 exact existing footprints to move. Those references are trusted as the
-caller's design intent; Konnect does not apply a reference-prefix or value
+caller's design intent; KopperDigger does not apply a reference-prefix or value
 heuristic to second-guess them. Missing, duplicate, unknown, or geometrically
 unplaceable references return structured invalid input before planning.
 
@@ -1121,7 +1121,7 @@ A refusal leaves the file byte-identical. The remedy depends on which one it is:
   than the marker: the refusal is sheet-wide, so **one** placed symbol whose
   `lib_symbols` entry is missing blocks every placement change on a sheet that
   has any no-connect, including changes nowhere near a marker. An unresolvable
-  symbol means Konnect cannot tell which pins sit under a marker at all, and
+  symbol means KopperDigger cannot tell which pins sit under a marker at all, and
   `delete_schematic_component` already refuses the same way for the same
   reason. Re-embed the definition (re-place the symbol, or restore the
   `lib_symbols` entry) and retry.
@@ -1133,7 +1133,7 @@ A refusal leaves the file byte-identical. The remedy depends on which one it is:
 `run_drc` and `get_drc_violations` accept `sync_live_board: false` and
 `refill_zones: false` by default. Existing calls continue to check the saved
 file without requiring IPC. To check recent editor changes, finish other
-mutations first and call either tool with `sync_live_board: true`. Konnect binds
+mutations first and call either tool with `sync_live_board: true`. KopperDigger binds
 the exact requested open board, optionally refills and waits for KiCad to stop
 returning `AS_BUSY`, saves that same document, verifies its native snapshot
 against the saved file, and only then runs CLI DRC. A changed source during DRC
@@ -1149,7 +1149,7 @@ returns a structured refusal on failure, and reports `saved: false` on success.
 Wrong targets and unavailable IPC stop before mutation/CLI. Once refill/save
 has been attempted, failed or unproven work returns `mutation_outcome_uncertain`
 with the requested path and operation. Inspect/reconcile the editor and saved
-file before retrying; Konnect does not replay a possibly applied mutation or
+file before retrying; KopperDigger does not replay a possibly applied mutation or
 fall back to a different board. See [DRC synchronization](DRC_SYNCHRONIZATION.md).
 
 ## Unreleased: `rotate_schematic_component` reconciles junctions (minor release)
@@ -1211,7 +1211,7 @@ had done, including nothing: two symbols that already shared a designator were
 never candidates, the file was left byte-identical, and KiCad's netlister then
 merged them into one component (#454). It also rewrote only the
 `(instances …)` reference of a `?` symbol and left its `(property "Reference"
-…)` behind, so KiCad and Konnect's own readers disagreed about the designator.
+…)` behind, so KiCad and KopperDigger's own readers disagreed about the designator.
 
 The response is now JSON, with the shared `outcome` envelope:
 
@@ -1338,7 +1338,7 @@ abstract.
 
 ## Unreleased: tool input schemas are enforced at dispatch (patch release)
 
-Konnect now compiles and caches every advertised Draft 2020-12 tool-input
+KopperDigger now compiles and caches every advertised Draft 2020-12 tool-input
 schema and validates calls before invoking either a domain handler or a
 meta-tool. A malformed present option no longer looks like omission and cannot
 silently select the option's default.
@@ -1384,7 +1384,7 @@ is retained.
 The placed-file readback now binds and verifies both effective fields. The new
 optional arguments are backward compatible. Existing response field names are
 unchanged, but their `Value` and `Footprint` contents now match the library
-rather than Konnect's discarded defaults.
+rather than KopperDigger's discarded defaults.
 
 ## Unreleased: Windows discovers KiCad's IPC endpoint (patch release)
 
@@ -1394,7 +1394,7 @@ is which path a hybrid tool takes, and therefore the value it reports in
 
 NNG maps `ipc://` to a named pipe there, which has no filesystem presence, and
 discovery probed the candidate path as a file — so it never found anything.
-A Konnect launched by an MCP client with no `ipc_address` and no
+A KopperDigger launched by an MCP client with no `ipc_address` and no
 `KICAD_API_SOCKET` reported the transport unreachable even with KiCad running,
 and every hybrid tool took its direct-file fallback while KiCad held the board
 open (#529). Discovery now looks the same path up in the pipe namespace.
@@ -1464,7 +1464,7 @@ this additive release does not remove it. This terminal stage closes #410.
 `kicad-cli sch export netlist` writes no `(footprint …)` node for a symbol whose
 `Footprint` property is empty, and the sync required one for every component.
 One footprint-less symbol — a legitimate state for a generic `Device:R` whose
-package has not been chosen yet, and until #506 every symbol Konnect itself
+package has not been chosen yet, and until #506 every symbol KopperDigger itself
 placed — failed the whole sync with *KiCad netlist node is missing footprint*,
 naming no component and blocking every other one (#507).
 
@@ -1519,7 +1519,7 @@ No existing field was removed or renamed. Two existing values change wording:
   is kept for `not_configured`, `no_listener`, and `transport_error`. The other
   three kinds return:
   - `access_denied`: "The KiCad IPC endpoint refused this account, likely a
-    different account or a restrictive ACL; run Konnect as the same
+    different account or a restrictive ACL; run KopperDigger as the same
     operating-system user as KiCad. See ipc_failure."
   - `handshake_failed`: "A listener at the KiCad IPC address did not complete
     NNG's handshake, so it is probably not KiCad; see ipc_failure."
@@ -1648,7 +1648,7 @@ Two visible consequences:
 - **`null` keeps meaning "not checked", and gains a reason.** With the flag on
   and no root schematic for the board's project, kicad-cli exits 0, prints
   *Failed to fetch schematic netlist for parity tests* to stderr, and writes an
-  empty array — the same silent zero, one layer down. Konnect reads that
+  empty array — the same silent zero, one layer down. KopperDigger reads that
   statement and reports `schematic_parity: null`, lists it under
   `categories_not_reported`, and adds `schematic_parity_diagnostic` quoting
   KiCad's statement and naming the root schematic the test reads: the one
@@ -1676,7 +1676,7 @@ with `invalid_argument` on `drill_diameter` listing the shipped sizes, before
 anything is written. When `MountingHole.pretty` resolves from the machine
 (project or global `fp-lib-table`, or a discovered install), the hole placed is
 KiCad's own library footprint, as `place_component` would place it; otherwise
-Konnect's unplated-hole geometry is written under the shipped name. That
+KopperDigger's unplated-hole geometry is written under the shipped name. That
 geometry's pad now equals the drill (no `+0.5` annulus), matching KiCad's plain
 `MountingHole_*` footprints.
 
@@ -1987,7 +1987,7 @@ resolution and committed readback reject duplicate UUID, reference/unit,
 property, or instance identities and conflicting project, instance-unit,
 or cross-unit hierarchy records
 with the new `ambiguous_target` kind and include their candidates whenever
-Konnect cannot prove one top-level symbol per bound UUID and one logical
+KopperDigger cannot prove one top-level symbol per bound UUID and one logical
 reference across its units. A post-commit verification failure from edits,
 annotations, or grouping returns `mutation_outcome_uncertain`, so inspect and
 reload the named schematic before retrying. A move commits the symbol placement
@@ -2015,7 +2015,7 @@ committed schematic rather than echoing requested selectors.
 
 Missing, protected, malformed, stale, wrong-document, or editor-locked targets
 refuse with `stale_target` before a write. Duplicate UUID or reference/unit
-identities refuse with `ambiguous_target` when Konnect cannot prove a unique
+identities refuse with `ambiguous_target` when KopperDigger cannot prove a unique
 safe deletion. A post-write readback
 that still observes a selected reference or UUID also returns `stale_target`;
 inspect and reload the saved schematic before retrying because that refusal can
@@ -2098,7 +2098,7 @@ JLCPCB CPL rotation and position corrections are now applied after KiCad's
 native geometry export. The optional `jlcpcb_cpl_corrections_path` input points
 to a versioned project JSON policy; exact designator overrides take precedence
 over the first matching project footprint prefix, which takes precedence over
-Konnect's independently verified built-in rules. See
+KopperDigger's independently verified built-in rules. See
 [JLCPCB CPL corrections](JLCPCB_CPL_CORRECTIONS.md) for the policy schema.
 
 The response adds `placement_orientation` at the top level and on the
@@ -2118,14 +2118,14 @@ identical without it.
 |---|---|
 | `import_sheet_pins.project_name` | Omit it. Importing hierarchical labels as sheet pins does not modify project-instance paths. |
 | `refill_zones.zones` | Omit it. KiCad IPC refills every zone on the active board and exposes no per-net selector. |
-| `run_drc.tests` | Omit it. `kicad-cli pcb drc` runs the complete configured ruleset. Configure rules/waivers in KiCad; `severity` and `limit` only filter Konnect's returned report. |
+| `run_drc.tests` | Omit it. `kicad-cli pcb drc` runs the complete configured ruleset. Configure rules/waivers in KiCad; `severity` and `limit` only filter KopperDigger's returned report. |
 | `audit_decoupling.board` and `audit_decoupling.max_distance_mm` | Run `audit_decoupling(schematic)` for net-connectivity coverage, then use PCB placement/clearance inspection for physical capacitor distance. The audit never measured PCB distance. |
 | `export_manufacturing_package.quantity` | Omit it from export. Manufacturing files are quantity-independent; pass `quantity` to `estimate_cost` for pricing context. |
 | `validate_for_manufacturing.schematic` | Run the board validator without it. Use `check_bom_health(schematic)` for the separate schematic/BOM review. |
 | `estimate_cost.schematic` | Omit it. The estimator counts placed board footprints, which are the components relevant to assembly pricing. |
 | `move_connected.*` (all parameters) | The tool now refuses unconditionally: it never implemented the connected move and silently delegated to a plain symbol move while reporting connections preserved (#315). Use `move_schematic_component`, then re-route the affected nets. The parameters return when the wire-carrying move is actually built. |
 
-These removals narrow the schema to behavior Konnect can verify. They do not change
+These removals narrow the schema to behavior KopperDigger can verify. They do not change
 the generated files or analysis because the removed values had no implementation.
 
 ## Unreleased: `flip_component` on an open board uses KiCad 10.0.6's native `FlipItems`
@@ -2136,10 +2136,10 @@ reachable, because the vendored IPC protocol had no footprint-flip command
 open live in KiCad **10.0.6 or newer** now flips through that command inside
 one KiCad undo transaction — the same transform the GUI's **F** key performs,
 including the footprint's 3D-model offset/rotation — and reports
-`"source": "ipc"`. Konnect never saves the board on this path.
+`"source": "ipc"`. KopperDigger never saves the board on this path.
 
 A reachable KiCad older than 10.0.6 (or any endpoint without the handler)
-answers `AS_UNHANDLED`; Konnect reports this as a structured
+answers `AS_UNHANDLED`; KopperDigger reports this as a structured
 `unsupported_capability` error naming the observed KiCad version and the
 10.0.6 requirement, rather than falling back to editing the file. A mutation
 that appears to succeed but whose fresh post-flip readback cannot confirm the

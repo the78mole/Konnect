@@ -1,10 +1,10 @@
 # Licensing
 
-Konnect is free software, licensed under the [GNU AGPL-3.0](LICENSE).
+KopperDigger is free software, licensed under the [GNU AGPL-3.0](LICENSE).
 
 ## What that means in practice
 
-**Internal use is free. Always.** Running Konnect inside your company — on any
+**Internal use is free. Always.** Running KopperDigger inside your company — on any
 number of machines, for any commercial purpose, modified or not — triggers no
 AGPL obligation, as long as you don't distribute it outside your organization
 or let outside users interact with a modified version over a network. Designing
@@ -13,20 +13,20 @@ the boards and design files you produce are yours, license-free.
 
 **If you're an individual** — a hobbyist, a student, a freelancer working on
 your own projects, an open-source contributor — everything above applies to you
-too. Use Konnect freely.
+too. Use KopperDigger freely.
 
 **The AGPL's obligations begin where distribution begins:**
 
-- If you distribute Konnect (modified or not) outside your organization — say,
+- If you distribute KopperDigger (modified or not) outside your organization — say,
   bundled into a product — the AGPL's terms travel with it: recipients get the
   source and the same rights you received.
-- If you modify Konnect and let outside users interact with your modified
+- If you modify KopperDigger and let outside users interact with your modified
   version over a network (for example, a hosted design service built on it),
   AGPL §13 requires offering those users your modified source. An unmodified
-  Konnect, or a modified one used only internally, carries no such requirement.
-- Code that merely *talks to* Konnect — an MCP client, an AI agent, scripts
+  KopperDigger, or a modified one used only internally, carries no such requirement.
+- Code that merely *talks to* KopperDigger — an MCP client, an AI agent, scripts
   driving it — is a separate work; copyleft does not reach across that
-  boundary. It becomes a question only when you incorporate Konnect's own code
+  boundary. It becomes a question only when you incorporate KopperDigger's own code
   into something you distribute or host for others.
 
 ## No commercial license from this fork

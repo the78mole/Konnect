@@ -2624,31 +2624,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "konnect"
-version = "0.13.0"
-dependencies = [
- "anyhow",
- "axum",
- "dirs",
- "fs4",
- "konnect-core",
- "konnect-ipc",
- "konnect-sexp",
- "prost",
- "serde",
- "serde_json",
- "serde_yaml_ng",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
- "tokio-stream",
- "toml",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "konnect-core"
+name = "kidig-core"
 version = "0.13.0"
 dependencies = [
  "anyhow",
@@ -2657,10 +2633,10 @@ dependencies = [
  "csv",
  "dirs",
  "jsonschema",
- "konnect-ipc",
- "konnect-render",
- "konnect-schematic-editor",
- "konnect-sexp",
+ "kidig-ipc",
+ "kidig-render",
+ "kidig-schematic-editor",
+ "kidig-sexp",
  "nng",
  "open",
  "prost",
@@ -2682,11 +2658,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "konnect-ipc"
+name = "kidig-ipc"
 version = "0.13.0"
 dependencies = [
  "anyhow",
- "konnect-sexp",
+ "kidig-sexp",
  "libc",
  "nng",
  "prost",
@@ -2702,7 +2678,31 @@ dependencies = [
 ]
 
 [[package]]
-name = "konnect-render"
+name = "kidig-mcp"
+version = "0.13.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "dirs",
+ "fs4",
+ "kidig-core",
+ "kidig-ipc",
+ "kidig-sexp",
+ "prost",
+ "serde",
+ "serde_json",
+ "serde_yaml_ng",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-stream",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "kidig-render"
 version = "0.13.0"
 dependencies = [
  "anyhow",
@@ -2711,17 +2711,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "konnect-schematic-editor"
+name = "kidig-schematic-editor"
 version = "0.13.0"
 dependencies = [
- "konnect-sexp",
+ "kidig-sexp",
  "tempfile",
  "thiserror 1.0.69",
  "uuid",
 ]
 
 [[package]]
-name = "konnect-sexp"
+name = "kidig-sexp"
 version = "0.13.0"
 dependencies = [
  "anyhow",
@@ -2739,7 +2739,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "konnect-vcs"
+name = "kidig-vcs"
 version = "0.13.0"
 dependencies = [
  "anyhow",
@@ -5341,7 +5341,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 name = "xtask"
 version = "0.0.0"
 dependencies = [
- "konnect-core",
+ "kidig-core",
 ]
 
 [[package]]

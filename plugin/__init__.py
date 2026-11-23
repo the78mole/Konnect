@@ -1,5 +1,5 @@
 """
-Konnect -- Action Plugin launcher.
+KopperDigger -- Action Plugin launcher.
 
 This thin Python plugin registers a menu item in KiCAD's Tools menu.
 Clicking it opens a settings dialog where users can configure paths
@@ -25,12 +25,12 @@ _plugin_dir = os.path.dirname(os.path.abspath(__file__))
 if _plugin_dir not in sys.path:
     sys.path.insert(0, _plugin_dir)
 
-from settings_dialog import KonnectSettingsDialog, load_settings
+from settings_dialog import KopperDiggerSettingsDialog, load_settings
 from native_bridge import NativeSpecctraBridge
 import wx
 
 PLUGIN_DIR = _plugin_dir
-BINARY_NAME = "konnect.exe" if sys.platform == "win32" else "konnect"
+BINARY_NAME = "kidig-mcp.exe" if sys.platform == "win32" else "kidig-mcp"
 BINARY_PATH = os.path.join(PLUGIN_DIR, "bin", BINARY_NAME)
 SETTINGS_PATH = os.path.join(PLUGIN_DIR, "settings.json")
 
@@ -38,14 +38,14 @@ _server_process = None
 _server_thread = None
 
 # Windows GUI parents (pcbnew) attach a new console to their subprocesses.
-# That console makes stdin look like a TTY, which triggers konnect's
+# That console makes stdin look like a TTY, which triggers kidig-mcp's
 # double-click install wizard instead of MCP server mode. CREATE_NO_WINDOW
 # suppresses the console; stdin=PIPE stays intact.
 _POPEN_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 _CACHE_DIR = os.path.join(
     os.environ.get("LOCALAPPDATA", os.path.expanduser("~/.cache")),
-    "konnect", "cache",
+    "kidig-mcp", "cache",
 )
 _PID_FILE = os.path.join(_CACHE_DIR, "server.pid")
 _native_bridge = NativeSpecctraBridge(pcbnew, wx)
@@ -58,7 +58,7 @@ def _sync_native_bridge():
         try:
             _native_bridge.start()
         except Exception as error:
-            print(f"[Konnect] Native Specctra bridge failed to start: {error}", file=sys.stderr)
+            print(f"[KopperDigger] Native Specctra bridge failed to start: {error}", file=sys.stderr)
     else:
         _native_bridge.stop()
 
@@ -71,7 +71,7 @@ def _stage(source_path):
     """Copy file to LOCALAPPDATA cache, return cached path.
 
     OneDrive-redirected Documents (common in enterprise Windows) tag both
-    the plugin's konnect.exe AND settings.json with IO_REPARSE_TAG_CLOUD,
+    the plugin's kidig-mcp.exe AND settings.json with IO_REPARSE_TAG_CLOUD,
     which trips ERROR_ACCESS_DENIED on execute and on serde config read.
     Staging to %LOCALAPPDATA% (never OneDrive-synced) sidesteps it.
     """
@@ -173,9 +173,9 @@ def _kill_tracked():
 def _run_server():
     """Run the MCP server subprocess. Exit means exit -- no retry loop.
 
-    A retry loop respawns konnect after Stop Server kills it (wait() returns
+    A retry loop respawns kidig-mcp after Stop Server kills it (wait() returns
     normally on external kill, so nothing distinguishes "crashed" from
-    "stopped"). If konnect crashes on startup, the user clicks Start again.
+    "stopped"). If kidig-mcp crashes on startup, the user clicks Start again.
     """
     global _server_process
     pid = None
@@ -183,7 +183,7 @@ def _run_server():
         args = [_stage(BINARY_PATH)]
         if os.path.exists(SETTINGS_PATH):
             args += ["--config", _stage(SETTINGS_PATH)]
-        # pcbnew has no valid stderr; inheriting gives konnect a broken
+        # pcbnew has no valid stderr; inheriting gives kidig-mcp a broken
         # handle and tracing_subscriber errors on init. DEVNULL is a
         # valid sink.
         _server_process = subprocess.Popen(
@@ -197,7 +197,7 @@ def _run_server():
         _write_pid_file(pid)
         _server_process.wait()
     except Exception as e:
-        print(f"[Konnect] Server error: {e}", file=sys.stderr)
+        print(f"[KopperDigger] Server error: {e}", file=sys.stderr)
     finally:
         _server_process = None
         if pid is not None:
@@ -210,9 +210,9 @@ def start_server():
 
     if not os.path.exists(BINARY_PATH):
         wx.MessageBox(
-            f"Konnect binary not found at:\n{BINARY_PATH}\n\n"
+            f"KopperDigger binary not found at:\n{BINARY_PATH}\n\n"
             "Please reinstall the plugin.",
-            "Konnect",
+            "KopperDigger",
             wx.OK | wx.ICON_ERROR,
         )
         return False
@@ -244,12 +244,12 @@ def is_server_running():
 
 # ─── KiCAD Action Plugin entry point ─────────────────────────────────────────
 
-class KonnectPlugin(pcbnew.ActionPlugin):
+class KopperDiggerPlugin(pcbnew.ActionPlugin):
     def defaults(self):
-        self.name = "Konnect"
+        self.name = "KopperDigger"
         self.category = "AI Tools"
         self.description = (
-            "Configure and control the Konnect -- enables AI assistants "
+            "Configure and control the KopperDigger -- enables AI assistants "
             "like Claude to design PCBs and schematics via the Model Context Protocol."
         )
         self.show_toolbar_button = True
@@ -260,7 +260,7 @@ class KonnectPlugin(pcbnew.ActionPlugin):
         # Get the KiCAD main window as parent for the dialog
         parent = wx.GetTopLevelWindows()[0] if wx.GetTopLevelWindows() else None
 
-        dlg = KonnectSettingsDialog(
+        dlg = KopperDiggerSettingsDialog(
             parent=parent,
             plugin_dir=PLUGIN_DIR,
             binary_path=BINARY_PATH,
@@ -284,4 +284,4 @@ class KonnectPlugin(pcbnew.ActionPlugin):
 
 # Register the plugin with KiCAD
 _sync_native_bridge()
-KonnectPlugin().register()
+KopperDiggerPlugin().register()

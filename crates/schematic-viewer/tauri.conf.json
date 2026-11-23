@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Konnect Schematic Viewer",
+  "productName": "KopperDigger Schematic Viewer",
   "version": "0.13.0",
-  "identifier": "com.github.the78mole.konnect.viewer",
+  "identifier": "com.github.the78mole.kidig-mcp.viewer",
   "build": {
     "frontendDist": "frontend"
   },
@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Schematic Viewer — Konnect",
+        "title": "Schematic Viewer — KopperDigger",
         "width": 1280,
         "height": 900,
         "resizable": true,

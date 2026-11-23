@@ -1,6 +1,6 @@
-# Konnect naming conventions
+# KopperDigger naming conventions
 
-Consistent names are part of Konnect's public API. They help contributors search the
+Consistent names are part of KopperDigger's public API. They help contributors search the
 repository, let agents infer related operations, and prevent accidental compatibility
 breaks. New code and documentation must follow this guide. Existing public names are
 changed only with an explicit compatibility plan.
@@ -11,7 +11,7 @@ Use the official spelling in prose, comments, errors, and UI text:
 
 | Use | Do not introduce | Notes |
 |---|---|---|
-| `Konnect` | `konnect` as a product name | Lowercase remains correct for binaries, crates, commands, and paths. |
+| `KopperDigger` | `kidig-mcp` as a product name | Lowercase remains correct for binaries, crates, commands, and paths. |
 | `KiCad` | `KiCAD`, `Kicad` | Applies to NEW prose only — the existing codebase uses `KiCAD` widely (~400 occurrences) and is not to be mass-renamed; match surrounding style when editing existing text. |
 | `MCP` | `Mcp` in prose | Rust type names use `Mcp`, for example `McpHandler`. |
 | `IPC` | `Ipc` in prose | Rust type names use `Ipc`, for example `KiCadIpcClient`. |
@@ -27,13 +27,13 @@ Prefer the domain's exact term: `footprint` for a PCB instance or library item,
 
 Follow the Rust API Guidelines and `rustfmt`, with these repository-specific choices:
 
-- Crates and Cargo packages use `kebab-case`: `konnect-core`, `konnect-ipc`.
+- Crates and Cargo packages use `kebab-case`: `kidig-core`, `kidig-ipc`.
 - Modules, files, functions, methods, variables, and fields use `snake_case`:
   `pcb_components`, `ensure_board_is_active`, `ipc_address`.
 - Types and traits use `UpperCamelCase`. Acronyms are words: `KiCadIpcClient`,
   `McpHandler`, `IpcFootprint`, `UuidCache`.
 - Constants and environment variables use `SCREAMING_SNAKE_CASE`: `HOOK_SKILLS`,
-  `KICAD_API_SOCKET`, `KONNECT_STATE_DIR`.
+  `KICAD_API_SOCKET`, `KIDIG_MCP_STATE_DIR`.
 - Boolean names describe a true state with `is_`, `has_`, `can_`, or `should_` when
   the prefix adds clarity: `is_error`, `has_pull_up`.
 - Fallible `find_*` functions return `Option` when absence is normal. `get_*` functions
@@ -56,7 +56,7 @@ MCP tool names and toolset names are stable public API:
 - Never silently rename or reuse a tool. Add an alias/deprecation period and document
   the migration when a public rename is unavoidable.
 
-Tool arguments and Konnect-owned JSON keys use `snake_case`. Protocol-defined JSON-RPC
+Tool arguments and KopperDigger-owned JSON keys use `snake_case`. Protocol-defined JSON-RPC
 and MCP fields retain the specification's spelling, such as `jsonrpc`, `tools/list`,
 and `serverInfo`. KiCad plugin manifests retain the KiCad schema's field names.
 

@@ -1,5 +1,5 @@
 {
-  description = "Development environment for Konnect";
+  description = "Development environment for KopperDigger";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -37,8 +37,8 @@
         };
         version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace.package.version;
       in rec {
-        konnect = rustPlatform.buildRustPackage {
-          pname = "konnect";
+        kidig-mcp = rustPlatform.buildRustPackage {
+          pname = "kidig-mcp";
           inherit version;
 
           src = pkgs.lib.cleanSourceWith {
@@ -61,14 +61,14 @@
 
           cargoBuildFlags = [
             "-p"
-            "konnect"
+            "kidig-mcp"
             "--bin"
-            "konnect"
+            "kidig-mcp"
           ];
 
           cargoTestFlags = [
             "-p"
-            "konnect"
+            "kidig-mcp"
             "--lib"
             "--tests"
           ];
@@ -77,23 +77,23 @@
           # explicit writable state directory instead of Nix's read-only
           # sandbox home.
           preCheck = ''
-            export KONNECT_STATE_DIR="$TMPDIR/konnect-state"
-            mkdir -p "$KONNECT_STATE_DIR"
+            export KIDIG_MCP_STATE_DIR="$TMPDIR/kidig-mcp-state"
+            mkdir -p "$KIDIG_MCP_STATE_DIR"
           '';
 
-          meta.mainProgram = "konnect";
+          meta.mainProgram = "kidig-mcp";
         };
 
-        default = konnect;
+        default = kidig-mcp;
       }
     );
 
     apps = forAllSystems (system: {
-      konnect = {
+      kidig-mcp = {
         type = "app";
-        program = "${self.packages.${system}.konnect}/bin/konnect";
+        program = "${self.packages.${system}.kidig-mcp}/bin/kidig-mcp";
       };
-      default = self.apps.${system}.konnect;
+      default = self.apps.${system}.kidig-mcp;
     });
 
     devShells = forAllSystems (
@@ -128,7 +128,7 @@
 
           buildInputs = viewerLibraries;
 
-          # konnect-ipc/build.rs can discover these from PATH, but setting
+          # kidig-ipc/build.rs can discover these from PATH, but setting
           # them explicitly also makes protobuf's well-known types reliable
           # with Nix store paths.
           PROTOC = "${pkgs.protobuf}/bin/protoc";

@@ -1,6 +1,6 @@
 # Branch and Pull Request Workflow
 
-Konnect accepts independent pull requests, short dependent series, and
+KopperDigger accepts independent pull requests, short dependent series, and
 maintainer-approved integration branches. Choose the smallest model that makes
 every review show one coherent change.
 
@@ -16,7 +16,7 @@ green in isolation while omitting fixes and contracts already present on
 
 ## Current repository mechanics
 
-Konnect is currently a personal-account repository. Write collaborators can
+KopperDigger is currently a personal-account repository. Write collaborators can
 triage, review, merge, and enable auto-merge, but only the owner can administer
 repository settings. Organization-only Maintain/Admin role separation and the
 native GitHub merge queue are not available here yet.
@@ -201,7 +201,7 @@ gh pr update-branch N --rebase
 ```
 
 The ordinary update command creates a merge commit in the contributor branch;
-Konnect uses `--rebase` for its focused branches. Refreshing rewrites the head
+KopperDigger uses `--rebase` for its focused branches. Refreshing rewrites the head
 and invalidates earlier readiness. Afterward:
 
 1. verify the new commit list and diff still contain only the same unique work;
@@ -268,7 +268,7 @@ For the one next-to-land PR in an overlap set:
    `GOVERNANCE.md`.
 
 Auto-merge removes waiting time; it does not relax admission control, review,
-CI, or the one-next-PR rule. Until Konnect moves to an organization with a
+CI, or the one-next-PR rule. Until KopperDigger moves to an organization with a
 native merge queue, maintainers must not arm several overlapping PRs and hope
 GitHub chooses a safe order.
 

@@ -1,14 +1,14 @@
 {
   "_comment_1": "Save as `.mcp.json` in the root of your Claude Code project.",
   "_comment_2": "Substitute <YOU> with your Windows username.",
-  "_comment_3": "The --config arg is optional — Konnect works with defaults out of the box.",
+  "_comment_3": "The --config arg is optional — KopperDigger works with defaults out of the box.",
 
   "mcpServers": {
-    "konnect": {
-      "command": "C:\\Users\\<YOU>\\Documents\\KiCad\\10.0\\3rdparty\\plugins\\com_github_the78mole_konnect\\bin\\konnect.exe",
+    "kidig-mcp": {
+      "command": "C:\\Users\\<YOU>\\Documents\\KiCad\\10.0\\3rdparty\\plugins\\com_github_the78mole_kidig-mcp\\bin\\kidig-mcp.exe",
       "args": [
         "--config",
-        "C:\\Users\\<YOU>\\konnect-settings.json"
+        "C:\\Users\\<YOU>\\kidig-mcp-settings.json"
       ]
     }
   }

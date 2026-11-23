@@ -2,14 +2,15 @@
 
 <div align="center">
 
-# Konnect
+# KopperDigger
 
-**Community fork of Konnect, the free AI-assisted PCB design server for KiCAD 10**
+**`kidig-mcp` — the free AI-assisted PCB design server for KiCAD 10, a community fork of Konnect**
 
 </div>
 
 > [!NOTE]
-> **This is an actively maintained, independent fork.** The original Konnect
+> **This is an actively maintained, independent fork.** KopperDigger is a fork of
+> Konnect. The original Konnect
 > repository ([mixelpixx/Konnect](https://github.com/mixelpixx/Konnect)) stopped
 > development in November 2026, when its authors moved on to a commercial,
 > closed-source successor (Konnect-EDA by Orchis.ai LLC). This fork continues the
@@ -22,17 +23,18 @@
 
 ### Credits
 
-Konnect was created by [mixelpixx](https://github.com/mixelpixx),
+KopperDigger is based on Konnect, which was created by [mixelpixx](https://github.com/mixelpixx),
 [neusse](https://github.com/neusse) and the many contributors to the original
 repository — see the git history for everyone who built it. Their copyright
 notices are kept intact. Konnect itself grew out of the MIT-licensed
 [KiCAD-MCP-Server](https://github.com/mixelpixx/KiCAD-MCP-Server). Third-party
 code and data are listed in [THIRD_PARTY.md](THIRD_PARTY.md), and the changes
-made in this fork are described in [NOTICE.md](NOTICE.md).
+made in this fork, including the rename from Konnect to KopperDigger, are
+described in [NOTICE.md](NOTICE.md).
 
 ---
 
-**AI-assisted PCB design for KiCAD 10.** Konnect is a native KiCAD plugin — a single
+**AI-assisted PCB design for KiCAD 10.** KopperDigger is a native KiCAD plugin — a single
 Rust binary — that lets Claude and other AI assistants design schematics and PCBs
 through the [Model Context Protocol](https://modelcontextprotocol.io) (MCP).
 
@@ -42,11 +44,11 @@ circuits, and a full manufacturing export pipeline — with bundled skills and a
 that teach Claude KiCAD conventions out of the box.
 
 
-## Why Konnect exists
+## Why KopperDigger exists
 
-Konnect is the successor to [KiCAD-MCP-Server](https://github.com/mixelpixx/KiCAD-MCP-Server),
+KopperDigger (via Konnect) is the successor to [KiCAD-MCP-Server](https://github.com/mixelpixx/KiCAD-MCP-Server),
 a Python/TypeScript project that proved AI-driven PCB design works — and, in the
-process, showed exactly where that architecture runs out of road. Konnect was built
+process, showed exactly where that architecture runs out of road. KopperDigger was built
 to fix those specific problems:
 
 **The call path was too long.** In the original server, a single tool call travels
@@ -55,12 +57,12 @@ stdin/stdout, a command router, and finally SWIG-generated C++ proxy objects bef
 anything touches your board. That's four language and serialization boundaries, each
 with its own failure modes — subprocess lifecycle management, stdout parsing that
 filters out warnings KiCAD leaks into the stream, chunked-JSON reassembly. In
-Konnect, a tool call is a function call. One process, one language, no plumbing.
+KopperDigger, a tool call is a function call. One process, one language, no plumbing.
 
 **The dependency surface was enormous.** Running the original means carrying Node.js
 and its npm tree, Python and its pip packages, wxPython, kicad-skip, and KiCAD's
 SWIG bindings — two package ecosystems plus a binding layer, every one of them a
-moving target that can break an install. Konnect is a single static binary —
+moving target that can break an install. KopperDigger is a single static binary —
 20–25 MB depending on platform, a ~9 MB download. There is nothing to install
 alongside it and nothing to version-match.
 
@@ -68,17 +70,17 @@ alongside it and nothing to version-match.
 bindings, which KiCAD is deprecating in favor of its IPC API. SWIG also carried
 real operational scars: a zone-fill call that can segfault the backend, proxy-object
 comparison bugs, and a fallback path that can silently swap backends mid-session.
-Konnect talks to KiCAD 10 through the official IPC API (protobuf over NNG) — the
+KopperDigger talks to KiCAD 10 through the official IPC API (protobuf over NNG) — the
 interface KiCAD is investing in — with real-time board edits that integrate with
 KiCAD's own undo/redo.
 
-**Schematic edits should not corrupt files.** Konnect edits `.kicad_sch` files
+**Schematic edits should not corrupt files.** KopperDigger edits `.kicad_sch` files
 through its own S-expression engine with atomic writes (write, fsync, rename), UUID
 preservation, and round-trip tests — no third-party schematic library with known
 gaps, no text-manipulation workarounds.
 
 **Context economy is a feature.** Exposing all 232 tools to an LLM costs roughly 23K
-tokens of context on every listing. Konnect's router loads a starter kit (~2K
+tokens of context on every listing. KopperDigger's router loads a starter kit (~2K
 tokens) and lets the model pull in toolsets on demand — plus built-in observability
 (`get_recent_calls`, `server_stats`, JSONL call logs) so the model can diagnose its
 own tool failures.
@@ -120,16 +122,16 @@ The full tool catalog is documented in [tool-directory.md](tool-directory.md).
 Explore the request path and safety boundaries in the
 [interactive architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md). They are
 published from a standalone documentation repository and add no dependencies to
-Konnect.
+KopperDigger.
 
 ## Installation
 
 ### From the KiCAD Plugin Manager (recommended)
 
 1. Download the package for your OS from [Releases](https://github.com/the78mole/Konnect/releases):
-   `konnect-pcm-v<version>-windows.zip`, `-macos.zip`, or `-linux.zip`. Each
+   `kidig-mcp-pcm-v<version>-windows.zip`, `-macos.zip`, or `-linux.zip`. Each
    bundles that platform's server binary — the macOS package is a universal
-   build, so one download covers Apple Silicon and Intel. (The `konnect-pcm-*`
+   build, so one download covers Apple Silicon and Intel. (The `kidig-mcp-pcm-*`
    assets are the KiCAD plugin packages; the other archives are standalone
    server binaries.)
 2. Open KiCAD 10 → **Plugin and Content Manager**
@@ -137,14 +139,14 @@ Konnect.
 4. Restart KiCAD
 
 Verify: open the **PCB Editor** → **Tools → External Plugins** → you should see
-**Konnect**.
+**KopperDigger**.
 
-For KiCad 10, the Konnect settings dialog also offers an optional **native
+For KiCad 10, the KopperDigger settings dialog also offers an optional **native
 Specctra bridge**. When enabled, `export_specctra_dsn` can ask the active PCB
-Editor to generate its native DSN while Konnect still binds the export to the
+Editor to generate its native DSN while KopperDigger still binds the export to the
 exact IPC snapshot and creates the strict reverse manifest used during SES
 import. The bridge is local-only, authenticated, disabled by default, and not
-the KiCad 11 integration path. Konnect uses its Rust exporter by default;
+the KiCad 11 integration path. KopperDigger uses its Rust exporter by default;
 `native_bridge_mode: "prefer"` enables fallback to Rust when the bridge is
 unavailable, while `"require"` refuses instead.
 
@@ -165,43 +167,43 @@ geometry are rejected before mutation.
 # Windows: choco install protoc cmake
 # macOS:   brew install protobuf cmake
 # Linux:   apt install protobuf-compiler cmake
-cargo build --release -p konnect
+cargo build --release -p kidig-mcp
 ```
 
 ### Install guidance for your AI client
 
-Konnect bundles shared KiCad skills for Claude and Codex. Select the client when
+KopperDigger bundles shared KiCad skills for Claude and Codex. Select the client when
 installing, checking, or removing that guidance:
 
 ```bash
 # Existing behavior remains the default: Claude skills, agents, and hooks
-konnect init
+kidig-mcp init
 
 # Codex installs only the shared skills under ~/.agents/skills
-konnect init --client codex
-konnect status --client codex
-konnect uninstall --client codex
+kidig-mcp init --client codex
+kidig-mcp status --client codex
+kidig-mcp uninstall --client codex
 ```
 
-MCP server startup never installs or restores guidance. Run `konnect init`
-explicitly when you want those files installed; after `konnect uninstall`,
+MCP server startup never installs or restores guidance. Run `kidig-mcp init`
+explicitly when you want those files installed; after `kidig-mcp uninstall`,
 starting the server leaves them removed.
 
-Guidance written by an older `konnect init` is not updated by upgrading the
-binary. `konnect status` compares every installed skill, agent, and hook with
+Guidance written by an older `kidig-mcp init` is not updated by upgrading the
+binary. `kidig-mcp status` compares every installed skill, agent, and hook with
 the bundle in the binary you run and marks each `current`, `different`, or
 `missing`. The server makes the same check once for each installed version:
-the first start after `konnect init` compares the files, records
-the result in `~/.konnect`, and adds a one-line notice to its `initialize`
+the first start after `kidig-mcp init` compares the files, records
+the result in `~/.kidig-mcp`, and adds a one-line notice to its `initialize`
 instructions if guidance is out of sync. Later starts reuse that record, so
 guidance you chose to keep is not reported again. `get_installation_info`
-shows the result. Re-run `konnect init` to update it.
+shows the result. Re-run `kidig-mcp init` to update it.
 It overwrites differing files, so keep a copy of any file you edited. `--client` remains accepted in server
 commands for compatibility. For example, register a standalone binary with the
 Codex CLI using:
 
 ```bash
-codex mcp add konnect -- /path/to/konnect --client codex
+codex mcp add kidig-mcp -- /path/to/kidig-mcp --client codex
 ```
 
 Claude remains the default when `--client` is omitted. The installer tracks the
@@ -209,12 +211,12 @@ two clients independently, and a Codex install does not create or modify
 `~/.claude`.
 
 `--help` on any subcommand prints that subcommand's usage and writes nothing —
-`konnect init --help` describes the installer rather than running it. An
-argument Konnect does not recognise is an error rather than being ignored, so a
+`kidig-mcp init --help` describes the installer rather than running it. An
+argument KopperDigger does not recognise is an error rather than being ignored, so a
 typo such as `--cleint codex` stops instead of quietly installing for the
 default client.
 
-To verify which Konnect process an MCP client is actually using, call the
+To verify which KopperDigger process an MCP client is actually using, call the
 always-visible `get_installation_info` tool. It reports the serving build,
 executable path, verified installation source when one can be proven, KiCad
 CLI and IPC detection, and restart guidance. A missing build commit or an
@@ -229,16 +231,16 @@ Intel (`x86_64-apple-darwin`). They are not yet code-signed, so if you download
 one through a browser, clear the quarantine flag before first launch:
 
 ```bash
-tar xzf konnect-v*-aarch64-apple-darwin.tar.gz
-xattr -d com.apple.quarantine ./konnect   # only needed for browser downloads
-./konnect --help
+tar xzf kidig-mcp-v*-aarch64-apple-darwin.tar.gz
+xattr -d com.apple.quarantine ./kidig-mcp   # only needed for browser downloads
+./kidig-mcp --help
 ```
 
 Or build from source as above (verified on Apple Silicon; the same
-`target/release/konnect` binary is the MCP server).
+`target/release/kidig-mcp` binary is the MCP server).
 
 KiCad on macOS keeps its tools inside the app bundle and they are not on
-`PATH`, so point Konnect at them in `~/Library/Application Support/konnect/config.toml`:
+`PATH`, so point KopperDigger at them in `~/Library/Application Support/kidig-mcp/config.toml`:
 
 ```toml
 kicad_cli = "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"
@@ -254,8 +256,8 @@ Claude Desktop's config lives at
 ```json
 {
   "mcpServers": {
-    "konnect": {
-      "command": "/path/to/konnect"
+    "kidig-mcp": {
+      "command": "/path/to/kidig-mcp"
     }
   }
 }
@@ -263,7 +265,7 @@ Claude Desktop's config lives at
 
 For Claude Code, put the same snippet in a `.mcp.json` in your project root.
 
-The macOS PCM package (`konnect-pcm-v<version>-macos.zip`) bundles a universal
+The macOS PCM package (`kidig-mcp-pcm-v<version>-macos.zip`) bundles a universal
 server binary, so one download covers Apple Silicon and Intel. The schematic
 viewer compiles and launches on macOS (Tauri 2 uses the system WKWebView —
 WebView2 is only a Windows requirement) but hasn't had the same mileage as
@@ -274,7 +276,7 @@ the Windows build yet.
 After a PCM install, the server binary lives in your KiCAD documents folder:
 
 ```
-C:\Users\<YOU>\Documents\KiCad\10.0\3rdparty\plugins\com_github_the78mole_konnect\bin\konnect.exe
+C:\Users\<YOU>\Documents\KiCad\10.0\3rdparty\plugins\com_github_the78mole_kidig-mcp\bin\kidig-mcp.exe
 ```
 
 Edit `%APPDATA%\Claude\claude_desktop_config.json`:
@@ -282,14 +284,14 @@ Edit `%APPDATA%\Claude\claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "konnect": {
-      "command": "C:\\Users\\<YOU>\\Documents\\KiCad\\10.0\\3rdparty\\plugins\\com_github_the78mole_konnect\\bin\\konnect.exe"
+    "kidig-mcp": {
+      "command": "C:\\Users\\<YOU>\\Documents\\KiCad\\10.0\\3rdparty\\plugins\\com_github_the78mole_kidig-mcp\\bin\\kidig-mcp.exe"
     }
   }
 }
 ```
 
-Restart Claude Desktop and the Konnect tools appear. For Claude Code, drop the same
+Restart Claude Desktop and the KopperDigger tools appear. For Claude Code, drop the same
 snippet into a `.mcp.json` in your project root (see [examples/](examples/)).
 
 ## Schematic viewer
@@ -328,11 +330,11 @@ the main workspace — see [DEV.md](DEV.md) for build steps.
 
 ## License
 
-Konnect is free software, licensed under the **[GNU AGPL-3.0](LICENSE)** — for
+KopperDigger is free software, licensed under the **[GNU AGPL-3.0](LICENSE)** — for
 everyone, businesses included. Design boards, ship them, sell them: the boards and
 design files you produce are yours.
 
-The AGPL's obligations only start when you distribute Konnect or let others use a
+The AGPL's obligations only start when you distribute KopperDigger or let others use a
 modified version over a network; see [LICENSING.md](LICENSING.md) for a plain-language
 summary. This fork does not sell commercial licenses: the copyright in the inherited
 code belongs to its original authors, so only they could grant terms other than the
@@ -341,10 +343,10 @@ AGPL.
 ## Relationship to KiCAD-MCP-Server
 
 The original [Python/TypeScript project](https://github.com/mixelpixx/KiCAD-MCP-Server)
-remains fully open (MIT) and maintained. Konnect is where new development happens —
+remains fully open (MIT) and maintained. KopperDigger is where new development happens —
 the architecture it proved, rebuilt for production:
 
-| | KiCAD-MCP-Server | Konnect |
+| | KiCAD-MCP-Server | KopperDigger |
 |---|---|---|
 | Runtime | Node.js + Python + SWIG bindings | Single static binary (20–25 MB) |
 | Tool call path | TS → subprocess → Python → SWIG C++ | Direct function call |
@@ -373,7 +375,7 @@ that don't appear after `load_toolset`, and transaction recovery.
 
 **"kicad-cli not found"** — common install paths are auto-detected; set the path
 explicitly in the plugin settings dialog, in a `settings.json` beside the binary,
-or in a `konnect.toml` in the working directory. (A file under any other name
+or in a `kidig-mcp.toml` in the working directory. (A file under any other name
 works only when passed with `--config`.)
 
 ## Support
