@@ -191,6 +191,24 @@ jobs:
             --platform linux --out dist
           python packaging/validate-pcm.py --zip dist/kidig-mcp-pcm-v0.0.0-linux.zip
 
+      # The all-platform package is what KiCad's repositories list. Merge
+      # stub per-platform zips and run the same gate the release uses.
+      - name: Assemble all-platform PCM zip from stub packages and validate
+        run: |
+          set -euo pipefail
+          printf '\317\372\355\376' > stub-kidig-mcp-mac
+          ./packaging/build-pcm.sh --version 0.0.0 --binary stub-kidig-mcp-mac \
+            --platform macos --out dist
+          python packaging/build-pcm-universal.py --version 0.0.0 \
+            --windows dist/kidig-mcp-pcm-v0.0.0-windows.zip \
+            --macos dist/kidig-mcp-pcm-v0.0.0-macos.zip \
+            --linux dist/kidig-mcp-pcm-v0.0.0-linux.zip --out dist/universal
+          python packaging/validate-pcm.py --zip dist/universal/kidig-mcp-pcm-v0.0.0.zip
+          python packaging/build-pcm-repo.py --versions dist/universal \
+            --base-url https://example.invalid/pcm --out dist/site
+          test -f dist/site/repository.json
+          test -f dist/site/kicad-addons/com.github.the78mole.kidig-mcp/metadata.json
+
       - name: Reject a package whose binary contradicts its platform
         run: |
           set -euo pipefail

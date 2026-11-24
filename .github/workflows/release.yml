@@ -207,8 +207,9 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          $version = "${{ env.RELEASE_VERSION }}".TrimStart('v')
-          ./packaging/build-pcm.ps1 -Version $version `
+          $version = "${{ env.RELEASE_VERSION }}".TrimStart('v') -replace '-.*$', ''  # PCM: digits only
+          $status = if ("${{ env.RELEASE_VERSION }}" -like '*-*') { 'testing' } else { 'stable' }
+          ./packaging/build-pcm.ps1 -Version $version -Status $status `
             -BinaryPath target/release/kidig-mcp.exe `
             -ViewerPath crates/schematic-viewer/target/release/schematic-viewer.exe `
             -Platform windows `
@@ -217,8 +218,9 @@ jobs:
       - name: Assemble PCM package (macOS)
         if: matrix.platform == 'macos'
         run: |
-          version="${RELEASE_VERSION#v}"
-          ./packaging/build-pcm.sh --version "$version" \
+          version="${RELEASE_VERSION#v}"; version="${version%%-*}"  # PCM: digits only
+          status=stable; case "$RELEASE_VERSION" in *-*) status=testing;; esac
+          ./packaging/build-pcm.sh --version "$version" --status "$status" \
             --binary dist/universal/kidig-mcp \
             --viewer dist/universal/schematic-viewer \
             --platform macos --out dist
@@ -226,8 +228,9 @@ jobs:
       - name: Assemble PCM package (Linux)
         if: matrix.platform == 'linux'
         run: |
-          version="${RELEASE_VERSION#v}"
-          ./packaging/build-pcm.sh --version "$version" \
+          version="${RELEASE_VERSION#v}"; version="${version%%-*}"  # PCM: digits only
+          status=stable; case "$RELEASE_VERSION" in *-*) status=testing;; esac
+          ./packaging/build-pcm.sh --version "$version" --status "$status" \
             --binary target/release/kidig-mcp \
             --viewer crates/schematic-viewer/target/release/schematic-viewer \
             --platform linux --out dist
@@ -243,7 +246,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install jsonschema
-          version="${RELEASE_VERSION#v}"
+          version="${RELEASE_VERSION#v}"; version="${version%%-*}"  # PCM: digits only
           python packaging/validate-pcm.py \
             --zip "dist/kidig-mcp-pcm-v$version-${{ matrix.platform }}.zip"
 
@@ -253,10 +256,65 @@ jobs:
           name: kidig-mcp-pcm-${{ matrix.platform }}
           path: dist/kidig-mcp-pcm-*.zip
 
+  # KiCad's official addon repository allows one download per version, and
+  # KiCad's PCM looks versions up by version string, so the three platform
+  # zips are merged into one package carrying every platform's binaries.
+  pcm-universal:
+    name: KiCAD PCM plugin package (all platforms)
+    needs: [pcm-package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: kidig-mcp-pcm-*
+          path: dist
+          merge-multiple: true
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Merge platform packages
+        run: |
+          set -euo pipefail
+          tag="v${RELEASE_VERSION#v}"
+          # KiCad's PCM accepts only digits in a version ("0.14.0"), so a
+          # pre-release tag (v0.14.0-rc.1) is packaged as 0.14.0 with status
+          # "testing"; the stable 0.14.0 release replaces it in the
+          # self-hosted repository, and pre-releases never go to KiCad's.
+          version="${tag#v}"; version="${version%%-*}"
+          status=stable
+          case "$tag" in *-*) status=testing;; esac
+          python packaging/build-pcm-universal.py --version "$version" \
+            --status "$status" \
+            --download-base "https://github.com/${GITHUB_REPOSITORY}/releases/download/$tag" \
+            --windows "dist/kidig-mcp-pcm-v$version-windows.zip" \
+            --macos "dist/kidig-mcp-pcm-v$version-macos.zip" \
+            --linux "dist/kidig-mcp-pcm-v$version-linux.zip" \
+            --out dist/universal
+
+      - name: Validate all-platform package (release gate)
+        run: |
+          set -euo pipefail
+          python -m pip install jsonschema
+          version="${RELEASE_VERSION#v}"; version="${version%%-*}"
+          python packaging/validate-pcm.py --zip "dist/universal/kidig-mcp-pcm-v$version.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: kidig-mcp-pcm-all
+          path: dist/universal/*
+
   release:
     name: Create Release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [real-kicad-acceptance, build, pcm-package]
+    needs: [real-kicad-acceptance, build, pcm-package, pcm-universal]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -272,5 +330,6 @@ jobs:
         with:
           files: artifacts/*
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

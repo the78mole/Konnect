@@ -84,7 +84,8 @@ def validate_zip(zip_path: Path) -> list[str]:
 
     # Exactly one server binary must be present, and plugin.json's entrypoint
     # must point at it (PR #7's per-OS stamping contract).
-    binaries = [n for n in names if n.startswith("plugins/bin/kidig-mcp")]
+    binaries = [n for n in names
+                if n.startswith("plugins/bin/") and n.rsplit("/", 1)[-1].startswith("kidig-mcp")]
     if not binaries:
         errors.append(f"{zip_path.name}: no plugins/bin/kidig-mcp* binary found")
 
@@ -116,21 +117,19 @@ def validate_zip(zip_path: Path) -> list[str]:
 
 
 def validate_platforms(z, meta: dict, binaries: list[str], label: str) -> list[str]:
-    """Every version must declare exactly the platform its binaries can run on.
+    """Every version must declare exactly the platforms its binaries run on.
 
-    Omitting `platforms` means "all platforms" to KiCAD's PCM, which is never
-    true of a package that bundles one native binary — that is how a
-    Windows-only package came to be offered to macOS and Linux users.
+    Omitting `platforms` means "all platforms" to KiCAD's PCM. That is only
+    true of the all-platform package, which carries bin/<platform>/ for each
+    of windows, macos and linux. A single-platform package must declare its
+    one platform — that is how a Windows-only package came to be offered to
+    macOS and Linux users.
     """
     errors = []
     for v in meta.get("versions", []):
         declared = v.get("platforms")
         if not declared:
-            errors.append(
-                f"{label}: version {v.get('version')} declares no 'platforms' — "
-                f"PCM would offer this native package to every OS. Declare the "
-                f"one platform its binaries are built for."
-            )
+            errors += validate_all_platforms(z, binaries, label, v.get("version"))
             continue
         if len(declared) != 1:
             errors.append(
@@ -149,6 +148,35 @@ def validate_platforms(z, meta: dict, binaries: list[str], label: str) -> list[s
                     f"{label}: declares platforms {declared} but {name} is a "
                     f"{actual} executable"
                 )
+    return errors
+
+
+def validate_all_platforms(z, binaries: list[str], label: str, version) -> list[str]:
+    """An all-platform package: each OS's binaries in bin/<platform>/, nothing loose."""
+    errors = []
+    bin_files = [n for n in z.namelist()
+                 if n.startswith("plugins/bin/") and not n.endswith("/")]
+    for platform in EXECUTABLE_MAGIC:
+        exe = "kidig-mcp.exe" if platform == "windows" else "kidig-mcp"
+        if f"plugins/bin/{platform}/{exe}" not in binaries:
+            errors.append(
+                f"{label}: version {version} declares no 'platforms' (= all), "
+                f"but plugins/bin/{platform}/{exe} is missing"
+            )
+    for name in bin_files:
+        parts = name.split("/")
+        if len(parts) != 4 or parts[2] not in EXECUTABLE_MAGIC:
+            errors.append(
+                f"{label}: {name} is outside bin/<platform>/ in an "
+                f"all-platform package"
+            )
+            continue
+        actual = identify_executable(z.read(name)[:4])
+        if actual != parts[2]:
+            errors.append(
+                f"{label}: {name} is a {actual or 'unrecognized'} file, "
+                f"not a {parts[2]} executable"
+            )
     return errors
 
 

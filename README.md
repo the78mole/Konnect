@@ -164,19 +164,34 @@ KopperDigger.
 
 ### From the KiCAD Plugin Manager (recommended)
 
-1. Download the package for your OS from [Releases](https://github.com/the78mole/KopperDigger/releases):
-   `kidig-mcp-pcm-v<version>-windows.zip`, `-macos.zip`, or `-linux.zip`. Each
-   bundles that platform's server binary — the macOS package is a universal
-   build, so one download covers Apple Silicon and Intel. (The `kidig-mcp-pcm-*`
-   assets are the KiCAD plugin packages; the other archives are standalone
-   server binaries.)
-2. Open KiCAD 10 → **Plugin and Content Manager**
-3. **Coming from Konnect?** Uninstall the old **Konnect** package
-   (`com.github.mixelpixx.konnect`) there first. KopperDigger uses its own
-   package identifier, so KiCAD would otherwise keep both plugins installed and
-   show two server actions.
-4. Click **Install from File** and select the zip
-5. Restart KiCAD
+KopperDigger has its own PCM repository, so KiCAD installs and updates it like
+any other add-on:
+
+1. **Coming from Konnect?** Uninstall the old **Konnect** package
+   (`com.github.mixelpixx.konnect`) in the Plugin and Content Manager first.
+   KopperDigger uses its own package identifier, so KiCAD would otherwise keep
+   both plugins installed and show two server actions.
+2. Open KiCAD 10 → **Plugin and Content Manager** → **Manage…** (next to the
+   repository list) → **+** and add
+
+   ```
+   https://the78mole.github.io/KopperDigger/repository.json
+   ```
+3. Select the **KopperDigger** repository, pick **KopperDigger** under
+   *Plugins*, click **Install**, then **Apply Pending Changes**
+4. Restart KiCAD. This is needed once after installing: on macOS and Linux the
+   KopperDigger IPC toolbar action only points at the right server binary after
+   that restart (the settings dialog works right away).
+
+Updates then show up in the same dialog. The package carries the server for
+Windows, macOS (universal: Apple Silicon and Intel) and Linux x86_64; the plugin
+picks the right one.
+
+**Offline / single platform:** every [release](https://github.com/the78mole/KopperDigger/releases)
+also has `kidig-mcp-pcm-v<version>.zip` (all platforms) and smaller
+`kidig-mcp-pcm-v<version>-windows.zip`, `-macos.zip`, `-linux.zip` packages.
+Use **Install from File** in the Plugin and Content Manager with any of them.
+(The other archives are standalone server binaries.)
 
 Verify: open the **PCB Editor** → **Tools → External Plugins** → you should see
 **KopperDigger**.
@@ -313,11 +328,15 @@ the Windows build yet.
 
 ## Setup with Claude Desktop
 
-After a PCM install, the server binary lives in your KiCAD documents folder:
+After a PCM install, the server binary lives in your KiCAD documents folder. The
+KopperDigger settings dialog (PCB Editor toolbar button) shows the exact path
+under **Server binary** with a **Copy** button. On Windows it is:
 
 ```
-C:\Users\<YOU>\Documents\KiCad\10.0\3rdparty\plugins\com_github_the78mole_kidig-mcp\bin\kidig-mcp.exe
+C:\Users\<YOU>\Documents\KiCad\10.0\3rdparty\plugins\com_github_the78mole_kidig-mcp\bin\windows\kidig-mcp.exe
 ```
+
+(`bin\kidig-mcp.exe` without `windows\` if you installed a single-platform zip.)
 
 Edit `%APPDATA%\Claude\claude_desktop_config.json`:
 
@@ -325,7 +344,7 @@ Edit `%APPDATA%\Claude\claude_desktop_config.json`:
 {
   "mcpServers": {
     "kidig-mcp": {
-      "command": "C:\\Users\\<YOU>\\Documents\\KiCad\\10.0\\3rdparty\\plugins\\com_github_the78mole_kidig-mcp\\bin\\kidig-mcp.exe"
+      "command": "C:\\Users\\<YOU>\\Documents\\KiCad\\10.0\\3rdparty\\plugins\\com_github_the78mole_kidig-mcp\\bin\\windows\\kidig-mcp.exe"
     }
   }
 }

@@ -1,0 +1,64 @@
+name: PCM repository (GitHub Pages)
+
+# Publishes KopperDigger's self-hosted KiCad PCM repository:
+#   https://the78mole.github.io/KopperDigger/repository.json
+# Rebuilt from the .pcm-version.json of every release, so it never depends on
+# earlier site state. Runs after a tag-triggered Release succeeds; workflow_run
+# runs on the default branch, which the github-pages environment allows by
+# default, so no tag rule is needed there. Can also be started by hand.
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish PCM repository
+    # Only real releases (tag pushes), not the Release workflow's dry runs.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Collect version entries of all releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: packaging/collect-pcm-versions.sh versions
+
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Build repository.json, packages.json, resources.zip
+        run: |
+          python packaging/build-pcm-repo.py --versions versions \
+            --base-url "${{ steps.pages.outputs.base_url }}" --out site
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

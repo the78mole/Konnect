@@ -2625,7 +2625,7 @@ dependencies = [
 
 [[package]]
 name = "kidig-core"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2659,7 +2659,7 @@ dependencies = [
 
 [[package]]
 name = "kidig-ipc"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "anyhow",
  "kidig-sexp",
@@ -2679,7 +2679,7 @@ dependencies = [
 
 [[package]]
 name = "kidig-mcp"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2703,7 +2703,7 @@ dependencies = [
 
 [[package]]
 name = "kidig-render"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "anyhow",
  "image",
@@ -2712,7 +2712,7 @@ dependencies = [
 
 [[package]]
 name = "kidig-schematic-editor"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "kidig-sexp",
  "tempfile",
@@ -2722,7 +2722,7 @@ dependencies = [
 
 [[package]]
 name = "kidig-sexp"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "anyhow",
  "dirs",
@@ -2740,7 +2740,7 @@ dependencies = [
 
 [[package]]
 name = "kidig-vcs"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "anyhow",
  "gix",

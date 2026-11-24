@@ -22,7 +22,7 @@
 # Usage:
 #   ./packaging/build-pcm.ps1 -Version 0.1.0 -BinaryPath target/release/kidig-mcp.exe `
 #       [-ViewerPath crates/schematic-viewer/target/release/schematic-viewer.exe] `
-#       [-Platform windows] [-OutDir dist]
+#       [-Platform windows] [-Status stable|testing] [-OutDir dist]
 #
 # Prints the zip path, size, and SHA256 (needed for the kicad-addons
 # repository metadata).
@@ -32,6 +32,7 @@ param(
     [Parameter(Mandatory = $true)][string]$BinaryPath,
     [string]$ViewerPath = "",
     [ValidateSet("windows")][string]$Platform = "windows",
+    [ValidateSet("stable", "testing", "development", "deprecated")][string]$Status = "stable",
     [string]$OutDir = "dist"
 )
 
@@ -78,6 +79,7 @@ $metadata = Get-Content "$repoRoot/packaging/metadata.json" -Raw | ConvertFrom-J
 # built, so keep just the first entry as the template.
 $metadata.versions = @($metadata.versions[0])
 $metadata.versions[0].version = $Version
+$metadata.versions[0].status = $Status
 $installSize = (Get-ChildItem $staging -Recurse -File | Measure-Object Length -Sum).Sum
 $metadata.versions[0] | Add-Member -NotePropertyName install_size -NotePropertyValue ([long]$installSize) -Force
 # This package carries one platform's native binary — say so, or PCM offers a

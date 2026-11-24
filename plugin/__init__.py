@@ -12,7 +12,9 @@ Installation (KiCAD PCM):
 """
 
 import atexit
+import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -31,7 +33,95 @@ import wx
 
 PLUGIN_DIR = _plugin_dir
 BINARY_NAME = "kidig-mcp.exe" if sys.platform == "win32" else "kidig-mcp"
-BINARY_PATH = os.path.join(PLUGIN_DIR, "bin", BINARY_NAME)
+
+
+def _platform_key():
+    """KiCad PCM's platform name for the running OS."""
+    if sys.platform == "win32":
+        return "windows"
+    if sys.platform == "darwin":
+        return "macos"
+    return "linux"
+
+
+def _resolve_bin_dir(plugin_dir):
+    """Directory holding this platform's binaries, relative to plugin_dir.
+
+    The all-platform PCM package (the one listed in KiCad's repositories)
+    carries bin/windows, bin/macos and bin/linux; the single-platform zips
+    for "Install from File" keep the binaries directly in bin/.
+    """
+    per_platform = os.path.join("bin", _platform_key())
+    if os.path.isfile(os.path.join(plugin_dir, per_platform, BINARY_NAME)):
+        return per_platform
+    return "bin"
+
+
+def _prepare_binaries(plugin_dir, bin_dir):
+    """Make bundled binaries executable and point the IPC action at ours.
+
+    Zip extraction does not always keep the executable bit, and the KiCad 10
+    IPC runtime refuses an entrypoint that is not executable. plugin.json has
+    one entrypoint for every OS; the all-platform package ships the Windows
+    one, so it is restamped here for the OS KiCad is running on. KiCad picks
+    up a restamped entrypoint the next time it scans its plugins.
+    """
+    if sys.platform != "win32":
+        full = os.path.join(plugin_dir, bin_dir)
+        for name in os.listdir(full) if os.path.isdir(full) else ():
+            path = os.path.join(full, name)
+            try:
+                if os.path.isfile(path) and not os.access(path, os.X_OK):
+                    os.chmod(path, os.stat(path).st_mode | 0o111)
+            except OSError:
+                pass
+
+    # Only an installed package has the binary; a source checkout is left alone.
+    if not os.path.isfile(os.path.join(plugin_dir, bin_dir, BINARY_NAME)):
+        return
+    manifest = os.path.join(plugin_dir, "plugin.json")
+    entry = "/".join(bin_dir.split(os.sep) + [BINARY_NAME])
+    try:
+        with open(manifest, encoding="utf-8") as f:
+            data = json.load(f)
+        changed = False
+        for action in data.get("actions", []):
+            ep = action.get("entrypoint", "")
+            if ep.startswith("bin/") and ep != entry:
+                action["entrypoint"] = entry
+                changed = True
+        if changed:
+            # Write beside it and swap in atomically: KiCad must never see a
+            # half-written manifest, and two KiCad processes may race here.
+            tmp = f"{manifest}.{os.getpid()}.tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+                f.write("\n")
+            os.replace(tmp, manifest)
+    except (OSError, ValueError) as error:
+        print(f"[KopperDigger] Could not update plugin.json: {error}", file=sys.stderr)
+
+
+def _unsupported_architecture(system=None, machine=None):
+    """Explain why the bundled binary cannot run here, or return None.
+
+    KiCad's PCM knows platforms but not CPU architectures, so the package is
+    also offered to ARM Linux. Linux binaries are x86_64 only; macOS ships a
+    universal binary and Windows on ARM runs x86_64 code under emulation.
+    """
+    system = system or platform.system()
+    machine = (machine or platform.machine()).lower()
+    if system == "Linux" and machine not in ("x86_64", "amd64"):
+        return (
+            f"KopperDigger ships its Linux server for x86_64 only; this machine "
+            f"is {machine}.\n\nBuild it from source for this architecture: "
+            "https://github.com/the78mole/KopperDigger#build-from-source"
+        )
+    return None
+
+
+_BIN_DIR = _resolve_bin_dir(PLUGIN_DIR)
+BINARY_PATH = os.path.join(PLUGIN_DIR, _BIN_DIR, BINARY_NAME)
 SETTINGS_PATH = os.path.join(PLUGIN_DIR, "settings.json")
 
 _server_process = None
@@ -208,6 +298,11 @@ def start_server():
     """Start the MCP server in a background thread."""
     global _server_thread
 
+    unsupported = _unsupported_architecture()
+    if unsupported:
+        wx.MessageBox(unsupported, "KopperDigger", wx.OK | wx.ICON_ERROR)
+        return False
+
     if not os.path.exists(BINARY_PATH):
         wx.MessageBox(
             f"KopperDigger binary not found at:\n{BINARY_PATH}\n\n"
@@ -283,5 +378,6 @@ class KopperDiggerPlugin(pcbnew.ActionPlugin):
 
 
 # Register the plugin with KiCAD
+_prepare_binaries(PLUGIN_DIR, _BIN_DIR)
 _sync_native_bridge()
 KopperDiggerPlugin().register()

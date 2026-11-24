@@ -298,14 +298,25 @@ fn select_config_candidate(candidates: &[PathBuf]) -> (Option<PathBuf>, Vec<Path
     (selected, skipped)
 }
 
-/// settings.json next to the binary, and one dir up (covers <plugin_dir>/bin/kidig-mcp).
+/// settings.json next to the binary and one dir up (covers
+/// <plugin_dir>/bin/kidig-mcp), plus two dirs up when the binary sits in
+/// <plugin_dir>/bin/<platform>/ (the all-platform PCM package).
 fn exe_relative_settings_paths() -> Vec<PathBuf> {
+    std::env::current_exe()
+        .map(|exe| settings_paths_for_exe(&exe))
+        .unwrap_or_default()
+}
+
+fn settings_paths_for_exe(exe: &std::path::Path) -> Vec<PathBuf> {
     let mut paths = Vec::new();
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(exe_dir) = exe.parent() {
-            paths.push(exe_dir.join("settings.json"));
-            if let Some(parent_dir) = exe_dir.parent() {
-                paths.push(parent_dir.join("settings.json"));
+    if let Some(exe_dir) = exe.parent() {
+        paths.push(exe_dir.join("settings.json"));
+        if let Some(parent_dir) = exe_dir.parent() {
+            paths.push(parent_dir.join("settings.json"));
+            if parent_dir.file_name().is_some_and(|name| name == "bin") {
+                if let Some(plugin_dir) = parent_dir.parent() {
+                    paths.push(plugin_dir.join("settings.json"));
+                }
             }
         }
     }
@@ -344,6 +355,27 @@ fn dirs_config_path() -> PathBuf {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn settings_are_found_from_the_all_platform_package_layout() {
+        let exe = std::path::Path::new("/k/plugins/bin/linux/kidig-mcp");
+        assert_eq!(
+            settings_paths_for_exe(exe),
+            vec![
+                PathBuf::from("/k/plugins/bin/linux/settings.json"),
+                PathBuf::from("/k/plugins/bin/settings.json"),
+                PathBuf::from("/k/plugins/settings.json"),
+            ]
+        );
+        let exe = std::path::Path::new("/k/plugins/bin/kidig-mcp");
+        assert_eq!(
+            settings_paths_for_exe(exe),
+            vec![
+                PathBuf::from("/k/plugins/bin/settings.json"),
+                PathBuf::from("/k/plugins/settings.json"),
+            ]
+        );
+    }
 
     fn write_temp(ext: &str, content: &str) -> tempfile::NamedTempFile {
         let mut f = tempfile::Builder::new()

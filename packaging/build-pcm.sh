@@ -26,7 +26,7 @@
 #
 # Usage:
 #   packaging/build-pcm.sh [--version X.Y.Z] [--binary PATH] [--viewer PATH]
-#                          [--platform macos|linux] [--out DIR]
+#                          [--platform macos|linux] [--status stable|testing] [--out DIR]
 #
 # Defaults: version from Cargo.toml, binary target/release/kidig-mcp, platform
 # from the host, output dist/.
@@ -40,12 +40,14 @@ version=""
 binary="$repo_root/target/release/$bin_name"
 viewer=""
 platform=""
+status="stable"
 out_dir="$repo_root/dist"
 
 usage() {
     cat >&2 <<'EOF'
 Usage: packaging/build-pcm.sh [--version X.Y.Z] [--binary PATH] [--viewer PATH]
-                              [--platform macos|linux] [--out DIR]
+                              [--platform macos|linux] [--status stable|testing]
+                              [--out DIR]
 
 Assembles the KiCAD PCM plugin zip (macOS/Linux port of build-pcm.ps1).
 Defaults: version from Cargo.toml, binary target/release/kidig-mcp, platform from
@@ -59,6 +61,7 @@ while [ $# -gt 0 ]; do
         --binary)  binary="${2:?--binary needs a value}";   shift 2;;
         --viewer)  viewer="${2:?--viewer needs a value}";   shift 2;;
         --platform) platform="${2:?--platform needs a value}"; shift 2;;
+        --status)  status="${2:?--status needs a value}";   shift 2;;
         --out)     out_dir="${2:?--out needs a value}";     shift 2;;
         -h|--help) usage; exit 0;;
         *) echo "Unknown argument: $1" >&2; usage; exit 2;;
@@ -131,9 +134,9 @@ PY
 # kicad-addons repository submission. install_size is the staged file total
 # BEFORE metadata.json is written, matching build-pcm.ps1.
 install_size="$(python3 -c 'import os,sys; print(sum(os.path.getsize(os.path.join(d,f)) for d,_,fs in os.walk(sys.argv[1]) for f in fs))' "$staging")"
-python3 - "$repo_root/packaging/metadata.json" "$staging/metadata.json" "$version" "$install_size" "$platform" <<'PY'
+python3 - "$repo_root/packaging/metadata.json" "$staging/metadata.json" "$version" "$install_size" "$platform" "$status" <<'PY'
 import json, sys
-src, dst, version, install_size, platform = sys.argv[1:6]
+src, dst, version, install_size, platform, status = sys.argv[1:7]
 m = json.load(open(src))
 # The repo metadata.json may carry one stamped entry per released platform
 # package; the metadata INSIDE a zip must describe only the package being
@@ -141,6 +144,7 @@ m = json.load(open(src))
 v = m["versions"][0]
 m["versions"] = [v]
 v["version"] = version
+v["status"] = status
 v["install_size"] = int(install_size)
 # This package carries one platform's native binary — say so, or PCM offers a
 # macOS build to a Windows user and vice versa.

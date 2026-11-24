@@ -134,13 +134,32 @@ impl InstallSource {
     }
 }
 
-fn classify_installation(executable_path: &Path) -> InstallSource {
-    let manifest_path = executable_path
-        .parent()
-        .and_then(Path::parent)
-        .map(|plugin_dir| plugin_dir.join("plugin.json"));
+/// The plugin directory a PCM-installed executable may live under:
+/// `<plugin_dir>/bin/kidig-mcp` (single-platform package) or
+/// `<plugin_dir>/bin/<platform>/kidig-mcp` (all-platform package).
+fn pcm_plugin_dir_candidates(executable_path: &Path) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    let Some(exe_dir) = executable_path.parent() else {
+        return dirs;
+    };
+    if let Some(plugin_dir) = exe_dir.parent() {
+        dirs.push(plugin_dir.to_path_buf());
+        if plugin_dir.file_name().is_some_and(|name| name == "bin") {
+            if let Some(outer) = plugin_dir.parent() {
+                dirs.push(outer.to_path_buf());
+            }
+        }
+    }
+    dirs
+}
 
-    if let Some(path) = manifest_path.filter(|path| is_kidig_mcp_pcm_manifest(path)) {
+fn classify_installation(executable_path: &Path) -> InstallSource {
+    let manifest_path = pcm_plugin_dir_candidates(executable_path)
+        .into_iter()
+        .map(|plugin_dir| plugin_dir.join("plugin.json"))
+        .find(|path| is_kidig_mcp_pcm_manifest(path));
+
+    if let Some(path) = manifest_path {
         return InstallSource {
             name: "kicad_pcm",
             evidence:
@@ -436,6 +455,39 @@ mod tests {
         let source = classify_installation(&executable);
         assert_eq!(source.name, "kicad_pcm");
         assert_eq!(source.manifest_path, Some(plugin_dir.join("plugin.json")));
+    }
+
+    #[test]
+    fn all_platform_package_layout_is_classified_as_pcm() {
+        let temp = tempfile::tempdir().unwrap();
+        let plugin_dir = temp.path().join("plugins");
+        let bin_dir = plugin_dir.join("bin").join("linux");
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        let executable = bin_dir.join("kidig-mcp");
+        std::fs::write(&executable, b"").unwrap();
+        std::fs::write(
+            plugin_dir.join("plugin.json"),
+            r#"{"identifier":"com.github.the78mole.kidig-mcp","runtime":{"type":"exec"}}"#,
+        )
+        .unwrap();
+
+        let source = classify_installation(&executable);
+        assert_eq!(source.name, "kicad_pcm");
+        assert_eq!(source.manifest_path, Some(plugin_dir.join("plugin.json")));
+    }
+
+    #[test]
+    fn plugin_dir_candidates_only_climb_out_of_a_bin_dir() {
+        let exe = Path::new("/x/plugins/bin/macos/kidig-mcp");
+        assert_eq!(
+            pcm_plugin_dir_candidates(exe),
+            vec![PathBuf::from("/x/plugins/bin"), PathBuf::from("/x/plugins")]
+        );
+        let exe = Path::new("/x/plugins/bin/kidig-mcp");
+        assert_eq!(
+            pcm_plugin_dir_candidates(exe),
+            vec![PathBuf::from("/x/plugins")]
+        );
     }
 
     #[test]

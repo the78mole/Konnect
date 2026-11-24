@@ -29,8 +29,13 @@ fn release_publication_requires_real_kicad_acceptance() {
     );
     assert_eq!(
         release["jobs"]["release"]["needs"],
-        serde_json::json!(["real-kicad-acceptance", "build", "pcm-package"]),
-        "the release publication job must require real-KiCad acceptance and both artifact jobs"
+        serde_json::json!([
+            "real-kicad-acceptance",
+            "build",
+            "pcm-package",
+            "pcm-universal"
+        ]),
+        "the release publication job must require real-KiCad acceptance and all artifact jobs"
     );
 }
 
