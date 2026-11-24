@@ -53,7 +53,9 @@ fn release_workflow_has_a_non_publishing_pre_tag_entry_point() {
         "a manual release smoke run must never publish a GitHub release"
     );
     assert!(
-        release["on"]["workflow_dispatch"]["inputs"].get("tag").is_none(),
+        release["on"]["workflow_dispatch"]["inputs"]
+            .get("tag")
+            .is_none(),
         "the dry run must not offer the `tag` input that makes the release job publish"
     );
 }
@@ -105,7 +107,10 @@ fn release_binaries_carry_the_tag_version() {
                     .is_some_and(|run| run.contains("cargo build"))
             })
             .unwrap_or_else(|| panic!("{job} must build"));
-        assert!(stamp < first_build, "{job} must stamp the version before building");
+        assert!(
+            stamp < first_build,
+            "{job} must stamp the version before building"
+        );
     }
 }
 
