@@ -179,8 +179,10 @@ KopperDigger/
     │                                 # PCM assembly + schema validation. Weekly cron,
     │                                 # manual dispatch, reusable release gate, and an
     │                                 # opt-in label-triggered PR run.
-    └── release.yml                   # Real-KiCad gate, build (4 targets), PCM package
-                                      # (3 platforms, macOS universal via lipo), release
+    ├── release.yml                   # Real-KiCad gate, build (4 targets), PCM package
+    │                                 # (3 platforms, macOS universal via lipo), release
+    └── version.yml                   # semantic-version on every push to main; tags and
+                                      # releases only for feat/fix commits
 ```
 
 ## KiCAD 10 Integration
