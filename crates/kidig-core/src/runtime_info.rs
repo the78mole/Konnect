@@ -35,9 +35,28 @@ pub(crate) async fn collect(
         .map(|ordering| ordering == Ordering::Greater);
 
     let kicad_cli_path = crate::kicad_install::find_cli(&config.kicad_cli);
-    let kicad_probe = match kicad_cli_path.as_deref() {
-        Some(path) => probe_command_version(path, VersionCommand::KiCad).await,
-        None => VersionProbe::not_found(),
+    // Only a bare configured name may fall back to Flatpak, as in cli.rs.
+    let kicad_flatpak = match kicad_cli_path {
+        None if std::path::Path::new(config.kicad_cli.trim())
+            .components()
+            .count()
+            == 1 =>
+        {
+            crate::kicad_install::find_flatpak_cli()
+        }
+        _ => None,
+    };
+    let kicad_probe = match (kicad_cli_path.as_deref(), kicad_flatpak.as_ref()) {
+        (Some(path), _) => probe_command_version(path, VersionCommand::KiCad).await,
+        (None, Some(flatpak)) => {
+            probe_command_version_with(
+                &flatpak.flatpak,
+                &flatpak.prefix_args(),
+                VersionCommand::KiCad,
+            )
+            .await
+        }
+        (None, None) => VersionProbe::not_found(),
     };
 
     let ipc_endpoint = if config.ipc_address.trim().is_empty() {
@@ -70,7 +89,15 @@ pub(crate) async fn collect(
             },
         },
         "kicad": {
-            "cli_path": kicad_cli_path.as_deref().map(display_path),
+            "cli_path": kicad_cli_path
+                .as_deref()
+                .map(display_path)
+                .or_else(|| kicad_flatpak.as_ref().map(|flatpak| flatpak.display())),
+            "cli_source": match (&kicad_cli_path, &kicad_flatpak) {
+                (Some(_), _) => Some("native"),
+                (None, Some(_)) => Some("flatpak"),
+                (None, None) => None,
+            },
             "probe_status": kicad_probe.status,
             "version": kicad_probe.version,
         },
@@ -218,8 +245,21 @@ impl VersionProbe {
 }
 
 async fn probe_command_version(path: &Path, command_kind: VersionCommand) -> VersionProbe {
+    probe_command_version_with(path, &[], command_kind).await
+}
+
+/// [`probe_command_version`] for a program that needs leading arguments, such
+/// as `flatpak run … org.kicad.KiCad` in front of kicad-cli's own.
+async fn probe_command_version_with(
+    path: &Path,
+    prefix_args: &[std::ffi::OsString],
+    command_kind: VersionCommand,
+) -> VersionProbe {
     let mut command = Command::new(path);
-    command.arg("--version").kill_on_drop(true);
+    command
+        .args(prefix_args)
+        .arg("--version")
+        .kill_on_drop(true);
     let output = match tokio::time::timeout(COMMAND_TIMEOUT, command.output()).await {
         Ok(Ok(output)) => output,
         Ok(Err(_)) => {

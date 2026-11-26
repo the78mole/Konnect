@@ -325,6 +325,11 @@ fn run_install_at(client: InstallClient, paths: &InstallPaths, verbose: bool) ->
     if verbose {
         if let Some(kicad_path) = detect_kicad() {
             println!("\n  [+] Found KiCAD at: {}", kicad_path.display());
+        } else if let Some(flatpak) = kidig_core::kicad_install::find_flatpak_cli() {
+            println!(
+                "\n  [+] Found Flatpak KiCAD, kicad-cli runs via: {}",
+                flatpak.display()
+            );
         } else {
             println!("\n  [-] KiCAD not found in standard locations");
             println!("      Set kicad_cli path in your config file manually");
@@ -475,6 +480,8 @@ fn print_status_at(client: InstallClient, paths: &InstallPaths) -> Result<()> {
     println!("\nKiCAD:");
     if let Some(path) = detect_kicad() {
         println!("  [+] Found: {}", path.display());
+    } else if let Some(flatpak) = kidig_core::kicad_install::find_flatpak_cli() {
+        println!("  [+] Found Flatpak KiCAD: {}", flatpak.display());
     } else {
         println!("  [-] Not found in standard locations");
     }

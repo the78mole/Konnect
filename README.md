@@ -437,6 +437,18 @@ explicitly in the plugin settings dialog, in a `settings.json` beside the binary
 or in a `kidig-mcp.toml` in the working directory. (A file under any other name
 works only when passed with `--config`.)
 
+**KiCad from Flathub (Linux)** — the Flatpak keeps its IPC socket under
+`~/.var/app/org.kicad.KiCad/cache/tmp/kicad/api.sock` and ships no `kicad-cli`
+on the host. KopperDigger detects both: the socket is a discovery candidate, and
+`kicad-cli` runs as `flatpak run --command=kicad-cli org.kicad.KiCad` (with the
+temp directory shared into the sandbox). Projects must lie somewhere the
+Flatpak can see, which by default is your home directory and `/media`.
+
+**Plugin server exits right after Start Server** — the dialog now shows the
+server's last output. The usual cause with transport `http`/`both` is a busy
+port: pick another **HTTP Address** (default `127.0.0.1:3000`) and point your
+MCP client at `http://<address>/mcp`.
+
 ## Support
 
 - Issues & feature requests: [GitHub Issues](https://github.com/the78mole/KopperDigger/issues)
