@@ -8,9 +8,37 @@ same release artifacts.
 | Self-hosted repository (GitHub Pages) | `https://the78mole.github.io/KopperDigger/repository.json` | `pages.yml`, automatically after every tagged release |
 | Official KiCad repository (listed by default) | none | merge request to [kicad/addons/metadata](https://gitlab.com/kicad/addons/metadata), reviewed by the KiCad team |
 
+## Versions and tags
+
+Versions come from the commit messages ([Conventional Commits](https://www.conventionalcommits.org/)).
+On every push to `main`, `version.yml` runs
+[paulhatch/semantic-version](https://github.com/PaulHatch/semantic-version)
+over the commits since the last stable tag `vX.Y.Z`:
+
+| Commit | Next version |
+|---|---|
+| `fix: ...`, `fix(pcm): ...` | patch, 0.14.0 → 0.14.1 |
+| `feat: ...` | minor, 0.14.0 → 0.15.0 |
+| `feat!: ...`, or `BREAKING CHANGE:` in the body | major, 0.14.0 → 1.0.0 |
+| `docs:`, `ci:`, `chore:`, `refactor:`, `test:`, ... | no release |
+
+Only when a `feat` or `fix` (or breaking) commit came since the last stable
+tag does the workflow tag the commit, run `release.yml` for that tag and then
+republish the PCM repository (`pages.yml`). With squash merges the PR title
+becomes the commit message, so PR titles need the same format. Renovate's
+`chore(deps): ...` updates never release on their own.
+
+`Cargo.toml` is not bumped by a commit: the release jobs stamp the tag's
+version into the manifests before building (`packaging/set-version.py`).
+
+By hand: *Actions → Version → Run workflow* with a version releases exactly
+that version (`0.14.0`, `0.15.0-rc.1`). Automatic releases need a first stable
+tag to count from; pre-release tags (`-rc.1`) are not counted. Pushing a tag
+`v*` yourself still works as before.
+
 ## What a release produces
 
-Pushing a tag `vX.Y.Z` (or `vX.Y.Z-rc1` for a pre-release) runs `release.yml`:
+A release tag `vX.Y.Z` (or `vX.Y.Z-rc.1` for a pre-release) runs `release.yml`:
 
 1. `pcm-package` builds one PCM zip per platform
    (`kidig-mcp-pcm-vX.Y.Z-{windows,macos,linux}.zip`) for *Install from File*.
@@ -26,8 +54,9 @@ Pushing a tag `vX.Y.Z` (or `vX.Y.Z-rc1` for a pre-release) runs `release.yml`:
    `v0.14.0-rc.1` is packaged as `0.14.0` with status `testing`; the stable
    `v0.14.0` replaces it in the self-hosted repository, and pre-releases are
    never submitted to KiCad's.
-4. `pages.yml` (started by the finished Release via `workflow_run`, so it runs
-   on `main` and needs no tag rule on the `github-pages` environment) collects the `.pcm-version.json` of every release, runs
+4. `pages.yml` (called by the Version workflow, or started by a Release for a
+   hand-pushed tag via `workflow_run`; either way it runs on `main` and needs
+   no tag rule on the `github-pages` environment) collects the `.pcm-version.json` of every release, runs
    `packaging/build-pcm-repo.py` and deploys `repository.json`,
    `packages.json`, `resources.zip` and `index.html` to GitHub Pages. The same
    site contains `kicad-addons/com.github.the78mole.kidig-mcp/metadata.json`

@@ -1,0 +1,95 @@
+name: Version
+
+# Versions KopperDigger from its commit messages (Conventional Commits):
+#   feat: ...                         minor  0.14.0 -> 0.15.0
+#   fix: ...                          patch  0.14.0 -> 0.14.1
+#   feat!: ... / BREAKING CHANGE:     major  0.14.0 -> 1.0.0
+#   docs:, ci:, chore:, refactor:, ...  no release
+# On every push to main paulhatch/semantic-version computes the next version
+# from the commits since the last stable tag (vX.Y.Z). Only when one of those
+# commits is a feat or fix (or breaking) does this workflow tag the commit and
+# run the release, then republish the PCM repository. With squash merges the
+# PR title is the commit message, so PR titles should follow the same format.
+#
+# By hand (Actions > Version > Run workflow) it releases exactly the version
+# given, e.g. the first stable 0.14.0 that later versions count from, or a
+# pre-release such as 0.15.0-rc.1.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release exactly this version (0.15.0 or 0.15.0-rc.1) instead of the computed one
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  version:
+    name: Compute version and tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    # One tag decision at a time; a later push sees the tag of an earlier one.
+    concurrency:
+      group: version-tag
+      cancel-in-progress: false
+    outputs:
+      tag: ${{ steps.decide.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - id: semver
+        if: github.event_name == 'push'
+        uses: paulhatch/semantic-version@5ae1354e589c5a67345fb2c6e65b025ff676d7c7 # v6.0.7
+        with:
+          tag_prefix: v
+          major_pattern: "/!:|BREAKING CHANGE:/"
+          minor_pattern: "/feat(\\(.+\\))?:/"
+          version_format: "${major}.${minor}.${patch}"
+          # Squash merges list the branch's commits in the body.
+          search_commit_body: true
+
+      - id: decide
+        name: Decide whether to release
+        env:
+          MANUAL: ${{ inputs.version }}
+          COMPUTED: ${{ steps.semver.outputs.version }}
+          IS_TAGGED: ${{ steps.semver.outputs.is_tagged }}
+        run: packaging/decide-release.sh
+
+      - name: Create tag
+        if: steps.decide.outputs.tag != ''
+        env:
+          TAG: ${{ steps.decide.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" "$GITHUB_SHA" -m "KopperDigger ${TAG#v}"
+          git push origin "refs/tags/$TAG"
+          echo "Tagged $GITHUB_SHA as $TAG" >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Release
+    needs: version
+    if: needs.version.outputs.tag != ''
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.version.outputs.tag }}
+
+  pages:
+    name: PCM repository
+    needs: release
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml

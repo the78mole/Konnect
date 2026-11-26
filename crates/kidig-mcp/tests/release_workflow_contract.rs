@@ -49,9 +49,69 @@ fn release_workflow_has_a_non_publishing_pre_tag_entry_point() {
     );
     assert_eq!(
         release["jobs"]["release"]["if"],
-        "github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')",
+        "startsWith(inputs.tag, 'v') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))",
         "a manual release smoke run must never publish a GitHub release"
     );
+    assert!(
+        release["on"]["workflow_dispatch"]["inputs"]
+            .get("tag")
+            .is_none(),
+        "the dry run must not offer the `tag` input that makes the release job publish"
+    );
+}
+
+#[test]
+fn automatic_releases_go_through_the_gated_release_workflow() {
+    let version = workflow("version.yml");
+    let release = workflow("release.yml");
+
+    assert_eq!(
+        version["on"]["push"]["branches"],
+        serde_json::json!(["main"]),
+        "versions are computed for pushes to main"
+    );
+    assert!(
+        release["on"]["workflow_call"]["inputs"]["tag"]["required"] == true,
+        "release.yml must be callable with the tag the Version workflow created"
+    );
+    assert_eq!(
+        version["jobs"]["release"]["uses"], "./.github/workflows/release.yml",
+        "automatic releases must run the full release graph, real-KiCad acceptance included"
+    );
+    assert_eq!(
+        version["jobs"]["release"]["if"], "needs.version.outputs.tag != ''",
+        "the release must only run when a tag was created"
+    );
+    assert_eq!(
+        version["jobs"]["pages"]["needs"], "release",
+        "the PCM repository is republished only after the release succeeded"
+    );
+}
+
+#[test]
+fn release_binaries_carry_the_tag_version() {
+    let release = workflow("release.yml");
+    for job in ["build", "pcm-package"] {
+        let steps = release["jobs"][job]["steps"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{job} steps must be an array"));
+        let stamp = steps
+            .iter()
+            .position(|step| step["name"] == "Stamp release version into the manifests")
+            .unwrap_or_else(|| panic!("{job} must stamp the release version"));
+        let first_build = steps
+            .iter()
+            .position(|step| {
+                step["run"]
+                    .as_str()
+                    .is_some_and(|run| run.contains("cargo build"))
+            })
+            .unwrap_or_else(|| panic!("{job} must build"));
+        assert!(
+            stamp < first_build,
+            "{job} must stamp the version before building"
+        );
+    }
 }
 
 #[test]
