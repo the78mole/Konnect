@@ -36,6 +36,10 @@ env:
   # Embedded into get_installation_info so release artifacts identify the
   # exact source commit even when built outside a Git working tree.
   KIDIG_MCP_BUILD_COMMIT: ${{ github.sha }}
+  # Smaller shipped binaries (about 30 % with the strip from Cargo.toml):
+  # whole-program optimization, only here because it triples the build time.
+  CARGO_PROFILE_RELEASE_LTO: fat
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
 
 jobs:
   real-kicad-acceptance:

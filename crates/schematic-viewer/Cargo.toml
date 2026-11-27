@@ -29,3 +29,9 @@ icon = ["icons/icon.png"]
 
 [build-dependencies]
 tauri-build = "2"
+
+# Shipped inside the PCM package next to kidig-mcp; see the workspace
+# Cargo.toml for why release builds are stripped. The Release workflow adds
+# link-time optimization through CARGO_PROFILE_RELEASE_* variables.
+[profile.release]
+strip = "symbols"

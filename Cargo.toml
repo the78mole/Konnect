@@ -113,3 +113,12 @@ opt-level = 3
 
 [profile.dev.package.nom]
 opt-level = 3
+
+# Release binaries ship three times in the all-platform PCM zip (Windows,
+# Linux, universal macOS), so their size is what users download. Stripping
+# the symbols cuts about a fifth. Panics still report message and location.
+# The Release workflow additionally sets fat LTO and one codegen unit
+# (CARGO_PROFILE_RELEASE_*), which is slow, so local and e2e release builds
+# skip it. panic stays "unwind": kidig-ipc catches panics around IPC calls.
+[profile.release]
+strip = "symbols"
