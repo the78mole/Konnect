@@ -51,7 +51,8 @@ jobs:
   build:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    # Fat LTO (see env) roughly triples the build time.
+    timeout-minutes: 90
     permissions:
       contents: read
     strategy:
@@ -124,7 +125,9 @@ jobs:
   pcm-package:
     name: KiCAD PCM plugin package (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    # macOS builds server and viewer for two architectures one after the
+    # other; without LTO a cold run took 20 minutes, with fat LTO about 60.
+    timeout-minutes: 120
     permissions:
       contents: read
     strategy:
