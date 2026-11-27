@@ -23,6 +23,10 @@ DEFAULT_SETTINGS = {
     "jlcpcb_db_path": "",
     "log_level": "info",
     "transport": "stdio",
+    # Where the server listens for `http`/`both`. Mirrors the server's own
+    # default; editable because 3000 is a popular dev-server port and a bind
+    # failure there used to make the server exit without a word.
+    "http_address": "127.0.0.1:3000",
     "native_specctra_bridge": False,
 }
 
@@ -50,6 +54,18 @@ def save_settings(settings_path, settings):
     """Write settings to JSON."""
     with open(settings_path, "w") as f:
         json.dump(settings, f, indent=2)
+
+
+def merge_settings(previous, fields):
+    """The settings to save: what was loaded, overlaid with the dialog fields.
+
+    Saving only the fields the dialog shows silently dropped every other key,
+    so a value set by hand in settings.json (or written by a newer plugin
+    version) vanished on the next Save or Start Server.
+    """
+    merged = dict(previous)
+    merged.update(fields)
+    return merged
 
 
 # ─── KiCAD CLI auto-detection ────────────────────────────────────────────────
@@ -236,6 +252,13 @@ class KopperDiggerSettingsDialog(wx.Dialog):
         self.transport_ctrl = wx.Choice(panel, choices=TRANSPORTS)
         agrid.Add(self.transport_ctrl, 1, wx.EXPAND)
 
+        agrid.Add(wx.StaticText(panel, label="HTTP Address:"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.http_address_ctrl = wx.TextCtrl(panel)
+        self.http_address_ctrl.SetToolTip(
+            "host:port the server listens on when Transport is http or both"
+        )
+        agrid.Add(self.http_address_ctrl, 1, wx.EXPAND)
+
         adv_box.Add(agrid, 0, wx.EXPAND | wx.ALL, 5)
 
         self.native_bridge_ctrl = wx.CheckBox(
@@ -310,6 +333,10 @@ class KopperDiggerSettingsDialog(wx.Dialog):
         else:
             self.transport_ctrl.SetSelection(0)  # "stdio"
 
+        self.http_address_ctrl.SetValue(
+            self.settings.get("http_address") or DEFAULT_SETTINGS["http_address"]
+        )
+
         self.native_bridge_ctrl.SetValue(
             self._native_bridge_available
             and bool(self.settings.get("native_specctra_bridge", False))
@@ -317,14 +344,18 @@ class KopperDiggerSettingsDialog(wx.Dialog):
 
     def _collect_settings(self):
         """Read current field values into a settings dict."""
-        return {
+        return merge_settings(self.settings, {
             "kicad_cli": self.kicad_cli_ctrl.GetValue().strip(),
             "ipc_socket_path": self.ipc_ctrl.GetValue().strip(),
             "jlcpcb_db_path": self.jlcpcb_ctrl.GetValue().strip(),
             "log_level": LOG_LEVELS[self.log_level_ctrl.GetSelection()],
             "transport": TRANSPORTS[self.transport_ctrl.GetSelection()],
+            "http_address": (
+                self.http_address_ctrl.GetValue().strip()
+                or DEFAULT_SETTINGS["http_address"]
+            ),
             "native_specctra_bridge": self.native_bridge_ctrl.GetValue(),
-        }
+        })
 
     def _update_server_status(self):
         """Update the server status display."""

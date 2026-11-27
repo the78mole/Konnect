@@ -59,6 +59,9 @@ fn cli_candidates() -> Vec<PathBuf> {
         vec![
             PathBuf::from("/usr/bin/kicad-cli"),
             PathBuf::from("/usr/local/bin/kicad-cli"),
+            // Inside KiCad's Flatpak sandbox, which is where the PCM plugin
+            // starts KopperDigger: the app's own prefix is /app.
+            PathBuf::from("/app/bin/kicad-cli"),
         ]
     }
 }
@@ -193,6 +196,102 @@ fn find_on_path(filename: &Path) -> Option<PathBuf> {
     std::env::split_paths(&paths)
         .map(|dir| dir.join(filename))
         .find(|path| path.is_file())
+}
+
+/// KiCad's application id on Flathub.
+pub const FLATPAK_APP_ID: &str = "org.kicad.KiCad";
+
+/// A `kicad-cli` that exists only inside KiCad's Flatpak and is started from
+/// the host through `flatpak run`.
+///
+/// Flatpak exports the GUI launcher but never `kicad-cli`, so on a Flatpak-only
+/// machine PATH and the usual install locations have nothing to offer and every
+/// kicad-cli-backed tool failed with "spawn failed". The sandbox already sees
+/// the user's home (KiCad's manifest grants `home`), but its `/tmp` is private,
+/// so the temp directory KopperDigger writes reports into is shared explicitly.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FlatpakCli {
+    /// The host's `flatpak` executable.
+    pub flatpak: PathBuf,
+    /// Directory shared into the sandbox so kicad-cli can write where
+    /// KopperDigger reads its output.
+    pub shared_temp_dir: PathBuf,
+}
+
+impl FlatpakCli {
+    /// Arguments that precede kicad-cli's own.
+    pub fn prefix_args(&self) -> Vec<std::ffi::OsString> {
+        let mut filesystem = std::ffi::OsString::from("--filesystem=");
+        filesystem.push(self.shared_temp_dir.as_os_str());
+        vec![
+            "run".into(),
+            "--command=kicad-cli".into(),
+            filesystem,
+            FLATPAK_APP_ID.into(),
+        ]
+    }
+
+    /// The full launcher as a human-readable command line.
+    pub fn display(&self) -> String {
+        let mut parts = vec![self.flatpak.display().to_string()];
+        parts.extend(
+            self.prefix_args()
+                .iter()
+                .map(|arg| arg.to_string_lossy().into_owned()),
+        );
+        parts.join(" ")
+    }
+}
+
+/// Find a Flatpak-installed KiCad that can run `kicad-cli` for this host.
+///
+/// `None` inside a Flatpak sandbox (there `/app/bin/kicad-cli` is a plain
+/// candidate of [`find_cli`]) and on every platform but Linux.
+pub fn find_flatpak_cli() -> Option<FlatpakCli> {
+    #[cfg(target_os = "linux")]
+    {
+        let mut roots = Vec::new();
+        if let Some(home) = std::env::var_os("HOME") {
+            roots.push(PathBuf::from(home).join(".local/share/flatpak"));
+        }
+        roots.push(PathBuf::from("/var/lib/flatpak"));
+        flatpak_cli_from(
+            find_on_path(Path::new("flatpak")),
+            &roots,
+            Path::new("/.flatpak-info").exists(),
+            std::env::temp_dir(),
+        )
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
+}
+
+#[cfg_attr(not(any(target_os = "linux", test)), allow(dead_code))]
+fn flatpak_cli_from(
+    flatpak: Option<PathBuf>,
+    installation_roots: &[PathBuf],
+    sandboxed: bool,
+    temp_dir: PathBuf,
+) -> Option<FlatpakCli> {
+    if sandboxed {
+        return None;
+    }
+    let flatpak = flatpak?;
+    installation_roots
+        .iter()
+        .any(|root| {
+            root.join("app")
+                .join(FLATPAK_APP_ID)
+                .join("current")
+                .join("active")
+                .is_dir()
+        })
+        .then_some(FlatpakCli {
+            flatpak,
+            shared_temp_dir: temp_dir,
+        })
 }
 
 fn installation_root_from_binary(binary: &Path) -> Option<PathBuf> {
@@ -401,5 +500,57 @@ mod tests {
 
         assert_eq!(find_cli(cli.to_str().unwrap()), Some(cli.clone()));
         assert_eq!(find_gui(gui_filename(), cli.to_str().unwrap()), Some(gui));
+    }
+
+    #[test]
+    fn flatpak_cli_needs_flatpak_and_an_installed_app() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("flatpak");
+        let flatpak = Some(PathBuf::from("/usr/bin/flatpak"));
+        let tmp = PathBuf::from("/tmp");
+
+        assert_eq!(
+            flatpak_cli_from(
+                flatpak.clone(),
+                std::slice::from_ref(&root),
+                false,
+                tmp.clone()
+            ),
+            None,
+            "no KiCad app installed under the root"
+        );
+
+        std::fs::create_dir_all(root.join("app/org.kicad.KiCad/current/active")).unwrap();
+        let found = flatpak_cli_from(
+            flatpak.clone(),
+            std::slice::from_ref(&root),
+            false,
+            tmp.clone(),
+        )
+        .expect("installed Flatpak KiCad is found");
+        assert_eq!(
+            found.prefix_args(),
+            vec![
+                std::ffi::OsString::from("run"),
+                "--command=kicad-cli".into(),
+                "--filesystem=/tmp".into(),
+                "org.kicad.KiCad".into(),
+            ]
+        );
+        assert_eq!(
+            found.display(),
+            "/usr/bin/flatpak run --command=kicad-cli --filesystem=/tmp org.kicad.KiCad"
+        );
+
+        assert_eq!(
+            flatpak_cli_from(None, std::slice::from_ref(&root), false, tmp.clone()),
+            None,
+            "no flatpak executable on PATH"
+        );
+        assert_eq!(
+            flatpak_cli_from(flatpak, &[root], true, tmp),
+            None,
+            "inside a sandbox the plain /app/bin candidate applies instead"
+        );
     }
 }

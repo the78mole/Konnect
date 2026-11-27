@@ -377,6 +377,25 @@ pub(crate) fn resolve_cli_executable(configured: &str) -> std::path::PathBuf {
     }
 }
 
+/// The command that runs the configured kicad-cli, ready for its arguments.
+///
+/// [`resolve_cli_executable`] decides, except in one case: a bare name that
+/// found no native kicad-cli anywhere falls back to a Flatpak KiCad, which has
+/// no kicad-cli on the host and is reached through `flatpak run` instead.
+fn cli_command(configured: &str) -> Command {
+    let exe = resolve_cli_executable(configured);
+    let unresolved_bare_name = !configured.trim().is_empty() && exe.components().count() == 1;
+    if unresolved_bare_name {
+        if let Some(flatpak) = crate::kicad_install::find_flatpak_cli() {
+            info!("kicad-cli resolved to {}", flatpak.display());
+            let mut cmd = Command::new(&flatpak.flatpak);
+            cmd.args(flatpak.prefix_args());
+            return cmd;
+        }
+    }
+    Command::new(&exe)
+}
+
 /// What a kicad-cli run wrote. `stderr` is where KiCad states what it could
 /// not do while still exiting 0 — the parity test's "Failed to fetch schematic
 /// netlist" is one such statement — so a caller that must not mistake a silent
@@ -395,8 +414,7 @@ async fn run_cli(cli: &str, args: &[&str], timeout_dur: Duration) -> Result<Stri
 async fn run_cli_captured(cli: &str, args: &[&str], timeout_dur: Duration) -> Result<CliOutput> {
     info!("[BETA] kicad-cli {} {}", cli, args.join(" "));
 
-    let exe = resolve_cli_executable(cli);
-    let mut cmd = Command::new(&exe);
+    let mut cmd = cli_command(cli);
     cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
 
     #[cfg(test)]

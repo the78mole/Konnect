@@ -19,7 +19,27 @@ use std::path::{Path, PathBuf};
 
 /// Socket paths KiCad may have created on this platform, most likely first.
 pub fn candidate_socket_paths() -> Vec<PathBuf> {
-    candidates_in(&std::env::temp_dir())
+    let mut candidates = candidates_in(&std::env::temp_dir());
+    if cfg!(target_os = "linux") {
+        if let Some(home) = std::env::var_os("HOME") {
+            let flatpak = flatpak_candidate_in(Path::new(&home));
+            if !candidates.contains(&flatpak) {
+                candidates.push(flatpak);
+            }
+        }
+    }
+    candidates
+}
+
+/// Where a Flatpak KiCad's socket appears on the host.
+///
+/// Inside the sandbox KiCad's temp dir is `/var/tmp`, which Flatpak backs with
+/// the app's cache directory, so a KiCad installed from Flathub listens at
+/// `~/.var/app/org.kicad.KiCad/cache/tmp/kicad/api.sock` and the plain
+/// temp-dir candidate never matches. The path is inside the user's home, and
+/// the ownership check in [`is_adoptable`] applies to it like to any other.
+fn flatpak_candidate_in(home: &Path) -> PathBuf {
+    home.join(".var/app/org.kicad.KiCad/cache/tmp/kicad/api.sock")
 }
 
 fn candidates_in(temp_dir: &Path) -> Vec<PathBuf> {
@@ -191,6 +211,30 @@ fn format_address(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn flatpak_candidate_is_under_the_app_cache() {
+        assert_eq!(
+            flatpak_candidate_in(Path::new("/home/someone")),
+            PathBuf::from("/home/someone/.var/app/org.kicad.KiCad/cache/tmp/kicad/api.sock")
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_candidates_try_the_temp_dir_before_flatpak() {
+        let candidates = candidate_socket_paths();
+        assert_eq!(
+            candidates[0],
+            std::env::temp_dir().join("kicad").join("api.sock")
+        );
+        if std::env::var_os("HOME").is_some() {
+            assert!(candidates
+                .last()
+                .unwrap()
+                .ends_with(".var/app/org.kicad.KiCad/cache/tmp/kicad/api.sock"));
+        }
+    }
 
     #[test]
     fn candidates_start_with_the_temp_dir_socket() {

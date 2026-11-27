@@ -138,6 +138,12 @@ _CACHE_DIR = os.path.join(
     "kidig-mcp", "cache",
 )
 _PID_FILE = os.path.join(_CACHE_DIR, "server.pid")
+# kidig-mcp's stderr. It used to go to DEVNULL, so a server that died at
+# startup (a busy HTTP port, a bad config) left the user with a "started"
+# server that was not there and nothing to say why.
+_LOG_FILE = os.path.join(_CACHE_DIR, "server.log")
+# How long Start Server watches for a crash before trusting the start.
+_STARTUP_GRACE_SECONDS = 1.5
 _native_bridge = NativeSpecctraBridge(pcbnew, wx)
 
 
@@ -274,15 +280,17 @@ def _run_server():
         if os.path.exists(SETTINGS_PATH):
             args += ["--config", _stage(SETTINGS_PATH)]
         # pcbnew has no valid stderr; inheriting gives kidig-mcp a broken
-        # handle and tracing_subscriber errors on init. DEVNULL is a
-        # valid sink.
-        _server_process = subprocess.Popen(
-            args,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            creationflags=_POPEN_FLAGS,
-        )
+        # handle and tracing_subscriber errors on init. A log file is a
+        # valid sink that also keeps the reason for a startup failure.
+        os.makedirs(_CACHE_DIR, exist_ok=True)
+        with open(_LOG_FILE, "wb") as log:
+            _server_process = subprocess.Popen(
+                args,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=log,
+                creationflags=_POPEN_FLAGS,
+            )
         pid = _server_process.pid
         _write_pid_file(pid)
         _server_process.wait()
@@ -320,7 +328,36 @@ def start_server():
 
     _server_thread = threading.Thread(target=_run_server, daemon=True)
     _server_thread.start()
+
+    _server_thread.join(_STARTUP_GRACE_SECONDS)
+    if not _server_thread.is_alive():
+        wx.MessageBox(
+            "The KopperDigger server exited right after starting.\n\n"
+            + _startup_failure_detail(),
+            "KopperDigger",
+            wx.OK | wx.ICON_ERROR,
+        )
+        return False
     return True
+
+
+def _startup_failure_detail(max_lines=8):
+    """The last lines kidig-mcp wrote, for a server that died at startup."""
+    try:
+        with open(_LOG_FILE, "r", errors="replace") as f:
+            lines = [line.rstrip() for line in f if line.strip()]
+    except OSError:
+        lines = []
+    if not lines:
+        return f"No output was captured (log: {_LOG_FILE})."
+    tail = "\n".join(lines[-max_lines:])
+    hint = ""
+    if "Address already in use" in tail or "os error 98" in tail or "10048" in tail:
+        hint = (
+            "\n\nThe HTTP address is taken by another program. Choose a "
+            "different HTTP Address in the KopperDigger settings."
+        )
+    return f"{tail}{hint}\n\nFull log: {_LOG_FILE}"
 
 
 def stop_server():
